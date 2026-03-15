@@ -1,32 +1,3 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-*.egg-info/
-dist/
-build/
-.eggs/
-*.egg
-
-# Virtual environments
-.venv/
-venv/
-ENV/
-
-# Poetry
-poetry.lock
-
-# Node
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# Vite / Build
-frontend/dist/
-*.local
-
 # IDE
 .idea/
 .vscode/
@@ -40,32 +11,17 @@ Thumbs.db
 
 # Environment / Secrets
 .env
-frontend/.env
 !.env.example
-!frontend/.env.example
 
-# Coverage
-htmlcov/
-.coverage
-.coverage.*
-coverage.xml
-*.cover
-
-# pytest
-.pytest_cache/
-
-# mypy
-.mypy_cache/
-
-# Alembic
-backend/alembic/versions/*.py
-!backend/alembic/versions/.gitkeep
+# Docker
+docker-compose.override.yml
 
 # Redis
 dump.rdb
 
-# Docker
-docker-compose.override.yml
+# Node (root semantic-release only)
+node_modules/
+package-lock.json
 
 # Data (keep structure, ignore content)
 data/demo/documents/*

@@ -1,12 +1,21 @@
-.PHONY: help setup dev backend frontend docker-up docker-build docker-down test test-unit test-integration test-coverage lint format
+.PHONY: help setup setup-backend setup-frontend dev backend frontend docker-up docker-build docker-down test test-unit test-integration test-coverage lint format
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
-setup: ## First-time setup: create .env + install deps
-	@test -f .env || cp .env.example .env
+# ── Setup ──────────────────────────────────────────────
+
+setup: setup-backend setup-frontend ## First-time setup: env files + all deps
+
+setup-backend: ## Setup backend: .env + poetry install
+	@test -f backend/.env || cp backend/.env.example backend/.env
 	cd backend && poetry install
+
+setup-frontend: ## Setup frontend: .env + npm install
+	@test -f frontend/.env || cp frontend/.env.example frontend/.env
 	cd frontend && npm install
+
+# ── Dev Servers ────────────────────────────────────────
 
 dev: ## Run backend + frontend in parallel
 	@make backend & make frontend
@@ -17,6 +26,8 @@ backend: ## FastAPI dev server on port 8000
 frontend: ## Vite dev server on port 5173
 	cd frontend && npm run dev
 
+# ── Docker ─────────────────────────────────────────────
+
 docker-up: ## Start all services
 	docker compose up -d
 
@@ -25,6 +36,8 @@ docker-build: ## Build and start all services
 
 docker-down: ## Stop all services
 	docker compose down
+
+# ── Tests ──────────────────────────────────────────────
 
 test: ## All tests
 	cd backend && poetry run pytest tests/ -v
@@ -37,6 +50,8 @@ test-integration: ## Integration tests (requires Supabase)
 
 test-coverage: ## Tests with coverage report
 	cd backend && poetry run pytest tests/ --cov=docmind --cov-report=term-missing --cov-fail-under=80
+
+# ── Lint / Format ──────────────────────────────────────
 
 lint: ## Lint checks (ruff)
 	cd backend && poetry run ruff check src/ tests/
