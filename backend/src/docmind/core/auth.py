@@ -3,10 +3,9 @@ docmind/core/auth.py
 
 Supabase JWT verification dependency.
 """
+
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-
-from .config import get_settings
 
 security = HTTPBearer()
 
@@ -20,7 +19,10 @@ def decode_jwt(token: str) -> dict:
     """
     # TODO: Implement real JWT verification with PyJWT
     # settings = get_settings()
-    # payload = jwt.decode(token, settings.SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+    # payload = jwt.decode(
+    #     token, settings.SUPABASE_JWT_SECRET,
+    #     algorithms=["HS256"], audience="authenticated",
+    # )
     raise NotImplementedError("JWT verification not yet implemented")
 
 

@@ -4,6 +4,7 @@ docmind/dbase/sqlalchemy/engine.py
 Async SQLAlchemy engine and session factory.
 Connects to Supabase Postgres via DATABASE_URL.
 """
+
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine

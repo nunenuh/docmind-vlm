@@ -1,4 +1,5 @@
 """docmind/modules/documents/services.py — Stub."""
+
 from docmind.core.logging import get_logger
 
 logger = get_logger(__name__)

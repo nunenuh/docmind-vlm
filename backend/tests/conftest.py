@@ -1,6 +1,7 @@
 """
 Shared test fixtures for DocMind-VLM backend tests.
 """
+
 import pytest
 
 

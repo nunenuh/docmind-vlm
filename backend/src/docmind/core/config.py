@@ -1,4 +1,5 @@
 from functools import lru_cache
+
 from pydantic import ConfigDict, Field
 from pydantic_settings import BaseSettings
 
@@ -8,14 +9,19 @@ class Settings(BaseSettings):
 
     # App
     APP_NAME: str = Field(default="DocMind-VLM")
-    APP_DESCRIPTION: str = Field(default="Intelligent document extraction and chat platform powered by Vision Language Models")
+    APP_DESCRIPTION: str = Field(
+        default="Intelligent document extraction and chat"
+        " platform powered by Vision Language Models"
+    )
     APP_VERSION: str = Field(default="0.1.0")
     APP_ENVIRONMENT: str = Field(default="development")
     APP_HOST: str = Field(default="0.0.0.0")
     APP_PORT: int = Field(default=8000)
     APP_DEBUG: bool = Field(default=False)
     LOG_LEVEL: str = Field(default="INFO")
-    ALLOWED_ORIGINS_STR: str = Field(default="http://localhost:5173,http://localhost:3000")
+    ALLOWED_ORIGINS_STR: str = Field(
+        default="http://localhost:5173,http://localhost:3000"
+    )
 
     # VLM Provider
     VLM_PROVIDER: str = Field(default="dashscope")

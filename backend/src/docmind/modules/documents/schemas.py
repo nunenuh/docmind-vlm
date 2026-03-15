@@ -1,5 +1,7 @@
 """docmind/modules/documents/schemas.py"""
+
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 

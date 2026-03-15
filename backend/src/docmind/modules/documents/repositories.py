@@ -1,11 +1,19 @@
 """docmind/modules/documents/repositories.py — Stub."""
+
 from docmind.core.logging import get_logger
 
 logger = get_logger(__name__)
 
 
 class DocumentRepository:
-    async def create(self, user_id: str, filename: str, file_type: str, file_size: int, storage_path: str):
+    async def create(
+        self,
+        user_id: str,
+        filename: str,
+        file_type: str,
+        file_size: int,
+        storage_path: str,
+    ):
         raise NotImplementedError
 
     async def get_by_id(self, document_id: str, user_id: str):

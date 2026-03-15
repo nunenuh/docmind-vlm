@@ -4,6 +4,7 @@ docmind/library/pipeline/processing.py
 LangGraph StateGraph for the document processing pipeline.
 Stub implementation for scaffold.
 """
+
 import logging
 from typing import Any, Callable, TypedDict
 

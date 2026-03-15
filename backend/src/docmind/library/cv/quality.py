@@ -3,9 +3,11 @@ docmind/library/cv/quality.py
 
 Image quality assessment per region.
 """
+
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
-from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
@@ -40,15 +42,24 @@ def _compute_overall_score(blur: float, noise: float, contrast: float) -> float:
 
 
 def assess_region(region: np.ndarray) -> RegionQuality:
-    gray = cv2.cvtColor(region, cv2.COLOR_BGR2GRAY) if len(region.shape) == 3 else region
+    gray = (
+        cv2.cvtColor(region, cv2.COLOR_BGR2GRAY) if len(region.shape) == 3 else region
+    )
     blur = assess_blur(gray)
     noise = assess_noise(gray)
     contrast = assess_contrast(gray)
     overall = _compute_overall_score(blur, noise, contrast)
-    return RegionQuality(blur_score=round(blur, 2), noise_score=round(noise, 2), contrast_score=round(contrast, 2), overall_score=overall)
+    return RegionQuality(
+        blur_score=round(blur, 2),
+        noise_score=round(noise, 2),
+        contrast_score=round(contrast, 2),
+        overall_score=overall,
+    )
 
 
-def assess_regions(image: np.ndarray, grid_rows: int = 4, grid_cols: int = 4) -> dict[tuple[int, int], RegionQuality]:
+def assess_regions(
+    image: np.ndarray, grid_rows: int = 4, grid_cols: int = 4
+) -> dict[tuple[int, int], RegionQuality]:
     gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
     h, w = gray.shape[:2]
     cell_h = h // grid_rows

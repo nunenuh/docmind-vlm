@@ -1,6 +1,13 @@
 """docmind/modules/extractions/usecase.py — Stub."""
+
 from docmind.core.logging import get_logger
-from .schemas import AuditEntryResponse, ComparisonResponse, ExtractionResponse, OverlayRegion
+
+from .schemas import (
+    AuditEntryResponse,
+    ComparisonResponse,
+    ExtractionResponse,
+    OverlayRegion,
+)
 
 logger = get_logger(__name__)
 

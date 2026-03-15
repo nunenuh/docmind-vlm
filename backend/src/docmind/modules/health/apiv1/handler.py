@@ -1,5 +1,6 @@
 """docmind/modules/health/apiv1/handler.py"""
-from datetime import datetime, UTC
+
+from datetime import UTC, datetime
 
 from fastapi import APIRouter
 

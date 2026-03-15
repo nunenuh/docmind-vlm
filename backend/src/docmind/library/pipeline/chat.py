@@ -4,7 +4,7 @@ docmind/library/pipeline/chat.py
 LangGraph StateGraph for the document chat agent.
 Stub implementation for scaffold.
 """
-import logging
+
 from typing import Any, Callable, TypedDict
 
 from docmind.core.logging import get_logger

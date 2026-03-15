@@ -1,4 +1,5 @@
 """docmind/modules/templates/schemas.py"""
+
 from pydantic import BaseModel
 
 

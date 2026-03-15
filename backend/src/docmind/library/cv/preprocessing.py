@@ -3,6 +3,7 @@ docmind/library/cv/preprocessing.py
 
 PDF-to-image conversion and image normalization.
 """
+
 import logging
 
 import cv2
@@ -26,7 +27,9 @@ def convert_pdf_to_images(pdf_bytes: bytes, dpi: int = TARGET_DPI) -> list[np.nd
     for page_num in range(len(doc)):
         page = doc.load_page(page_num)
         pix = page.get_pixmap(matrix=matrix, alpha=False)
-        img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.height, pix.width, 3)
+        img_array = np.frombuffer(pix.samples, dtype=np.uint8).reshape(
+            pix.height, pix.width, 3
+        )
         bgr_image = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
         images.append(bgr_image)
     doc.close()
@@ -41,7 +44,9 @@ def load_image(image_bytes: bytes) -> np.ndarray:
     return image
 
 
-def normalize_image(image: np.ndarray, max_dimension: int = MAX_DIMENSION) -> np.ndarray:
+def normalize_image(
+    image: np.ndarray, max_dimension: int = MAX_DIMENSION
+) -> np.ndarray:
     if len(image.shape) == 2:
         result = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
     elif image.shape[2] == 4:

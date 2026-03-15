@@ -3,6 +3,7 @@ docmind/main.py
 
 FastAPI app factory. Configures CORS, registers routers, manages lifecycle.
 """
+
 import logging
 
 import uvicorn

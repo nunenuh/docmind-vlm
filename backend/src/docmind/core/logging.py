@@ -3,6 +3,7 @@ docmind/core/logging.py
 
 structlog setup and logger factory.
 """
+
 import logging
 import sys
 

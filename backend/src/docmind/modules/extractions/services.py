@@ -1,4 +1,5 @@
 """docmind/modules/extractions/services.py"""
+
 from docmind.core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -27,7 +28,11 @@ class ExtractionService:
         field_value = field.get("field_value", "")
         tooltip = f"{field_key}: {field_value}" if field_key else field_value
         return {
-            "x": bbox["x"], "y": bbox["y"], "width": bbox["width"], "height": bbox["height"],
-            "confidence": confidence, "color": ExtractionService.confidence_color(confidence),
+            "x": bbox["x"],
+            "y": bbox["y"],
+            "width": bbox["width"],
+            "height": bbox["height"],
+            "confidence": confidence,
+            "color": ExtractionService.confidence_color(confidence),
             "tooltip": tooltip[:200],
         }
