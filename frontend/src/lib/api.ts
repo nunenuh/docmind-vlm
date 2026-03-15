@@ -1,0 +1,148 @@
+import { supabase } from "./supabase";
+import type {
+  DocumentCreate,
+  DocumentResponse,
+  DocumentListResponse,
+  ExtractionResponse,
+  AuditEntryResponse,
+  OverlayRegion,
+  ComparisonResponse,
+  ChatHistoryResponse,
+  TemplateListResponse,
+  HealthResponse,
+} from "@/types/api";
+import { ApiError } from "@/types/api";
+
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string>),
+  };
+  const url = `${BASE_URL}${path}`;
+  const response = await fetch(url, { ...options, headers });
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try {
+      const body = await response.json();
+      detail = body.detail ?? detail;
+    } catch {
+      detail = response.statusText || detail;
+    }
+    throw new ApiError(response.status, detail);
+  }
+  return response.json() as Promise<T>;
+}
+
+export async function createDocument(data: DocumentCreate): Promise<DocumentResponse> {
+  return apiFetch<DocumentResponse>("/api/v1/documents", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function fetchDocuments(page: number, limit: number): Promise<DocumentListResponse> {
+  return apiFetch<DocumentListResponse>(`/api/v1/documents?page=${page}&limit=${limit}`);
+}
+
+export async function fetchDocument(id: string): Promise<DocumentResponse> {
+  return apiFetch<DocumentResponse>(`/api/v1/documents/${id}`);
+}
+
+export async function deleteDocument(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/documents/${id}`, { method: "DELETE" });
+}
+
+export function processDocument(
+  id: string, templateType: string | undefined,
+  onMessage: (data: unknown) => void, onError: (error: Error) => void, onComplete: () => void,
+): AbortController {
+  return createSSEStream(`/api/v1/documents/${id}/process`, { template_type: templateType ?? null }, onMessage, onError, onComplete);
+}
+
+export async function fetchExtraction(documentId: string): Promise<ExtractionResponse> {
+  return apiFetch<ExtractionResponse>(`/api/v1/extractions/${documentId}`);
+}
+
+export async function fetchAuditTrail(documentId: string): Promise<AuditEntryResponse[]> {
+  return apiFetch<AuditEntryResponse[]>(`/api/v1/extractions/${documentId}/audit`);
+}
+
+export async function fetchOverlay(documentId: string): Promise<OverlayRegion[]> {
+  return apiFetch<OverlayRegion[]>(`/api/v1/extractions/${documentId}/overlay`);
+}
+
+export async function fetchComparison(documentId: string): Promise<ComparisonResponse> {
+  return apiFetch<ComparisonResponse>(`/api/v1/extractions/${documentId}/comparison`);
+}
+
+export function sendChatMessage(
+  documentId: string, message: string,
+  onMessage: (data: unknown) => void, onError: (error: Error) => void, onComplete: () => void,
+): AbortController {
+  return createSSEStream(`/api/v1/chat/${documentId}`, { message }, onMessage, onError, onComplete);
+}
+
+export async function fetchChatHistory(documentId: string, page: number, limit: number): Promise<ChatHistoryResponse> {
+  return apiFetch<ChatHistoryResponse>(`/api/v1/chat/${documentId}/history?page=${page}&limit=${limit}`);
+}
+
+export function createSSEStream(
+  path: string, body: Record<string, unknown>,
+  onMessage: (data: unknown) => void, onError: (error: Error) => void, onComplete: () => void,
+): AbortController {
+  const controller = new AbortController();
+  (async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const response = await fetch(`${BASE_URL}${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        let detail = `HTTP ${response.status}`;
+        try { const errorBody = await response.json(); detail = errorBody.detail ?? detail; } catch { detail = response.statusText || detail; }
+        throw new ApiError(response.status, detail);
+      }
+      const reader = response.body?.getReader();
+      if (!reader) throw new Error("No readable stream");
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.slice(6).trim();
+            if (jsonStr === "[DONE]") { onComplete(); return; }
+            try { onMessage(JSON.parse(jsonStr)); } catch { /* skip malformed */ }
+          }
+        }
+      }
+      onComplete();
+    } catch (err) {
+      if ((err as Error).name === "AbortError") return;
+      onError(err instanceof Error ? err : new Error(String(err)));
+    }
+  })();
+  return controller;
+}
+
+export async function fetchTemplates(): Promise<TemplateListResponse> {
+  return apiFetch<TemplateListResponse>("/api/v1/templates");
+}
+
+export async function fetchTemplate(type: string): Promise<TemplateListResponse> {
+  return apiFetch<TemplateListResponse>(`/api/v1/templates?type=${type}`);
+}
+
+export async function checkHealth(): Promise<HealthResponse> {
+  return apiFetch<HealthResponse>("/api/v1/health/status");
+}

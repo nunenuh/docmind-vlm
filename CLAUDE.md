@@ -1,0 +1,189 @@
+# CLAUDE.md — docmind-vlm
+
+## Project
+
+Full-stack **intelligent document extraction and chat platform** powered by Vision Language Models.
+Users upload PDFs/images, a VLM extracts structured fields with confidence scores and bounding boxes, and users can chat with the document.
+
+```
+Upload → CV Preprocess → VLM Extract → Structured Fields + Confidence → Chat with Document
+```
+
+## Current State
+
+- **Phase**: Scaffold complete. No business logic implemented yet.
+- **Branch**: `main` (default); `dev` for integration)
+- **Backend**: Scaffold only — all handlers, usecases, services, repositories are stubs
+- **Frontend**: Scaffold only — stub pages, hooks, stores, components
+- **Tests**: Directory structure in place, no test assertions written yet
+- **Data**: Empty template JSONs + demo `.gitkeep` placeholders
+
+## Architecture
+
+```
+Handler (FastAPI) → UseCase → Service → Repository → SQLAlchemy/Supabase
+                                  ↓
+                             Library (CV, Providers, Pipeline)
+```
+
+Each module in `backend/src/docmind/modules/{name}/` follows this layering.
+
+## Key Paths
+
+| Path | What |
+|------|------|
+| `backend/src/docmind/` | All backend Python source |
+| `backend/tests/` | All tests (unit/integration/e2e) |
+| `frontend/src/` | React + Vite app |
+| `data/templates/` | Built-in extraction templates (invoice, receipt, etc.) |
+| `data/demo/` | Sample documents for portfolio demo |
+| `.env.example` | Environment variable template |
+| `Makefile` | All project commands (`make help`) |
+
+## Specs (read before implementing)
+
+| Spec | When to Read |
+|------|-------------|
+| `specs/system.md` | Env vars, Docker, project layout, shared patterns |
+| `specs/conventions/repository-overview.md` | Full repo structure, tech stack, architecture pattern |
+| `specs/conventions/python-conventions.md` | Python style: PEP 8, type hints, naming, imports |
+| `specs/conventions/python-module-structure.md` | Module layering: Handler → UseCase → Service → Repo |
+| `specs/conventions/testing.md` | Test structure: unit / integration / e2e |
+| `specs/conventions/security.md` | Supabase JWT auth, file validation |
+| `specs/conventions/git-workflow.md` | Git branch/commit/PR workflow (issue-driven) |
+| `specs/backend/api.md` | FastAPI routes, Pydantic models, error handling |
+| `specs/backend/services.md` | Per-module services, repositories, use cases |
+| `specs/backend/cv.md` | Classical CV module: deskew, quality, preprocessing |
+| `specs/backend/providers.md` | VLM provider protocol, factory, 4 providers |
+| `specs/backend/pipeline-processing.md` | LangGraph document processing pipeline |
+| `specs/backend/pipeline-chat.md` | LangGraph chat agent pipeline |
+| `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
+| `specs/frontend/state.md` | State management: React Query + Zustand |
+| `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors |
+
+## Git Workflow
+
+**All work is issue-driven.** See `specs/conventions/git-workflow.md` for full details.
+
+```
+1. Pick issue
+2. git checkout dev && git pull && git checkout -b feat/<issue-id>-<slug>
+3. git push -u origin feat/<issue-id>-<slug>
+4. Do the work (code → tests; frontend: code → review → agree → tests)
+5. Create PR targeting dev
+6. Review → merge → git checkout dev && git pull && git fetch --all
+```
+
+**Commit format**: `<type>(<scope>): <description> #<issue-id>`
+
+Types: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `ci`
+
+## Hard Rules
+
+### Python Package Root
+```
+backend/src/docmind/    ← ALL Python source lives here
+```
+Poetry: `packages = [{include = "docmind", from = "src"}]`. Pytest: `pythonpath = ["src"]`.
+
+**All imports use the full package path:**
+```python
+from docmind.core.config import get_settings        # CORRECT
+from core.config import get_settings                # WRONG
+from .config import get_settings                    # WRONG (except within same package)
+```
+
+### API Routes
+All endpoints under `/api/v1/`. Prefix is split:
+- `main.py` mounts the aggregated router at `/api`
+- `router.py` registers each module router at `/v1/{module}`
+
+### SSE Endpoints Are POST
+`/documents/{id}/process` and `/chat/{document_id}` are **POST** with `StreamingResponse`. Never GET.
+
+### Module Layer — Strict Separation
+```
+handler.py      → validates HTTP, calls usecase, serializes response. NO business logic.
+usecase.py      → orchestrates service + repository calls. NO direct DB queries.
+services.py     → business logic, calls library. NO direct DB access.
+repositories.py → SQLAlchemy queries ONLY. Always filter by user_id.
+```
+
+### Settings
+Always use `get_settings()` (cached via `@lru_cache`). Never instantiate `Settings()` directly.
+
+### Supabase Client Scope
+Supabase client is **Auth + Storage ONLY**. All DB queries go through SQLAlchemy async sessions.
+
+### Error Handling
+Never expose stack traces in HTTP responses. Log server-side with structlog, return generic message to client.
+
+## API Endpoints
+
+| Method | Path | Auth |
+|--------|------|------|
+| `GET` | `/api/v1/health/ping` | No |
+| `GET` | `/api/v1/health/status` | No |
+| `POST` | `/api/v1/documents` | JWT |
+| `GET` | `/api/v1/documents` | JWT |
+| `GET` | `/api/v1/documents/{id}` | JWT |
+| `DELETE` | `/api/v1/documents/{id}` | JWT |
+| `POST` | `/api/v1/documents/{id}/process` | JWT (SSE) |
+| `GET` | `/api/v1/extractions/{document_id}` | JWT |
+| `GET` | `/api/v1/extractions/{document_id}/audit` | JWT |
+| `GET` | `/api/v1/extractions/{document_id}/overlay` | JWT |
+| `GET` | `/api/v1/extractions/{document_id}/comparison` | JWT |
+| `POST` | `/api/v1/chat/{document_id}` | JWT (SSE) |
+| `GET` | `/api/v1/chat/{document_id}/history` | JWT |
+| `GET` | `/api/v1/templates` | No |
+
+## Commands
+
+```bash
+make help              # Show all commands
+make setup             # First-time setup (env + deps)
+make dev               # Start backend (8000) + frontend (5173)
+make backend           # FastAPI dev server only
+make frontend          # Vite dev server only
+make docker-up         # Start Docker stack
+make docker-build      # Build and start Docker stack
+make docker-down       # Stop Docker stack
+make test              # Run all tests
+make test-unit         # Unit tests only
+make test-integration  # Integration tests
+make test-coverage     # Tests with coverage report
+make lint              # Lint checks (ruff)
+make format            # Auto-format (black + isort)
+```
+
+## Tech Stack
+
+| Layer | Tech |
+|-------|------|
+| Backend | FastAPI + Python 3.11 + LangGraph + LangChain |
+| Database | Supabase Postgres (via SQLAlchemy 2.x async + asyncpg) |
+| Auth + Storage | Supabase (Auth + Storage client) |
+| VLM | Qwen-VL via DashScope (primary); OpenAI, Google, Ollama supported |
+| CV | OpenCV + PyMuPDF |
+| Cache | Redis |
+| Frontend | React 18 + Vite + TypeScript 5 + Tailwind + shadcn/ui |
+| Server State | React Query (TanStack Query) |
+| UI State | Zustand |
+| Infra | Docker Compose |
+
+## Spec Priority
+
+When specs conflict, this order wins:
+
+1. `specs/backend/api.md` — endpoint paths, Pydantic schemas, ORM models
+2. `specs/system.md` — file layout, env vars, config
+3. `specs/conventions/python-module-structure.md` — layer rules
+4. Other specs — fill in details
+
+## What's Next
+
+1. **Backend business logic** — implement services, repositories, pipelines
+2. **VLM provider integration** — DashScope provider first
+3. **Frontend implementation** — build React app per `specs/frontend/` specs
+4. **Tests** — unit, integration, e2e
+5. **Alembic migrations** — database schema

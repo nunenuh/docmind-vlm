@@ -1,0 +1,51 @@
+# docker-compose.yml
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docmind-backend
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./.env
+    volumes:
+      - ./backend/src:/app/src
+      - ./data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - docmind-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: docmind-frontend
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_URL: http://localhost:8000
+    depends_on:
+      - backend
+    networks:
+      - docmind-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: docmind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - docmind-network
+
+# Note: Supabase is external (cloud-hosted). Not included in Docker Compose.
+
+networks:
+  docmind-network:
+    driver: bridge
+
+volumes:
+  redis_data:
