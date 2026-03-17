@@ -1,6 +1,6 @@
 """docmind/modules/documents/usecase.py — Stub."""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from docmind.core.logging import get_logger
@@ -27,8 +27,8 @@ class DocumentUseCase:
             status="uploaded",
             document_type=None,
             page_count=0,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def get_document(self, user_id: str, document_id: str) -> DocumentResponse | None:
@@ -40,8 +40,8 @@ class DocumentUseCase:
             status="uploaded",
             document_type=None,
             page_count=0,
-            created_at=datetime.now(UTC),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc),
         )
 
     def get_documents(

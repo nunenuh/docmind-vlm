@@ -35,9 +35,8 @@ coverage.xml
 # ruff
 .ruff_cache/
 
-# Alembic auto-generated migrations
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# Alembic — keep migration files, ignore pycache
+alembic/versions/__pycache__/
 
 # Environment
 .env
