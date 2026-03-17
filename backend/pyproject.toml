@@ -30,6 +30,7 @@ pymupdf = "^1.27"
 redis = "^7.3"
 httpx = "^0.28"
 pyjwt = {extras = ["crypto"], version = "^2.12"}
+python-multipart = "^0.0.22"
 
 [tool.poetry.group.dev.dependencies]
 black = "^26.3"

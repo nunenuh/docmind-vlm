@@ -24,6 +24,14 @@ def delete_file(storage_path: str) -> None:
     client.storage.from_(BUCKET_NAME).remove([storage_path])
 
 
+def upload_file(storage_path: str, file_bytes: bytes, content_type: str) -> None:
+    """Upload file bytes to Supabase storage."""
+    client = get_supabase_client()
+    client.storage.from_(BUCKET_NAME).upload(
+        storage_path, file_bytes, {"content-type": content_type}
+    )
+
+
 def get_signed_url(storage_path: str, expires_in: int = 3600) -> str:
     """Generate a signed URL for file download."""
     client = get_supabase_client()
