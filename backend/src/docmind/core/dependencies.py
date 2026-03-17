@@ -5,7 +5,7 @@ FastAPI dependency functions for auth and database clients.
 """
 
 from docmind.core.auth import get_current_user  # re-export
-from docmind.dbase.sqlalchemy.engine import get_session  # re-export
+from docmind.dbase.psql.core.session import get_async_db_session as get_session  # re-export
 from docmind.dbase.supabase.client import (
     get_supabase_client,  # re-export (Auth + Storage)
 )
