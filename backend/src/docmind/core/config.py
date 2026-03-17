@@ -48,7 +48,19 @@ class Settings(BaseSettings):
     SUPABASE_SECRET_KEY: str = Field(default="")
 
     # Database (Supabase Postgres via SQLAlchemy)
-    DATABASE_URL: str = Field(default="postgresql+asyncpg://localhost:5432/docmind")
+    DB_HOST: str = Field(default="localhost")
+    DB_PORT: int = Field(default=5432)
+    DB_USER: str = Field(default="postgres")
+    DB_PASSWORD: str = Field(default="")
+    DB_NAME: str = Field(default="postgres")
+
+    @property
+    def database_url(self) -> str:
+        """Build async database URL from individual components."""
+        return (
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0")

@@ -1,6 +1,6 @@
 """docmind/modules/health/apiv1/handler.py"""
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
@@ -14,7 +14,7 @@ router = APIRouter()
 
 @router.get("/ping", response_model=PingResponse)
 async def ping():
-    return PingResponse(status="ok", timestamp=datetime.now(UTC), message="pong")
+    return PingResponse(status="ok", timestamp=datetime.now(timezone.utc), message="pong")
 
 
 @router.get("/status", response_model=HealthStatusResponse)
@@ -23,7 +23,7 @@ async def get_health_status():
     overall_status, components, uptime = usecase.get_basic_health()
     return HealthStatusResponse(
         status=overall_status,
-        timestamp=datetime.now(UTC),
+        timestamp=datetime.now(timezone.utc),
         version=get_settings().APP_VERSION,
         components=components,
         uptime_seconds=uptime,
