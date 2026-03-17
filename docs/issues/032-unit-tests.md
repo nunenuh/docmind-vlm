@@ -199,7 +199,7 @@ def mock_supabase_client():
 @pytest.fixture
 async def db_session():
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from docmind.dbase.sqlalchemy.base import Base
+    from docmind.dbase.psql.core.base import Base
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)

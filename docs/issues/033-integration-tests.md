@@ -89,7 +89,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from unittest.mock import patch
 
 from docmind.main import create_app
-from docmind.dbase.sqlalchemy.base import Base
+from docmind.dbase.psql.core.base import Base
 from docmind.core.dependencies import get_db_session
 
 

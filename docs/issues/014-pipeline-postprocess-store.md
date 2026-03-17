@@ -21,7 +21,7 @@ Implement the `postprocess_node` and `store_node` LangGraph node functions. The 
 
 **`backend/src/docmind/library/pipeline/processing.py`** — After issues #11-#13, contains `preprocess_node` and `extract_node`. No `postprocess_node` or `store_node` exists.
 
-**ORM Models** (`backend/src/docmind/dbase/sqlalchemy/models.py`) — Fully defined:
+**ORM Models** (`backend/src/docmind/dbase/psql/models/`) — Fully defined:
 ```python
 class Extraction(Base):
     __tablename__ = "extractions"
@@ -72,7 +72,7 @@ class ExtractionRepository:
 
 10. `store_node(state: dict) -> dict` reads `document_id`, `enhanced_fields`, `audit_entries`, `document_type`, `page_count`, `template_type` from state.
 11. Generate a new `extraction_id` (UUID4).
-12. In a single DB transaction via `async_session()`:
+12. In a single DB transaction via `AsyncSessionLocal()`:
     a. Insert `Extraction` record.
     b. Insert all `ExtractedField` records.
     c. Insert all `AuditEntry` records (from accumulated `audit_entries`).
@@ -84,7 +84,7 @@ class ExtractionRepository:
 ### Non-Functional
 
 - Postprocess helpers are pure functions (testable without DB).
-- Store node uses SQLAlchemy async sessions; tests mock `async_session`.
+- Store node uses SQLAlchemy async sessions; tests mock `AsyncSessionLocal`.
 - Both nodes must not import from `docmind.modules.*`.
 
 ## TDD Plan

@@ -52,11 +52,27 @@ backend/                             # Independent Python service
 │       │   │   ├── __init__.py
 │       │   │   ├── client.py        # Supabase client init (Auth + Storage only)
 │       │   │   └── storage.py       # File upload, download, signed-URL helpers
-│       │   └── sqlalchemy/
-│       │       ├── __init__.py
-│       │       ├── engine.py        # Async engine + session factory
-│       │       ├── base.py          # DeclarativeBase
-│       │       └── models.py        # ORM models (Document, Extraction, etc.)
+│       │   └── psql/
+│       │       ├── __init__.py      # Re-exports: Base, engine, session, models
+│       │       ├── core/
+│       │       │   ├── __init__.py   # Re-exports: Base, engine, session, init_db
+│       │       │   ├── base.py       # DeclarativeBase
+│       │       │   ├── engine.py     # Async engine (NullPool) + lru_cache factory
+│       │       │   ├── session.py    # async_sessionmaker + get_async_db_session()
+│       │       │   └── init_db.py    # Programmatic create_all / drop_all
+│       │       ├── models/
+│       │       │   ├── __init__.py   # Re-exports all 6 ORM models
+│       │       │   ├── document.py
+│       │       │   ├── extraction.py
+│       │       │   ├── extracted_field.py
+│       │       │   ├── audit_entry.py
+│       │       │   ├── chat_message.py
+│       │       │   └── citation.py
+│       │       ├── services/
+│       │       │   ├── __init__.py
+│       │       │   └── migrate.py    # Programmatic Alembic runner (upgrade/downgrade/generate CLI)
+│       │       └── langgraph/
+│       │           └── __init__.py   # Placeholder for LangGraph checkpointer
 │       ├── library/                 # Reusable logic (can use frameworks, NOT tied to modules/DB)
 │       │   ├── __init__.py
 │       │   ├── cv/                  # Classical computer vision (pure functions)
@@ -264,8 +280,12 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Database (Supabase Postgres via SQLAlchemy)
-DATABASE_URL=postgresql+asyncpg://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+# Database (Supabase Postgres via SQLAlchemy — individual vars)
+DB_HOST=aws-0-[region].pooler.supabase.com
+DB_PORT=6543
+DB_USER=postgres.[project-ref]
+DB_PASSWORD=your-password
+DB_NAME=postgres
 
 # Redis (optional — for job queue)
 REDIS_URL=redis://redis:6379/0
@@ -342,11 +362,23 @@ class Settings(BaseSettings):
 
     # Supabase (Auth + Storage)
     SUPABASE_URL: str = Field(default="")
-    SUPABASE_ANON_KEY: str = Field(default="")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
+    SUPABASE_PUBLISHABLE_KEY: str = Field(default="")
+    SUPABASE_SECRET_KEY: str = Field(default="")
 
-    # Database (Supabase Postgres via SQLAlchemy)
-    DATABASE_URL: str = Field(default="postgresql+asyncpg://localhost:5432/docmind")
+    # Database (Supabase Postgres via SQLAlchemy — individual vars)
+    DB_HOST: str = Field(default="localhost")
+    DB_PORT: int = Field(default=5432)
+    DB_USER: str = Field(default="postgres")
+    DB_PASSWORD: str = Field(default="")
+    DB_NAME: str = Field(default="postgres")
+
+    @property
+    def database_url(self) -> str:
+        """Build async database URL from individual components."""
+        return (
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
@@ -517,26 +549,50 @@ logger.error("Provider call failed", error=str(e), provider=provider_name)
 | Database schema & queries | SQLAlchemy + Alembic |
 | Auth (JWT) | Supabase Auth |
 | File storage | Supabase Storage SDK |
-| Connection | `DATABASE_URL` → async SQLAlchemy engine |
+| Connection | `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` → computed `database_url` property → async SQLAlchemy engine |
 
-**Supabase is the managed Postgres host.** SQLAlchemy connects to it via the standard connection string from Supabase dashboard. Supabase RLS is bypassed because the backend connects as `postgres` (superuser) — ownership is enforced in the repository layer by filtering on `user_id`.
+**Supabase is the managed Postgres host.** SQLAlchemy connects to it via a URL built from individual `DB_*` env vars. Supabase RLS is bypassed because the backend connects as `postgres` (superuser) — ownership is enforced in the repository layer by filtering on `user_id`.
 
 ```python
-# dbase/sqlalchemy/engine.py
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# dbase/psql/core/engine.py
+from functools import lru_cache
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine as sa_create
+from sqlalchemy.pool import NullPool
 from docmind.core.config import get_settings
 
-settings = get_settings()
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.APP_DEBUG)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+def create_async_engine() -> AsyncEngine:
+    settings = get_settings()
+    return sa_create(settings.database_url, poolclass=NullPool, echo=settings.APP_DEBUG)
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
-        yield session
+@lru_cache()
+def get_async_engine() -> AsyncEngine:
+    return create_async_engine()
 ```
 
 ```python
-# dbase/sqlalchemy/base.py
+# dbase/psql/core/session.py
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from .engine import get_async_engine
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=get_async_engine(), class_=AsyncSession,
+    expire_on_commit=False, autocommit=False, autoflush=False,
+)
+
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+```
+
+```python
+# dbase/psql/core/base.py
 from sqlalchemy.orm import DeclarativeBase
 
 class Base(DeclarativeBase):
@@ -545,11 +601,11 @@ class Base(DeclarativeBase):
 
 ```python
 # Repository usage
-from docmind.dbase.sqlalchemy.engine import get_session
+from docmind.dbase.psql.core.session import get_async_db_session
 
 class DocumentRepository:
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,  # ownership enforcement
@@ -637,13 +693,16 @@ Note: `--cov=docmind` measures coverage of the package.
 
 **Alembic migrations (from `backend/`):**
 ```bash
-# Create a new migration
+# Via programmatic CLI (preferred — uses docmind.dbase.psql.services.migrate)
+poetry run python -m docmind.dbase.psql.services.migrate upgrade
+poetry run python -m docmind.dbase.psql.services.migrate downgrade
+poetry run python -m docmind.dbase.psql.services.migrate generate "add new column"
+poetry run python -m docmind.dbase.psql.services.migrate current
+poetry run python -m docmind.dbase.psql.services.migrate history
+
+# Or via Alembic directly
 cd backend && poetry run alembic revision --autogenerate -m "add documents table"
-
-# Apply migrations
 poetry run alembic upgrade head
-
-# Rollback one step
 poetry run alembic downgrade -1
 ```
 

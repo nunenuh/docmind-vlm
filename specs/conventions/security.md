@@ -211,12 +211,12 @@ The `user_id` from the JWT is the **sole source of truth** for data ownership. N
 # ✅ Ownership enforced — user_id from JWT flows through layers
 # modules/documents/repositories.py
 from sqlalchemy import select
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document
 
 class DocumentRepository:
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,  # ← ownership filter
@@ -226,7 +226,7 @@ class DocumentRepository:
 
 # ❌ No ownership check — any user can access any document
     async def get_by_id(self, document_id: str) -> Document | None:
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(Document.id == document_id)
             result = await session.execute(stmt)
             return result.scalar_one_or_none()

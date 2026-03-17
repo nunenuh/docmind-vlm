@@ -331,7 +331,7 @@ def mock_supabase_client():
 async def db_session():
     """In-memory SQLite async session for testing (replaces real Supabase Postgres)."""
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
-    from docmind.dbase.sqlalchemy.base import Base
+    from docmind.dbase.psql.core.base import Base
 
     engine = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with engine.begin() as conn:

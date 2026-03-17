@@ -20,8 +20,8 @@ See also: [[projects/docmind-vlm/specs/backend/services]]
 | `docmind/core/logging.py` | structlog setup via `setup_logging()`, `get_logger(__name__)` |
 | `docmind/dbase/supabase/client.py` | Supabase client init (Auth + Storage only) |
 | `docmind/dbase/supabase/storage.py` | File upload/download/signed-URL helpers |
-| `docmind/dbase/sqlalchemy/engine.py` | Async SQLAlchemy engine + session factory |
-| `docmind/dbase/sqlalchemy/models.py` | ORM models (Document, Extraction, etc.) |
+| `docmind/dbase/psql/core/engine.py` | Async SQLAlchemy engine + session factory |
+| `docmind/dbase/psql/models/` | ORM models (Document, Extraction, etc.) |
 
 The API layer is **thin**: validate -> delegate to `usecase` -> serialize response. No business logic in handlers.
 
@@ -746,11 +746,11 @@ docmind/core/dependencies.py
 FastAPI dependency functions for auth and database clients.
 """
 from docmind.core.auth import get_current_user  # re-export
-from docmind.dbase.sqlalchemy.engine import get_session  # re-export
+from docmind.dbase.psql.core.session import get_async_db_session  # re-export
 from docmind.dbase.supabase.client import get_supabase_client  # re-export (Auth + Storage)
 ```
 
-Handlers inject dependencies via `Depends(get_current_user)` and `Depends(get_session)`.
+Handlers inject dependencies via `Depends(get_current_user)` and `Depends(get_async_db_session)`.
 
 ---
 
@@ -762,7 +762,7 @@ docmind/dbase/supabase/client.py
 
 Supabase client initialization and singleton.
 Used for Auth (JWT verification) and Storage (file upload/download) ONLY.
-All database queries go through SQLAlchemy (dbase/sqlalchemy/).
+All database queries go through SQLAlchemy (dbase/psql/).
 """
 from supabase import create_client, Client
 
@@ -787,39 +787,55 @@ def get_supabase_client() -> Client:
     return _supabase_client
 ```
 
-## `dbase/sqlalchemy/engine.py`
+## `dbase/psql/core/engine.py`
 
 ```python
 """
-docmind/dbase/sqlalchemy/engine.py
+docmind/dbase/psql/core/engine.py
 
-Async SQLAlchemy engine and session factory.
+Async SQLAlchemy engine.
 Connects to Supabase Postgres via DATABASE_URL.
 """
-from typing import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from docmind.core.config import get_settings
 
 settings = get_settings()
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.APP_DEBUG)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+```
+
+---
+
+## `dbase/psql/core/session.py`
+
+```python
+"""
+docmind/dbase/psql/core/session.py
+
+Async session factory and FastAPI dependency.
+"""
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from docmind.dbase.psql.core.engine import engine
+
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yield an async session."""
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         yield session
 ```
 
 ---
 
-## `dbase/sqlalchemy/base.py`
+## `dbase/psql/core/base.py`
 
 ```python
 """
-docmind/dbase/sqlalchemy/base.py
+docmind/dbase/psql/core/base.py
 
 SQLAlchemy declarative base. All ORM models inherit from Base.
 """
@@ -832,14 +848,14 @@ class Base(DeclarativeBase):
 
 ---
 
-## `dbase/sqlalchemy/models.py`
+## `dbase/psql/models/`
 
 All models use `uuid4` primary keys and define `__tablename__` explicitly.
 `user_id` is stored as a plain `String` (Supabase Auth UUID — no FK to an `auth.users` ORM model).
 
 ```python
 """
-docmind/dbase/sqlalchemy/models.py
+docmind/dbase/psql/models/
 
 ORM models for DocMind-VLM.
 All tables are owned per-user; every query MUST filter by user_id.
@@ -978,7 +994,7 @@ class Citation(Base):
 - `bounding_box` fields use PostgreSQL `JSON` column — stored as `{x, y, width, height}` dict
 - `status` and `role` use plain `String` columns — validated at the Pydantic/handler layer, not DB-level constraints
 - `_now()` always uses `UTC` — no naive datetimes anywhere
-- Import path: `from docmind.dbase.sqlalchemy.models import Document, Extraction, ExtractedField, AuditEntry, ChatMessage, Citation`
+- Import path: `from docmind.dbase.psql.models import Document, Extraction, ExtractedField, AuditEntry, ChatMessage, Citation`
 
 ---
 

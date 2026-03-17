@@ -256,14 +256,14 @@ class TestAllHealthy:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_all_healthy_returns_healthy_status(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """When all components are healthy, overall status should be 'healthy'."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -275,14 +275,14 @@ class TestAllHealthy:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_all_healthy_returns_three_components(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """Should report database, redis, and vlm_provider components."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -296,14 +296,14 @@ class TestAllHealthy:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_healthy_db_includes_response_time(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """Database component should include response_time_ms."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -325,14 +325,14 @@ class TestDatabaseDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_db_down_returns_degraded(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_unhealthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """When database is down, overall status should be 'degraded'."""
-        mock_async_session.return_value = mock_db_unhealthy
+        mock_async_session_local.return_value = mock_db_unhealthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -343,14 +343,14 @@ class TestDatabaseDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_db_down_reports_unhealthy_component(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_unhealthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """When database is down, database component should be 'unhealthy'."""
-        mock_async_session.return_value = mock_db_unhealthy
+        mock_async_session_local.return_value = mock_db_unhealthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -372,14 +372,14 @@ class TestRedisDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_redis_down_returns_degraded(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_unhealthy, mock_settings_with_vlm,
     ):
         """When Redis is down, overall status should be 'degraded'."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_unhealthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -390,14 +390,14 @@ class TestRedisDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_redis_down_reports_unhealthy_component(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_unhealthy, mock_settings_with_vlm,
     ):
         """When Redis is down, redis component should be 'unhealthy'."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_unhealthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -419,14 +419,14 @@ class TestVlmProviderDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_vlm_not_configured_returns_degraded(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_no_vlm,
     ):
         """When VLM API key is empty, overall status should be 'degraded'."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_no_vlm
 
@@ -437,14 +437,14 @@ class TestVlmProviderDown:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_vlm_not_configured_reports_unhealthy(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_no_vlm,
     ):
         """When VLM API key is empty, vlm_provider should be 'unhealthy'."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_no_vlm
 
@@ -466,14 +466,14 @@ class TestUptime:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_uptime_is_positive(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """Uptime should be a positive number."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -484,14 +484,14 @@ class TestUptime:
     @pytest.mark.asyncio
     @patch("docmind.modules.health.usecase.get_settings")
     @patch("docmind.modules.health.usecase.redis_from_url")
-    @patch("docmind.modules.health.usecase.async_session")
+    @patch("docmind.modules.health.usecase.AsyncSessionLocal")
     async def test_uptime_is_float(
-        self, mock_async_session, mock_redis_from_url,
+        self, mock_async_session_local, mock_redis_from_url,
         mock_get_settings, usecase, mock_db_healthy,
         mock_redis_healthy, mock_settings_with_vlm,
     ):
         """Uptime should be a float representing seconds."""
-        mock_async_session.return_value = mock_db_healthy
+        mock_async_session_local.return_value = mock_db_healthy
         mock_redis_from_url.return_value = mock_redis_healthy
         mock_get_settings.return_value = mock_settings_with_vlm
 
@@ -523,7 +523,7 @@ from sqlalchemy import text
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
+from docmind.dbase.psql.core.session import AsyncSessionLocal
 
 from .schemas import ComponentHealth
 
@@ -574,7 +574,7 @@ class HealthUseCase:
         """Check database connectivity via SQLAlchemy."""
         try:
             t0 = time.time()
-            async with async_session() as session:
+            async with AsyncSessionLocal() as session:
                 await session.execute(text("SELECT 1"))
             ms = (time.time() - t0) * 1000
             return ComponentHealth(

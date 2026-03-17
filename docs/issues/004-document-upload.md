@@ -154,7 +154,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi import HTTPException, UploadFile
 
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.models import Document
 from docmind.modules.documents.schemas import DocumentResponse
 from docmind.modules.documents.services import DocumentService
 from docmind.modules.documents.usecase import DocumentUseCase

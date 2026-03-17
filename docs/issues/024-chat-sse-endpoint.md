@@ -286,7 +286,7 @@ class TestChatUseCaseLoadContext:
     """Tests for ChatUseCase._load_context."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.usecase.async_session")
+    @patch("docmind.modules.chat.usecase.AsyncSessionLocal")
     async def test_loads_document_and_context(self, mock_session_factory):
         from docmind.modules.chat.usecase import ChatUseCase
 
@@ -316,7 +316,7 @@ class TestChatUseCaseLoadContext:
         usecase.service.load_page_images.assert_called_once_with("user/doc/file.pdf", "pdf")
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.usecase.async_session")
+    @patch("docmind.modules.chat.usecase.AsyncSessionLocal")
     async def test_raises_when_document_not_found(self, mock_session_factory):
         from docmind.modules.chat.usecase import ChatUseCase
 
@@ -335,7 +335,7 @@ class TestChatUseCaseLoadContext:
             await usecase._load_context("nonexistent", "user-001")
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.usecase.async_session")
+    @patch("docmind.modules.chat.usecase.AsyncSessionLocal")
     async def test_builds_conversation_history_from_messages(self, mock_session_factory):
         from docmind.modules.chat.usecase import ChatUseCase
 

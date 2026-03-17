@@ -77,7 +77,7 @@ class ExtractionUseCase:
 
 ### Non-Functional
 
-- All repository methods are `async` and use `async_session()` context manager.
+- All repository methods are `async` and use `AsyncSessionLocal()` context manager.
 - Repository returns ORM model instances; UseCase maps to Pydantic schemas.
 - No business logic in the repository layer.
 - No direct DB access in the UseCase layer.
@@ -172,7 +172,7 @@ class TestExtractionRepositoryGetLatestExtraction:
     """Tests for ExtractionRepository.get_latest_extraction."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_extraction_when_exists(self, mock_session_factory, mock_extraction):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -192,7 +192,7 @@ class TestExtractionRepositoryGetLatestExtraction:
         mock_session.execute.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_none_when_no_extraction(self, mock_session_factory):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -213,7 +213,7 @@ class TestExtractionRepositoryGetFields:
     """Tests for ExtractionRepository.get_fields."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_fields_for_extraction(self, mock_session_factory, mock_fields):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -232,7 +232,7 @@ class TestExtractionRepositoryGetFields:
         assert fields[1].field_key == "total_amount"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_empty_list_when_no_fields(self, mock_session_factory):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -253,7 +253,7 @@ class TestExtractionRepositoryGetAuditTrail:
     """Tests for ExtractionRepository.get_audit_trail."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_audit_entries_ordered_by_step(self, mock_session_factory, mock_audit_entries):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -274,7 +274,7 @@ class TestExtractionRepositoryGetAuditTrail:
         assert entries[1].step_order == 2
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.repositories.async_session")
+    @patch("docmind.modules.extractions.repositories.AsyncSessionLocal")
     async def test_returns_empty_list_when_no_audit_entries(self, mock_session_factory):
         from docmind.modules.extractions.repositories import ExtractionRepository
 
@@ -452,7 +452,7 @@ class TestExtractionUseCaseGetOverlayData:
 
 ### Step 2: Implement (GREEN)
 
-1. **`repositories.py`**: Replace stubs with real SQLAlchemy queries using `async_session()`, `select()`, `.where()`, `.order_by()`, `.limit()` as shown in the spec.
+1. **`repositories.py`**: Replace stubs with real SQLAlchemy queries using `AsyncSessionLocal()`, `select()`, `.where()`, `.order_by()`, `.limit()` as shown in the spec.
 2. **`usecase.py`**: Instantiate `ExtractionRepository` and `ExtractionService` in `__init__`. Make methods `async`. Call repo methods, map ORM objects to Pydantic schemas using attribute access (not dict access).
 
 ### Step 3: Refactor (IMPROVE)

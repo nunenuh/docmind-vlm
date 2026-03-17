@@ -20,7 +20,7 @@ modules/{module}/
 └── repositories.py      # DB operations only — SQLAlchemy queries
 ```
 
-**Dependency direction:** `handler.py` -> `usecase.py` -> `services.py` + `repositories.py` -> `library/` + `dbase/sqlalchemy/` + `dbase/supabase/` (storage only)
+**Dependency direction:** `handler.py` -> `usecase.py` -> `services.py` + `repositories.py` -> `library/` + `dbase/psql/` + `dbase/supabase/` (storage only)
 
 **Key constraint:** Services never import from `modules/{other_module}/`. Cross-module coordination happens through `shared/` or at the usecase level.
 
@@ -56,8 +56,8 @@ from docmind.library.cv import convert_to_page_images
 
 # Repository imports (DB only — SQLAlchemy)
 from sqlalchemy import select, update, delete
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document, Extraction, ExtractedField
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document, Extraction, ExtractedField
 from docmind.shared.exceptions import RepositoryException
 ```
 
@@ -79,8 +79,8 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select, update
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import (
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import (
     AuditEntry,
     ChatMessage,
     Document,
@@ -103,7 +103,7 @@ class DocumentRepository:
         storage_path: str,
     ) -> Document:
         """Insert a new document record. Returns the created ORM instance."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             doc = Document(
                 user_id=user_id,
                 filename=filename,
@@ -118,7 +118,7 @@ class DocumentRepository:
 
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
         """Get a single document by ID, scoped to user."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,
@@ -135,7 +135,7 @@ class DocumentRepository:
         """Get paginated documents for a user. Returns (items, total_count)."""
         offset = (page - 1) * limit
 
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Count total
             count_stmt = select(func.count()).select_from(Document).where(
                 Document.user_id == user_id
@@ -157,7 +157,7 @@ class DocumentRepository:
 
     async def delete(self, document_id: str, user_id: str) -> str | None:
         """Delete a document and cascaded records. Returns storage_path if found."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Get document first
             stmt = select(Document).where(
                 Document.id == document_id,
@@ -202,7 +202,7 @@ class DocumentRepository:
         **kwargs,
     ) -> None:
         """Update document status and optional fields."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 update(Document)
                 .where(Document.id == document_id)
@@ -426,8 +426,8 @@ Extraction database operations via SQLAlchemy.
 from sqlalchemy import select
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import AuditEntry, ExtractedField, Extraction
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import AuditEntry, ExtractedField, Extraction
 
 logger = get_logger(__name__)
 
@@ -437,7 +437,7 @@ class ExtractionRepository:
 
     async def get_latest_extraction(self, document_id: str) -> Extraction | None:
         """Get the most recent extraction record for a document."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(Extraction)
                 .where(Extraction.document_id == document_id)
@@ -449,7 +449,7 @@ class ExtractionRepository:
 
     async def get_fields(self, extraction_id: str) -> list[ExtractedField]:
         """Get all extracted fields for an extraction."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(ExtractedField)
                 .where(ExtractedField.extraction_id == extraction_id)
@@ -460,7 +460,7 @@ class ExtractionRepository:
 
     async def get_audit_trail(self, extraction_id: str) -> list[AuditEntry]:
         """Get audit trail entries for an extraction."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(AuditEntry)
                 .where(AuditEntry.extraction_id == extraction_id)
@@ -653,8 +653,8 @@ Chat message database operations via SQLAlchemy.
 from sqlalchemy import func, select
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import ChatMessage, ExtractedField, Extraction
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import ChatMessage, ExtractedField, Extraction
 
 logger = get_logger(__name__)
 
@@ -671,7 +671,7 @@ class ChatRepository:
         citations: list[dict] | None = None,
     ) -> str:
         """Save a chat message. Returns the message ID."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             msg = ChatMessage(
                 document_id=document_id,
                 user_id=user_id,
@@ -694,7 +694,7 @@ class ChatRepository:
         """Get paginated chat history. Returns (items, total_count)."""
         offset = (page - 1) * limit
 
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Count total
             count_stmt = (
                 select(func.count())
@@ -729,7 +729,7 @@ class ChatRepository:
         limit: int = 20,
     ) -> list[ChatMessage]:
         """Get recent messages for conversation context."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(ChatMessage)
                 .where(
@@ -744,7 +744,7 @@ class ChatRepository:
 
     async def get_extracted_fields(self, document_id: str) -> list[ExtractedField]:
         """Get extracted fields for a document (for chat context)."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Get latest extraction ID
             ext_stmt = (
                 select(Extraction.id)
@@ -806,8 +806,8 @@ import json
 from typing import AsyncGenerator
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document
 from docmind.library.pipeline import run_chat_pipeline
 from sqlalchemy import select
 
@@ -917,7 +917,7 @@ class ChatUseCase:
     ) -> tuple[list, list, list[dict]]:
         """Load document context: page images, extracted fields, conversation history."""
         # Load document metadata via SQLAlchemy
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(Document.id == document_id)
             result = await session.execute(stmt)
             doc = result.scalar_one_or_none()
@@ -985,7 +985,7 @@ import time
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
+from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.library.providers import get_vlm_provider
 from sqlalchemy import text
 
@@ -1011,7 +1011,7 @@ class HealthUseCase:
         # Check Database (Supabase Postgres via SQLAlchemy)
         try:
             t0 = time.time()
-            async with async_session() as session:
+            async with AsyncSessionLocal() as session:
                 await session.execute(text("SELECT 1"))
             ms = (time.time() - t0) * 1000
             components.append(ComponentHealth(
@@ -1075,7 +1075,7 @@ class RepositoryException(Exception):
 ## Rules
 
 - **Services never import from `docmind/modules/{other_module}/`**. Cross-module coordination happens at the usecase level or through `shared/`.
-- **Repositories use SQLAlchemy async sessions** — all database queries go through `async_session()`. Supabase client is only for Auth + Storage.
+- **Repositories use SQLAlchemy async sessions** — all database queries go through `AsyncSessionLocal()`. Supabase client is only for Auth + Storage.
 - **UseCase is the orchestration layer** — it wires service (library calls) + repository (DB) + pipeline (LangGraph). Handlers create UseCase instances and delegate.
 - **Services contain business logic but NO database access**. They call `library/` functions and `dbase/supabase/storage.py` helpers.
 - **Repositories contain database queries but NO business logic**. They return ORM model instances. Mapping to Pydantic schemas happens in the UseCase.

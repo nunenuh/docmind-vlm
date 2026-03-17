@@ -21,7 +21,7 @@ Implement audit trail recording during the processing pipeline and the retrieval
 
 ## Current State (Scaffold)
 
-### `backend/src/docmind/dbase/sqlalchemy/models.py` (AuditEntry model -- already exists)
+### `backend/src/docmind/dbase/psql/models/` (AuditEntry model -- already exists)
 ```python
 class AuditEntry(Base):
     __tablename__ = "audit_entries"
@@ -99,7 +99,7 @@ class TestAuditRecorder:
     """Tests for the AuditRecorder utility."""
 
     @pytest.mark.asyncio
-    @patch("docmind.shared.audit.async_session")
+    @patch("docmind.shared.audit.AsyncSessionLocal")
     async def test_record_creates_audit_entry(self, mock_session_factory):
         from docmind.shared.audit import AuditRecorder
 
@@ -126,7 +126,7 @@ class TestAuditRecorder:
         mock_session.commit.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.shared.audit.async_session")
+    @patch("docmind.shared.audit.AsyncSessionLocal")
     async def test_record_does_not_raise_on_db_error(self, mock_session_factory):
         from docmind.shared.audit import AuditRecorder
 
@@ -148,7 +148,7 @@ class TestAuditRecorder:
         )
 
     @pytest.mark.asyncio
-    @patch("docmind.shared.audit.async_session")
+    @patch("docmind.shared.audit.AsyncSessionLocal")
     async def test_step_context_manager_measures_duration(self, mock_session_factory):
         import asyncio
         from docmind.shared.audit import AuditRecorder

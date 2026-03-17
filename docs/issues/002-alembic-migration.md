@@ -2,7 +2,7 @@
 
 ## Summary
 
-Generate the initial Alembic migration that creates all database tables defined in `dbase/sqlalchemy/models.py`: `documents`, `extractions`, `extracted_fields`, `audit_entries`, `chat_messages`, and `citations`. The migration must run up (create tables) and down (drop tables) cleanly against a PostgreSQL database. The Alembic async `env.py` is already scaffolded; this issue verifies it works end-to-end and produces a correct migration file.
+Generate the initial Alembic migration that creates all database tables defined in `dbase/psql/models/`: `documents`, `extractions`, `extracted_fields`, `audit_entries`, `chat_messages`, and `citations`. The migration must run up (create tables) and down (drop tables) cleanly against a PostgreSQL database. The Alembic async `env.py` is already scaffolded; this issue verifies it works end-to-end and produces a correct migration file.
 
 ## Context
 
@@ -15,9 +15,9 @@ Generate the initial Alembic migration that creates all database tables defined 
 
 ## Specs to Read
 
-- `specs/backend/api.md` — Section "dbase/sqlalchemy/models.py" for all ORM model definitions
-- `specs/system.md` — DATABASE_URL configuration
-- `specs/conventions/python-module-structure.md` — Section "dbase/sqlalchemy/" for database layer
+- `specs/backend/api.md` — Section "dbase/psql/models/" for all ORM model definitions
+- `specs/system.md` — DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME configuration
+- `specs/conventions/python-module-structure.md` — Section "dbase/psql/" for database layer
 
 ## Current State (Scaffold)
 
@@ -33,8 +33,8 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from docmind.core.config import get_settings
-from docmind.dbase.sqlalchemy.base import Base
-from docmind.dbase.sqlalchemy import models  # noqa: F401 — register models
+from docmind.dbase.psql.core.base import Base
+from docmind.dbase.psql import models  # noqa: F401 — register models
 
 config = context.config
 if config.config_file_name is not None:
@@ -43,7 +43,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 
 def run_migrations_offline() -> None:
@@ -90,7 +90,7 @@ sqlalchemy.url = postgresql+asyncpg://localhost:5432/docmind
 
 **File: `backend/alembic/versions/`** — Only contains `.gitkeep` (no migrations yet)
 
-**File: `backend/src/docmind/dbase/sqlalchemy/models.py`** — 6 ORM models defined:
+**File: `backend/src/docmind/dbase/psql/models/`** — 6 ORM models defined:
 - `Document` (documents) — 11 columns + 2 relationships
 - `Extraction` (extractions) — 6 columns + 3 relationships
 - `ExtractedField` (extracted_fields) — 12 columns + 1 relationship
@@ -116,7 +116,7 @@ sqlalchemy.url = postgresql+asyncpg://localhost:5432/docmind
 
 - Migration file must be committed to `backend/alembic/versions/`
 - The `env.py` must use async engine (already configured)
-- DATABASE_URL is read from settings, not hardcoded in alembic.ini
+- database_url (computed from DB_* vars) is read from settings, not hardcoded in alembic.ini
 
 ## TDD Plan
 
@@ -143,8 +143,8 @@ import pytest
 from sqlalchemy import inspect, text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-from docmind.dbase.sqlalchemy.base import Base
-from docmind.dbase.sqlalchemy import models  # noqa: F401 — register all models
+from docmind.dbase.psql.core.base import Base
+from docmind.dbase.psql import models  # noqa: F401 — register all models
 
 
 # ---------------------------------------------------------------------------
@@ -541,7 +541,7 @@ def downgrade() -> None:
 - [ ] All foreign keys have `ondelete="CASCADE"`
 - [ ] All indexed columns (`user_id`, `document_id`, `extraction_id`, `message_id`) have indexes
 - [ ] All 10 integration tests pass (when database is available)
-- [ ] `env.py` reads DATABASE_URL from settings, not hardcoded
+- [ ] `env.py` reads database_url from settings, not hardcoded
 
 ## Files Changed
 

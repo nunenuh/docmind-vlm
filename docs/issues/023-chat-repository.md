@@ -42,7 +42,7 @@ class ChatRepository:
         raise NotImplementedError
 ```
 
-### `backend/src/docmind/dbase/sqlalchemy/models.py` (ChatMessage + Citation -- already exist)
+### `backend/src/docmind/dbase/psql/models/` (ChatMessage + Citation -- already exist)
 ```python
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -88,7 +88,7 @@ class Citation(Base):
 
 ### Non-Functional
 
-- All methods are `async` and use `async_session()`.
+- All methods are `async` and use `AsyncSessionLocal()`.
 - Citations are created in the same transaction as the message.
 - Messages always filtered by `user_id` for data isolation.
 
@@ -144,7 +144,7 @@ class TestChatRepositorySaveMessage:
     """Tests for ChatRepository.save_message."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_saves_user_message(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -168,7 +168,7 @@ class TestChatRepositorySaveMessage:
         assert isinstance(result, str)
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_saves_message_with_citations(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -199,7 +199,7 @@ class TestChatRepositoryGetHistory:
     """Tests for ChatRepository.get_history."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_returns_paginated_messages(self, mock_session_factory, mock_chat_message, mock_assistant_message):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -226,7 +226,7 @@ class TestChatRepositoryGetHistory:
         assert items[1].role == "assistant"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_returns_empty_for_no_messages(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -252,7 +252,7 @@ class TestChatRepositoryGetRecentMessages:
     """Tests for ChatRepository.get_recent_messages."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_returns_recent_messages(self, mock_session_factory, mock_chat_message, mock_assistant_message):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -269,7 +269,7 @@ class TestChatRepositoryGetRecentMessages:
         assert len(messages) == 2
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_respects_limit_parameter(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -291,7 +291,7 @@ class TestChatRepositoryGetExtractedFields:
     """Tests for ChatRepository.get_extracted_fields."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_returns_fields_for_latest_extraction(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 
@@ -321,7 +321,7 @@ class TestChatRepositoryGetExtractedFields:
         assert fields[0].field_key == "invoice_number"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.repositories.async_session")
+    @patch("docmind.modules.chat.repositories.AsyncSessionLocal")
     async def test_returns_empty_when_no_extraction(self, mock_session_factory):
         from docmind.modules.chat.repositories import ChatRepository
 

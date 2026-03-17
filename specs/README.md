@@ -53,7 +53,7 @@ specs/
 | **System** | | |
 | System-wide | `system.md` | `.env`, `docker-compose.yml`, `docmind/main.py` |
 | **Backend** | | |
-| API Layer + ORM Models | `backend/api.md` | `docmind/modules/*/apiv1/handler.py`, `docmind/router.py`, `docmind/dbase/sqlalchemy/models.py` |
+| API Layer + ORM Models | `backend/api.md` | `docmind/modules/*/apiv1/handler.py`, `docmind/router.py`, `docmind/dbase/psql/models/` |
 | CV Module | `backend/cv.md` | `docmind/library/cv/deskew.py`, `quality.py`, `preprocessing.py` |
 | VLM Providers | `backend/providers.md` | `docmind/library/providers/protocol.py`, `factory.py`, `dashscope.py` |
 | Processing Pipeline | `backend/pipeline-processing.md` | `docmind/library/pipeline/processing.py` |

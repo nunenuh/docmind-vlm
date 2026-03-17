@@ -16,7 +16,7 @@ Replace the stub `DocumentRepository` with a fully working implementation using 
 ## Specs to Read
 
 - `specs/backend/services.md` — Section "Documents Module > repositories.py" for full implementation spec
-- `specs/backend/api.md` — Section "dbase/sqlalchemy/models.py" for ORM model definitions
+- `specs/backend/api.md` — Section "dbase/psql/models/" for ORM model definitions
 - `specs/conventions/python-module-structure.md` — Section "modules/*/repositories.py" layer rules
 - `specs/conventions/security.md` — Section "Ownership Enforcement" for user_id filtering
 
@@ -48,7 +48,7 @@ class DocumentRepository:
         raise NotImplementedError
 ```
 
-**File: `backend/src/docmind/dbase/sqlalchemy/engine.py`**
+**File: `backend/src/docmind/dbase/psql/core/engine.py`**
 
 ```python
 """Async SQLAlchemy engine and session factory."""
@@ -58,14 +58,14 @@ from docmind.core.config import get_settings
 
 settings = get_settings()
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.APP_DEBUG)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
         yield session
 ```
 
-**File: `backend/src/docmind/dbase/sqlalchemy/models.py`** (Document model)
+**File: `backend/src/docmind/dbase/psql/models/`** (Document model)
 
 ```python
 class Document(Base):
@@ -95,7 +95,7 @@ class Document(Base):
 
 ### Non-Functional
 
-- All methods are `async` and use `async with async_session() as session:`
+- All methods are `async` and use `async with AsyncSessionLocal() as session:`
 - Every query that returns user data MUST filter by `user_id`
 - `update_status` does NOT filter by user_id (used by system-level pipeline processing)
 - Pagination uses offset-based approach: `offset = (page - 1) * limit`
@@ -111,7 +111,7 @@ class Document(Base):
 """
 Unit tests for docmind/modules/documents/repositories.py.
 
-All tests mock the SQLAlchemy async_session to test repository logic
+All tests mock the SQLAlchemy AsyncSessionLocal to test repository logic
 in isolation, without a running database.
 """
 import uuid
@@ -120,7 +120,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.models import Document
 from docmind.modules.documents.repositories import DocumentRepository
 
 
@@ -194,15 +194,15 @@ class TestCreate:
     """Tests for DocumentRepository.create()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_create_adds_document_to_session(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_create_adds_document_to_session(self, mock_async_session_local, repo):
         """create() should add a Document to the session and commit."""
         session = AsyncMock()
         session.add = MagicMock()
         session.commit = AsyncMock()
         session.refresh = AsyncMock()
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.create(
             user_id=USER_ID,
@@ -226,15 +226,15 @@ class TestCreate:
         assert added_doc.storage_path == "user-123/doc-abc/invoice.pdf"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_create_returns_document_instance(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_create_returns_document_instance(self, mock_async_session_local, repo):
         """create() should return the ORM Document instance."""
         session = AsyncMock()
         session.add = MagicMock()
         session.commit = AsyncMock()
         session.refresh = AsyncMock()
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.create(
             user_id=USER_ID,
@@ -256,16 +256,16 @@ class TestGetById:
     """Tests for DocumentRepository.get_by_id()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_get_by_id_returns_document_when_found(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_get_by_id_returns_document_when_found(self, mock_async_session_local, repo):
         """get_by_id() should return the document when ID and user_id match."""
         doc = _make_document()
         session = AsyncMock()
         execute_result = MagicMock()
         execute_result.scalar_one_or_none.return_value = doc
         session.execute = AsyncMock(return_value=execute_result)
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.get_by_id(DOC_ID, USER_ID)
 
@@ -273,30 +273,30 @@ class TestGetById:
         assert result.id == DOC_ID
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_get_by_id_returns_none_when_not_found(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_get_by_id_returns_none_when_not_found(self, mock_async_session_local, repo):
         """get_by_id() should return None when document does not exist."""
         session = AsyncMock()
         execute_result = MagicMock()
         execute_result.scalar_one_or_none.return_value = None
         session.execute = AsyncMock(return_value=execute_result)
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.get_by_id("nonexistent-id", USER_ID)
 
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_get_by_id_filters_by_user_id(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_get_by_id_filters_by_user_id(self, mock_async_session_local, repo):
         """get_by_id() must include user_id in the WHERE clause."""
         session = AsyncMock()
         execute_result = MagicMock()
         execute_result.scalar_one_or_none.return_value = None
         session.execute = AsyncMock(return_value=execute_result)
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         await repo.get_by_id(DOC_ID, USER_ID)
 
@@ -319,8 +319,8 @@ class TestListForUser:
     """Tests for DocumentRepository.list_for_user()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_list_returns_items_and_total(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_list_returns_items_and_total(self, mock_async_session_local, repo):
         """list_for_user() should return (items, total_count)."""
         docs = [_make_document(doc_id=str(uuid.uuid4())) for _ in range(3)]
 
@@ -337,8 +337,8 @@ class TestListForUser:
         items_result.scalars.return_value = scalars_mock
 
         session.execute = AsyncMock(side_effect=[count_result, items_result])
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         items, total = await repo.list_for_user(USER_ID, page=1, limit=20)
 
@@ -347,8 +347,8 @@ class TestListForUser:
         assert all(isinstance(d, Document) for d in items)
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_list_empty_returns_zero_total(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_list_empty_returns_zero_total(self, mock_async_session_local, repo):
         """list_for_user() with no documents should return ([], 0)."""
         session = AsyncMock()
 
@@ -361,8 +361,8 @@ class TestListForUser:
         items_result.scalars.return_value = scalars_mock
 
         session.execute = AsyncMock(side_effect=[count_result, items_result])
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         items, total = await repo.list_for_user(USER_ID, page=1, limit=20)
 
@@ -370,8 +370,8 @@ class TestListForUser:
         assert items == []
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_list_pagination_uses_offset(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_list_pagination_uses_offset(self, mock_async_session_local, repo):
         """list_for_user() page 2, limit 10 should use offset 10."""
         session = AsyncMock()
 
@@ -384,8 +384,8 @@ class TestListForUser:
         items_result.scalars.return_value = scalars_mock
 
         session.execute = AsyncMock(side_effect=[count_result, items_result])
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         items, total = await repo.list_for_user(USER_ID, page=2, limit=10)
 
@@ -404,8 +404,8 @@ class TestDelete:
     """Tests for DocumentRepository.delete()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_delete_returns_storage_path_when_found(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_delete_returns_storage_path_when_found(self, mock_async_session_local, repo):
         """delete() should return the storage_path of the deleted document."""
         doc = _make_document(storage_path="user-123/doc-abc/file.pdf")
 
@@ -420,8 +420,8 @@ class TestDelete:
         session.execute = AsyncMock(side_effect=[select_result, ext_result])
         session.delete = AsyncMock()
         session.commit = AsyncMock()
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.delete(DOC_ID, USER_ID)
 
@@ -429,30 +429,30 @@ class TestDelete:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_delete_returns_none_when_not_found(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_delete_returns_none_when_not_found(self, mock_async_session_local, repo):
         """delete() should return None when document doesn't exist."""
         session = AsyncMock()
         select_result = MagicMock()
         select_result.scalar_one_or_none.return_value = None
         session.execute = AsyncMock(return_value=select_result)
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         result = await repo.delete("nonexistent-id", USER_ID)
 
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_delete_filters_by_user_id(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_delete_filters_by_user_id(self, mock_async_session_local, repo):
         """delete() must filter by user_id to prevent cross-user deletion."""
         session = AsyncMock()
         select_result = MagicMock()
         select_result.scalar_one_or_none.return_value = None
         session.execute = AsyncMock(return_value=select_result)
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         await repo.delete(DOC_ID, OTHER_USER_ID)
 
@@ -470,14 +470,14 @@ class TestUpdateStatus:
     """Tests for DocumentRepository.update_status()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_update_status_executes_update(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_update_status_executes_update(self, mock_async_session_local, repo):
         """update_status() should execute an UPDATE statement and commit."""
         session = AsyncMock()
         session.execute = AsyncMock()
         session.commit = AsyncMock()
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         await repo.update_status(DOC_ID, "processing")
 
@@ -485,14 +485,14 @@ class TestUpdateStatus:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.repositories.async_session")
-    async def test_update_status_with_extra_kwargs(self, mock_async_session, repo):
+    @patch("docmind.modules.documents.repositories.AsyncSessionLocal")
+    async def test_update_status_with_extra_kwargs(self, mock_async_session_local, repo):
         """update_status() should accept additional fields via kwargs."""
         session = AsyncMock()
         session.execute = AsyncMock()
         session.commit = AsyncMock()
-        mock_async_session.return_value.__aenter__ = AsyncMock(return_value=session)
-        mock_async_session.return_value.__aexit__ = AsyncMock(return_value=False)
+        mock_async_session_local.return_value.__aenter__ = AsyncMock(return_value=session)
+        mock_async_session_local.return_value.__aexit__ = AsyncMock(return_value=False)
 
         await repo.update_status(DOC_ID, "ready", page_count=5, document_type="invoice")
 
@@ -511,8 +511,8 @@ class TestUpdateStatus:
    ```python
    from datetime import datetime, timezone
    from sqlalchemy import delete as sa_delete, func, select, update
-   from docmind.dbase.sqlalchemy.engine import async_session
-   from docmind.dbase.sqlalchemy.models import (
+   from docmind.dbase.psql.core.session import AsyncSessionLocal
+   from docmind.dbase.psql.models import (
        AuditEntry, ChatMessage, Document, ExtractedField, Extraction,
    )
    ```
@@ -525,7 +525,7 @@ class TestUpdateStatus:
    - `update_status`: `update(Document).where(Document.id == document_id).values(status=status, updated_at=datetime.now(timezone.utc), **kwargs)`
 
 3. Key patterns:
-   - Always use `async with async_session() as session:` — one session per operation
+   - Always use `async with AsyncSessionLocal() as session:` — one session per operation
    - Return `list(result.scalars().all())` for list queries
    - Use `result.scalar_one_or_none()` for single-row queries
    - Cascading delete order: audit_entries/extracted_fields (leaf) -> chat_messages -> extractions -> document

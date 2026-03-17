@@ -55,11 +55,26 @@ backend/
 │       │   │   ├── __init__.py
 │       │   │   ├── client.py    # Supabase client init (Auth + Storage only)
 │       │   │   └── storage.py   # File upload, download, signed-URL helpers
-│       │   └── sqlalchemy/
-│       │       ├── __init__.py
-│       │       ├── engine.py    # Async engine + session factory
-│       │       ├── base.py      # DeclarativeBase
-│       │       └── models.py    # ORM models (Document, Extraction, ChatMessage, etc.)
+│       │   └── psql/
+│       │       ├── __init__.py   # Re-exports: Base, engine, session, models
+│       │       ├── core/
+│       │       │   ├── __init__.py
+│       │       │   ├── base.py       # DeclarativeBase
+│       │       │   ├── engine.py     # Async engine (NullPool) + lru_cache
+│       │       │   ├── session.py    # async_sessionmaker + get_async_db_session()
+│       │       │   └── init_db.py    # Programmatic create_all / drop_all
+│       │       ├── models/           # One file per ORM model
+│       │       │   ├── __init__.py
+│       │       │   ├── document.py
+│       │       │   ├── extraction.py
+│       │       │   ├── extracted_field.py
+│       │       │   ├── audit_entry.py
+│       │       │   ├── chat_message.py
+│       │       │   └── citation.py
+│       │       ├── services/
+│       │       │   └── migrate.py    # Programmatic Alembic runner CLI
+│       │       └── langgraph/
+│       │           └── __init__.py   # Placeholder for LangGraph checkpointer
 │       ├── library/             # Reusable logic (can use frameworks, NOT tied to modules/DB)
 │       │   ├── __init__.py
 │       │   ├── cv/              # Classical computer vision (pure functions)
@@ -202,7 +217,7 @@ Service (modules/*/services.py)
     ↓                   ↓
 Library                 Repository (modules/*/repositories.py)
   ├── Pipeline            ↓
-  ├── Providers         SQLAlchemy (dbase/sqlalchemy/)
+  ├── Providers         SQLAlchemy (dbase/psql/)
   └── CV                Supabase Storage (dbase/supabase/)
 ```
 
@@ -213,7 +228,7 @@ Library                 Repository (modules/*/repositories.py)
 | Service | `modules/*/services.py` | Business logic — calls library functions (CV, providers, pipeline) |
 | Repository | `modules/*/repositories.py` | Database operations — SQLAlchemy queries, always filter by user_id |
 | Library | `library/` | Reusable logic — CV, VLM providers, LangGraph pipelines |
-| Database (SQL) | `dbase/sqlalchemy/` | Async engine, session factory, ORM models, Alembic migrations |
+| Database (SQL) | `dbase/psql/` | Async engine (core/), ORM models (models/), Alembic migrations (services/migrate.py) |
 | Database (Auth+Storage) | `dbase/supabase/` | Supabase client for JWT auth + file storage only |
 | Core | `core/` | Config, auth, dependencies, logging |
 | Shared | `shared/` | Exception hierarchy, shared utilities |
