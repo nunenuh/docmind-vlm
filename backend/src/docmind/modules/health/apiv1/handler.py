@@ -20,7 +20,7 @@ async def ping():
 @router.get("/status", response_model=HealthStatusResponse)
 async def get_health_status():
     usecase = HealthUseCase()
-    overall_status, components, uptime = usecase.get_basic_health()
+    overall_status, components, uptime = await usecase.get_basic_health()
     return HealthStatusResponse(
         status=overall_status,
         timestamp=datetime.now(timezone.utc),
