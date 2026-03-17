@@ -20,11 +20,11 @@ setup-frontend: ## Setup frontend: .env + npm install
 dev: ## Run backend + frontend in parallel
 	@make backend & make frontend
 
-backend: ## FastAPI dev server on port 8000
-	cd backend && poetry run uvicorn docmind.main:app --reload --host 0.0.0.0 --port 8000
+backend: ## FastAPI dev server on port 8009
+	cd backend && poetry run uvicorn docmind.main:app --reload --host 0.0.0.0 --port 8009
 
-frontend: ## Vite dev server on port 5173
-	cd frontend && npm run dev
+frontend: ## Vite dev server on port 5177
+	cd frontend && npm run dev -- --port 5177
 
 # ── Docker ─────────────────────────────────────────────
 

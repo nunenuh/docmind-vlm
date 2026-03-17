@@ -6,7 +6,7 @@ services:
       dockerfile: Dockerfile
     container_name: docmind-backend
     ports:
-      - "8000:8000"
+      - "8009:8009"
     env_file:
       - ./backend/.env
     volumes:
@@ -23,7 +23,7 @@ services:
       dockerfile: Dockerfile
     container_name: docmind-frontend
     ports:
-      - "5173:5173"
+      - "5177:5177"
     env_file:
       - ./frontend/.env
     depends_on:
