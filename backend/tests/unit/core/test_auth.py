@@ -1,5 +1,5 @@
 """
-Unit tests for docmind/core/auth.py — JWT validation.
+Unit tests for docmind/core/auth.py — JWKS-based JWT validation (ES256).
 
 Tests cover:
 - Valid token decoding
@@ -14,15 +14,20 @@ from unittest.mock import MagicMock
 
 import jwt as pyjwt
 import pytest
-from docmind.core.auth import decode_jwt, get_current_user
+from cryptography.hazmat.primitives.asymmetric import ec
+from docmind.core.auth import decode_jwt, get_current_user, reset_jwks_client
 from fastapi import HTTPException
 from fastapi.security import HTTPAuthorizationCredentials
 
 # ---------------------------------------------------------------------------
-# Constants
+# EC key pairs for testing
 # ---------------------------------------------------------------------------
 
-TEST_JWT_SECRET = "super-secret-test-key-for-jwt-verification"
+_TEST_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
+_TEST_PUBLIC_KEY = _TEST_PRIVATE_KEY.public_key()
+
+_WRONG_PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
+
 TEST_USER_ID = "user-abc-123"
 TEST_EMAIL = "test@example.com"
 
@@ -33,12 +38,18 @@ TEST_EMAIL = "test@example.com"
 
 
 @pytest.fixture(autouse=True)
-def _mock_settings(monkeypatch):
-    """Patch SUPABASE_JWT_SECRET for all tests in this module."""
-    mock_settings = MagicMock()
-    mock_settings.SUPABASE_JWT_SECRET = TEST_JWT_SECRET
+def _mock_jwks_client(monkeypatch):
+    """Mock the JWKS client to return our test public key."""
+    reset_jwks_client()
+
+    mock_signing_key = MagicMock()
+    mock_signing_key.key = _TEST_PUBLIC_KEY
+
+    mock_client = MagicMock()
+    mock_client.get_signing_key_from_jwt.return_value = mock_signing_key
+
     monkeypatch.setattr(
-        "docmind.core.auth.get_settings", lambda: mock_settings
+        "docmind.core.auth._get_jwks_client", lambda: mock_client
     )
 
 
@@ -47,11 +58,13 @@ def _make_token(
     email: str = TEST_EMAIL,
     exp: int | None = None,
     aud: str = "authenticated",
-    secret: str = TEST_JWT_SECRET,
-    algorithm: str = "HS256",
+    private_key=None,
+    algorithm: str = "ES256",
     **extra_claims,
 ) -> str:
-    """Create a JWT token for testing."""
+    """Create a JWT token signed with ES256 for testing."""
+    if private_key is None:
+        private_key = _TEST_PRIVATE_KEY
     if exp is None:
         exp = int(time.time()) + 3600  # 1 hour from now
     payload = {
@@ -62,7 +75,7 @@ def _make_token(
         "iat": int(time.time()),
         **extra_claims,
     }
-    return pyjwt.encode(payload, secret, algorithm=algorithm)
+    return pyjwt.encode(payload, private_key, algorithm=algorithm)
 
 
 # ---------------------------------------------------------------------------
@@ -88,7 +101,9 @@ class TestDecodeJwt:
             "aud": "authenticated",
             "exp": int(time.time()) + 3600,
         }
-        token = pyjwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
+        token = pyjwt.encode(
+            payload, _TEST_PRIVATE_KEY, algorithm="ES256"
+        )
         result = decode_jwt(token)
 
         assert result["id"] == TEST_USER_ID
@@ -101,9 +116,21 @@ class TestDecodeJwt:
         with pytest.raises(pyjwt.ExpiredSignatureError):
             decode_jwt(token)
 
-    def test_invalid_signature_raises_error(self):
-        """A token signed with wrong key raises InvalidSignatureError."""
-        token = _make_token(secret="wrong-secret-key")
+    def test_invalid_signature_raises_error(self, monkeypatch):
+        """A token verified with wrong public key raises error."""
+        wrong_public_key = _WRONG_PRIVATE_KEY.public_key()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = wrong_public_key
+
+        mock_client = MagicMock()
+        mock_client.get_signing_key_from_jwt.return_value = (
+            mock_signing_key
+        )
+        monkeypatch.setattr(
+            "docmind.core.auth._get_jwks_client", lambda: mock_client
+        )
+
+        token = _make_token()
 
         with pytest.raises(pyjwt.InvalidSignatureError):
             decode_jwt(token)
@@ -119,7 +146,7 @@ class TestDecodeJwt:
             decode_jwt("")
 
     def test_wrong_audience_raises_error(self):
-        """A token with wrong audience raises InvalidAudienceError."""
+        """A token with wrong audience should raise InvalidAudienceError."""
         token = _make_token(aud="wrong-audience")
 
         with pytest.raises(pyjwt.InvalidAudienceError):
@@ -132,7 +159,9 @@ class TestDecodeJwt:
             "aud": "authenticated",
             "exp": int(time.time()) + 3600,
         }
-        token = pyjwt.encode(payload, TEST_JWT_SECRET, algorithm="HS256")
+        token = pyjwt.encode(
+            payload, _TEST_PRIVATE_KEY, algorithm="ES256"
+        )
 
         with pytest.raises(KeyError):
             decode_jwt(token)
@@ -174,9 +203,21 @@ class TestGetCurrentUser:
         assert "expired" in exc_info.value.detail.lower()
 
     @pytest.mark.asyncio
-    async def test_invalid_signature_raises_401(self):
+    async def test_invalid_signature_raises_401(self, monkeypatch):
         """Token with wrong signature should raise HTTPException 401."""
-        token = _make_token(secret="wrong-secret")
+        wrong_public_key = _WRONG_PRIVATE_KEY.public_key()
+        mock_signing_key = MagicMock()
+        mock_signing_key.key = wrong_public_key
+
+        mock_client = MagicMock()
+        mock_client.get_signing_key_from_jwt.return_value = (
+            mock_signing_key
+        )
+        monkeypatch.setattr(
+            "docmind.core.auth._get_jwks_client", lambda: mock_client
+        )
+
+        token = _make_token()
         credentials = HTTPAuthorizationCredentials(
             scheme="Bearer", credentials=token
         )

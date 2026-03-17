@@ -1,8 +1,7 @@
 """docmind/modules/templates/apiv1/handler.py"""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter
 
-from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 
 from ..schemas import TemplateListResponse, TemplateResponse
@@ -50,5 +49,5 @@ TEMPLATES = [
 
 
 @router.get("", response_model=TemplateListResponse)
-async def list_templates(current_user: dict = Depends(get_current_user)):
+async def list_templates():
     return TemplateListResponse(items=TEMPLATES)

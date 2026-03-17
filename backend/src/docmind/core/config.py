@@ -44,9 +44,8 @@ class Settings(BaseSettings):
 
     # Supabase (Auth + Storage)
     SUPABASE_URL: str = Field(default="")
-    SUPABASE_ANON_KEY: str = Field(default="")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
-    SUPABASE_JWT_SECRET: str = Field(default="")
+    SUPABASE_PUBLISHABLE_KEY: str = Field(default="")
+    SUPABASE_SECRET_KEY: str = Field(default="")
 
     # Database (Supabase Postgres via SQLAlchemy)
     DATABASE_URL: str = Field(default="postgresql+asyncpg://localhost:5432/docmind")
