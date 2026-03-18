@@ -6,10 +6,12 @@ LangGraph StateGraph for the document chat agent.
 Nodes: router -> retrieve -> reason -> cite -> END.
 """
 
+import asyncio
 import re
 from typing import Any, Callable, TypedDict
 
 from docmind.core.logging import get_logger
+from docmind.library.providers.factory import get_vlm_provider
 
 logger = get_logger(__name__)
 
@@ -247,54 +249,238 @@ def retrieve_node(state: dict) -> dict:
     }
 
 
-# --- Placeholder nodes (implemented in #24) ---
+# --- Reasoning ---
+
+GROUNDING_SYSTEM_PROMPT = """You are a document analysis assistant. You MUST answer based ONLY on the extracted document data provided below. Do NOT hallucinate or infer information not present in the data. If the data does not contain the answer, say so clearly.
+
+When referencing specific data, mention the page number (e.g., "on page 1")."""
+
+_MAX_PAGE_IMAGES = 4
+_MAX_CONVERSATION_HISTORY = 6
+
+_REASONING_INSTRUCTIONS: dict[str, str] = {
+    "factual_lookup": "Provide a precise, exact answer based on the document data. Quote the relevant values directly.",
+    "reasoning": "Provide a step-by-step explanation based on the document data. Show your reasoning clearly.",
+    "summarization": "Synthesize and summarize the key information from the document data provided.",
+    "comparison": "Compare the relevant values side-by-side, highlighting similarities and differences.",
+}
+
+
+def _confidence_label(confidence: float) -> str:
+    """Map confidence score to human label."""
+    if confidence >= 0.8:
+        return "high"
+    if confidence >= 0.5:
+        return "medium"
+    return "LOW"
+
+
+def _build_context(state: dict) -> str:
+    """Build document context string from state.
+
+    Args:
+        state: ChatState dict with relevant_fields, re_queried_regions,
+               conversation_history.
+
+    Returns:
+        Formatted context string for the VLM prompt.
+    """
+    parts: list[str] = []
+
+    # Relevant fields
+    fields = state.get("relevant_fields", [])
+    if fields:
+        parts.append("EXTRACTED DOCUMENT DATA:")
+        for f in fields:
+            key = f.get("field_key", "unknown")
+            value = f.get("field_value", "")
+            page = f.get("page_number", "?")
+            conf = _confidence_label(f.get("confidence", 0.0))
+            parts.append(f'- [{key}] = "{value}" (page {page}, confidence: {conf})')
+
+    # Re-queried regions
+    regions = state.get("re_queried_regions", [])
+    if regions:
+        parts.append("\nDETAILED RE-ANALYSIS:")
+        for r in regions:
+            key = r.get("field_key", "unknown")
+            detail = r.get("detailed_value", "")
+            page = r.get("page_number", "?")
+            parts.append(f"- [{key}] page {page}: {detail}")
+
+    # Conversation history (capped)
+    history = state.get("conversation_history", [])
+    if history:
+        recent = history[-_MAX_CONVERSATION_HISTORY:]
+        parts.append("\nCONVERSATION HISTORY:")
+        for msg in recent:
+            role = msg.get("role", "user").upper()
+            content = msg.get("content", "")
+            parts.append(f"{role}: {content}")
+
+    return "\n".join(parts)
+
+
+def _get_reasoning_instruction(intent: str) -> str:
+    """Get intent-specific reasoning instruction.
+
+    Args:
+        intent: Classified intent type.
+
+    Returns:
+        Instruction string for the VLM prompt.
+    """
+    return _REASONING_INSTRUCTIONS.get(intent, _REASONING_INSTRUCTIONS["factual_lookup"])
+
 
 def reason_node(state: dict) -> dict:
-    """Generate answer from relevant fields (placeholder).
+    """Generate a grounded answer using the VLM provider.
+
+    Constructs context from relevant fields, calls VLM with grounding
+    system prompt, and streams tokens via callback if provided.
 
     Args:
         state: ChatState dict.
 
     Returns:
-        State update with raw_answer and answer.
+        State update with raw_answer.
     """
-    fields = state.get("relevant_fields", [])
-    message = state.get("message", "")
+    try:
+        context = _build_context(state)
+        instruction = _get_reasoning_instruction(state.get("intent", "factual_lookup"))
+        message = state.get("message", "")
+        page_images = state.get("page_images", [])[:_MAX_PAGE_IMAGES]
+        callback = state.get("stream_callback")
 
-    if not fields:
-        answer = "I couldn't find relevant information in this document to answer your question."
-    else:
-        field_info = "; ".join(
-            f"{f.get('field_key', '')}: {f.get('field_value', '')}"
-            for f in fields[:5]
-        )
-        answer = f"Based on the document: {field_info}"
+        prompt = f"{context}\n\n{instruction}\n\nUser question: {message}"
 
-    return {"raw_answer": answer, "answer": answer}
+        provider = get_vlm_provider()
+
+        loop = asyncio.new_event_loop()
+        try:
+            response = loop.run_until_complete(
+                provider.chat(
+                    prompt=prompt,
+                    system_prompt=GROUNDING_SYSTEM_PROMPT,
+                    images=page_images,
+                )
+            )
+        finally:
+            loop.close()
+
+        answer = response.get("content", "")
+
+        # Stream tokens via callback
+        if callback and answer:
+            callback("token", content=answer)
+
+        return {"raw_answer": answer}
+
+    except Exception as e:
+        logger.error("reason_node_error: %s", e, exc_info=True)
+        return {"raw_answer": "I encountered an error while processing your question. Please try again."}
+
+
+# --- Citation extraction ---
+
+def _extract_page_references(answer: str) -> list[int]:
+    """Extract page number references from answer text.
+
+    Matches patterns like "page 1", "p. 2", "p2".
+
+    Args:
+        answer: The generated answer text.
+
+    Returns:
+        Sorted, deduplicated list of page numbers.
+    """
+    pattern = r'\bpage\s+(\d+)\b|\bp\.?\s*(\d+)\b'
+    matches = re.findall(pattern, answer, re.IGNORECASE)
+    pages: set[int] = set()
+    for groups in matches:
+        for g in groups:
+            if g:
+                pages.add(int(g))
+    return sorted(pages)
+
+
+def _match_citations(
+    answer: str, relevant_fields: list[dict]
+) -> list[Citation]:
+    """Match field values in the answer to generate citations.
+
+    Args:
+        answer: The generated answer text.
+        relevant_fields: Fields from retrieval.
+
+    Returns:
+        Deduplicated list of Citation dicts.
+    """
+    if not answer or not relevant_fields:
+        return []
+
+    citations: list[Citation] = []
+    seen: set[str] = set()
+    answer_lower = answer.lower()
+
+    # Match field values in answer
+    for f in relevant_fields:
+        value = f.get("field_value", "")
+        if len(value) < 2:
+            continue
+
+        if value.lower() in answer_lower:
+            dedup_key = f"{f.get('page_number', 0)}:{value}"
+            if dedup_key not in seen:
+                seen.add(dedup_key)
+                citations.append(Citation(
+                    page=f.get("page_number", 1),
+                    bounding_box=f.get("bounding_box", {}),
+                    text_span=value,
+                ))
+
+    # Match page references to fields
+    page_refs = _extract_page_references(answer)
+    for page in page_refs:
+        for f in relevant_fields:
+            if f.get("page_number") == page:
+                value = f.get("field_value", "")
+                dedup_key = f"{page}:{value}"
+                if dedup_key not in seen:
+                    seen.add(dedup_key)
+                    citations.append(Citation(
+                        page=page,
+                        bounding_box=f.get("bounding_box", {}),
+                        text_span=value,
+                    ))
+
+    return citations
 
 
 def cite_node(state: dict) -> dict:
-    """Generate citations from relevant fields (placeholder).
+    """Extract citations from the answer and relevant fields.
+
+    Matches field values in the answer text, extracts page references,
+    and streams citation events via callback.
 
     Args:
-        state: ChatState dict.
+        state: ChatState dict with raw_answer, relevant_fields.
 
     Returns:
-        State update with citations.
+        State update with answer and citations.
     """
+    answer = state.get("raw_answer", "")
     fields = state.get("relevant_fields", [])
-    citations: list[Citation] = []
+    callback = state.get("stream_callback")
 
-    for f in fields:
-        bbox = f.get("bounding_box", {})
-        if bbox:
-            citations.append(Citation(
-                page=f.get("page_number", 1),
-                bounding_box=bbox,
-                text_span=f"{f.get('field_key', '')}: {f.get('field_value', '')}",
-            ))
+    citations = _match_citations(answer, fields)
 
-    return {"citations": citations}
+    if callback:
+        for c in citations:
+            callback("citation", citation=c)
+        callback("done")
+
+    return {"answer": answer, "citations": citations}
 
 
 # --- Graph wiring ---
