@@ -11,6 +11,7 @@ import asyncio
 import dataclasses
 import logging
 import time
+import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, TypedDict
 
@@ -385,6 +386,361 @@ def extract_node(state: dict) -> dict:
         return {
             "status": "error",
             "error_message": "Extraction failed. See server logs for details.",
+        }
+
+
+CONFIDENCE_VLM_WEIGHT = 0.7
+CONFIDENCE_CV_WEIGHT = 0.3
+LOW_CONFIDENCE_THRESHOLD = 0.5
+
+
+def _lookup_cv_quality(
+    bounding_box: dict,
+    quality_map: dict,
+    page_height: int = 4,
+    page_width: int = 4,
+) -> float:
+    """Map bounding box center to nearest grid cell in quality map.
+
+    Args:
+        bounding_box: Dict with x, y, width, height as ratios (0.0-1.0).
+        quality_map: Dict mapping "row,col" strings to quality dicts.
+        page_height: Number of grid rows.
+        page_width: Number of grid columns.
+
+    Returns:
+        Overall quality score for the grid cell, or 0.5 as fallback.
+    """
+    if not quality_map or not bounding_box:
+        return 0.5
+    center_y = bounding_box.get("y", 0.5) + bounding_box.get("height", 0) / 2
+    center_x = bounding_box.get("x", 0.5) + bounding_box.get("width", 0) / 2
+    grid_row = min(int(center_y * page_height), page_height - 1)
+    grid_col = min(int(center_x * page_width), page_width - 1)
+    key = f"{grid_row},{grid_col}"
+    region = quality_map.get(key)
+    if region is None:
+        return 0.5
+    return region.get("overall_score", 0.5)
+
+
+def _merge_confidence(vlm_confidence: float, cv_quality: float) -> float:
+    """Merge VLM confidence with CV quality score.
+
+    Formula: final = vlm * 0.7 + cv * 0.3, clamped to [0.0, 1.0].
+
+    Args:
+        vlm_confidence: VLM extraction confidence (0.0-1.0).
+        cv_quality: CV region quality score (0.0-1.0).
+
+    Returns:
+        Merged confidence rounded to 4 decimal places.
+    """
+    merged = (vlm_confidence * CONFIDENCE_VLM_WEIGHT) + (cv_quality * CONFIDENCE_CV_WEIGHT)
+    return round(max(0.0, min(1.0, merged)), 4)
+
+
+def _generate_low_confidence_explanation(
+    field: dict, cv_quality: float
+) -> str | None:
+    """Generate human-readable explanation for low-confidence fields.
+
+    Args:
+        field: Enhanced field dict with confidence, vlm_confidence, is_missing.
+        cv_quality: CV quality score for this field's region.
+
+    Returns:
+        Explanation string if confidence < threshold, None otherwise.
+    """
+    confidence = field.get("confidence", 0.0)
+    if confidence >= LOW_CONFIDENCE_THRESHOLD:
+        return None
+    reasons = []
+    vlm_conf = field.get("vlm_confidence", 0.0)
+    if vlm_conf < 0.5:
+        reasons.append("VLM had low confidence in reading this field")
+    if cv_quality < 0.4:
+        reasons.append(
+            "image quality in this region is poor (possible blur or noise)"
+        )
+    if field.get("is_missing"):
+        reasons.append("field was expected but not found in the document")
+    if not reasons:
+        reasons.append(
+            "combined confidence from VLM and image quality is below threshold"
+        )
+    return "; ".join(reasons)
+
+
+def _validate_template_fields(
+    fields: list[dict], template_type: str | None
+) -> list[dict]:
+    """Validate extracted fields against template requirements.
+
+    Adds missing required fields as placeholder entries with
+    confidence=0.0, is_missing=True, is_required=True.
+
+    Args:
+        fields: List of enhanced field dicts.
+        template_type: Template name, or None for general mode.
+
+    Returns:
+        Validated list of field dicts (new list, no mutation).
+    """
+    if not template_type:
+        return list(fields)
+
+    required_map = {
+        "invoice": ["invoice_number", "date", "total_amount", "vendor_name"],
+        "receipt": ["date", "total_amount", "merchant_name"],
+        "medical_report": ["patient_name", "report_date", "report_type"],
+        "contract": ["parties", "effective_date", "contract_type"],
+        "id_document": ["full_name", "document_number", "date_of_birth"],
+    }
+    required_fields = required_map.get(template_type, [])
+    found_keys = {f.get("field_key") for f in fields if f.get("field_key")}
+
+    validated_fields = []
+    for field in fields:
+        updated = {**field}
+        if updated.get("field_key") in required_fields:
+            updated["is_required"] = True
+        validated_fields.append(updated)
+
+    for req_key in required_fields:
+        if req_key not in found_keys:
+
+
+            validated_fields.append({
+                "id": str(uuid.uuid4()),
+                "field_type": "key_value",
+                "field_key": req_key,
+                "field_value": "",
+                "page_number": 1,
+                "bounding_box": {},
+                "confidence": 0.0,
+                "vlm_confidence": 0.0,
+                "cv_quality_score": 0.0,
+                "is_required": True,
+                "is_missing": True,
+            })
+    return validated_fields
+
+
+def postprocess_node(state: dict) -> dict:
+    """Postprocess extraction results: merge confidence, validate, explain.
+
+    Steps:
+    1. Merge VLM confidence with CV quality score per field
+    2. Validate against template (if template mode)
+    3. Generate explanations for low-confidence fields
+    4. Build comparison data (enhanced vs raw)
+    5. Record audit entry
+
+    Args:
+        state: ProcessingState dict with raw_fields, quality_map, template_type.
+
+    Returns:
+        State update dict with enhanced_fields, comparison_data, audit_entries.
+        On error, returns status='error' with error_message.
+    """
+    start_time = time.time()
+    progress_callback = state.get("progress_callback")
+
+    def _notify(progress: float, message: str) -> None:
+        if progress_callback is not None:
+            progress_callback("postprocess", progress, message)
+
+    try:
+        raw_fields = state.get("raw_fields", [])
+        quality_map = state.get("quality_map", {})
+        template_type = state.get("template_type")
+
+        _notify(0.65, "Merging confidence scores")
+
+
+
+        enhanced_fields = []
+        corrected_ids = []
+
+        for field in raw_fields:
+            field_id = field.get("id", str(uuid.uuid4()))
+            bbox = field.get("bounding_box", {})
+            cv_quality = _lookup_cv_quality(bbox, quality_map)
+            vlm_conf = field.get(
+                "vlm_confidence", field.get("confidence", 0.5)
+            )
+            merged_conf = _merge_confidence(vlm_conf, cv_quality)
+
+            enhanced = {
+                **field,
+                "id": field_id,
+                "confidence": merged_conf,
+                "vlm_confidence": vlm_conf,
+                "cv_quality_score": cv_quality,
+                "is_required": field.get("is_required", False),
+                "is_missing": field.get("is_missing", False),
+            }
+
+            original_conf = field.get("confidence", 0.0)
+            if abs(merged_conf - original_conf) > 0.05:
+                corrected_ids.append(field_id)
+
+            enhanced_fields.append(enhanced)
+
+        _notify(0.75, "Validating template fields")
+
+        enhanced_fields = _validate_template_fields(enhanced_fields, template_type)
+
+        # Track added fields (from template validation)
+        added_ids = []
+        raw_field_ids = {f.get("id") for f in raw_fields}
+        for field in enhanced_fields:
+            if field.get("is_missing") and field.get("id") not in raw_field_ids:
+                added_ids.append(field["id"])
+
+        _notify(0.80, "Generating explanations")
+
+        # Generate explanations for low-confidence fields (immutable)
+        final_fields = []
+        for field in enhanced_fields:
+            bbox = field.get("bounding_box", {})
+            cv_quality = _lookup_cv_quality(bbox, quality_map)
+            explanation = _generate_low_confidence_explanation(field, cv_quality)
+            if explanation:
+                field = {**field, "low_confidence_reason": explanation}
+            final_fields.append(field)
+
+        comparison_data = {
+            "corrected": corrected_ids,
+            "added": added_ids,
+        }
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        audit_entry: AuditEntry = {
+            "step_name": "postprocess",
+            "step_order": 3,
+            "input_summary": {
+                "raw_field_count": len(raw_fields),
+                "quality_regions": len(quality_map),
+            },
+            "output_summary": {
+                "enhanced_field_count": len(final_fields),
+                "corrected_count": len(corrected_ids),
+                "added_count": len(added_ids),
+                "low_confidence_count": sum(
+                    1 for f in final_fields
+                    if f.get("confidence", 1.0) < LOW_CONFIDENCE_THRESHOLD
+                ),
+            },
+            "parameters": {
+                "vlm_weight": CONFIDENCE_VLM_WEIGHT,
+                "cv_weight": CONFIDENCE_CV_WEIGHT,
+                "low_confidence_threshold": LOW_CONFIDENCE_THRESHOLD,
+            },
+            "duration_ms": duration_ms,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        existing_entries = list(state.get("audit_entries", []))
+        existing_entries.append(audit_entry)
+
+        _notify(1.0, "Postprocessing complete")
+
+        return {
+            "enhanced_fields": final_fields,
+            "comparison_data": comparison_data,
+            "audit_entries": existing_entries,
+        }
+
+    except Exception as e:
+        logger.error("Postprocessing failed: %s", e, exc_info=True)
+        return {
+            "status": "error",
+            "error_message": "Postprocessing failed. See server logs for details.",
+        }
+
+
+async def _persist_results(state: dict, extraction_id: str) -> None:
+    """Persist extraction results to the database.
+
+    Stub — will be implemented when DB layer is wired up.
+    Currently a no-op placeholder that tests can mock.
+
+    Args:
+        state: ProcessingState dict with enhanced_fields, audit_entries, etc.
+        extraction_id: UUID string for the new extraction record.
+    """
+    logger.info(
+        "Persisting extraction %s for document %s (stub)",
+        extraction_id,
+        state.get("document_id"),
+    )
+
+
+def store_node(state: dict) -> dict:
+    """Store extraction results to the database.
+
+    Generates a new extraction_id, persists results via _persist_results,
+    and sets pipeline status to 'ready'.
+
+    Args:
+        state: ProcessingState dict with enhanced_fields, audit_entries, etc.
+
+    Returns:
+        State update dict with extraction_id, status, audit_entries.
+        On error, returns status='error' with error_message.
+    """
+    start_time = time.time()
+    progress_callback = state.get("progress_callback")
+
+    def _notify(progress: float, message: str) -> None:
+        if progress_callback is not None:
+            progress_callback("store", progress, message)
+
+    try:
+
+
+        extraction_id = str(uuid.uuid4())
+
+        _notify(0.9, "Persisting extraction results")
+
+        asyncio.run(_persist_results(state, extraction_id))
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        audit_entry: AuditEntry = {
+            "step_name": "store",
+            "step_order": 4,
+            "input_summary": {
+                "document_id": state.get("document_id", ""),
+                "field_count": len(state.get("enhanced_fields", [])),
+            },
+            "output_summary": {
+                "extraction_id": extraction_id,
+            },
+            "parameters": {},
+            "duration_ms": duration_ms,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+        existing_entries = list(state.get("audit_entries", []))
+        existing_entries.append(audit_entry)
+
+        _notify(1.0, "Storage complete")
+
+        return {
+            "extraction_id": extraction_id,
+            "status": "ready",
+            "audit_entries": existing_entries,
+        }
+
+    except Exception as e:
+        logger.error("Storage failed: %s", e, exc_info=True)
+        return {
+            "status": "error",
+            "error_message": "Storage failed. See server logs for details.",
         }
 
 
