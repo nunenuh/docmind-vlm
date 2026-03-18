@@ -1,1 +1,7 @@
-{}
+{
+  "type": "invoice",
+  "name": "Invoice",
+  "description": "Commercial invoices with line items, totals, and vendor info",
+  "required_fields": ["invoice_number", "date", "total_amount", "vendor_name"],
+  "optional_fields": ["due_date", "tax_amount", "line_items", "purchase_order"]
+}
