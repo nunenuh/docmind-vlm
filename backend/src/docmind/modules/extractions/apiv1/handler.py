@@ -22,7 +22,7 @@ async def get_extraction(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = ExtractionUseCase()
-    extraction = usecase.get_extraction(document_id=document_id)
+    extraction = await usecase.get_extraction(document_id=document_id)
     if extraction is None:
         raise HTTPException(status_code=404, detail="Extraction not found")
     return extraction
@@ -33,7 +33,7 @@ async def get_audit_trail(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = ExtractionUseCase()
-    return usecase.get_audit_trail(document_id=document_id)
+    return await usecase.get_audit_trail(document_id=document_id)
 
 
 @router.get("/{document_id}/overlay", response_model=list[OverlayRegion])
@@ -41,7 +41,7 @@ async def get_overlay_data(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = ExtractionUseCase()
-    return usecase.get_overlay_data(document_id=document_id)
+    return await usecase.get_overlay_data(document_id=document_id)
 
 
 @router.get("/{document_id}/comparison", response_model=ComparisonResponse)
@@ -49,7 +49,7 @@ async def get_comparison(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = ExtractionUseCase()
-    comparison = usecase.get_comparison(document_id=document_id)
+    comparison = await usecase.get_comparison(document_id=document_id)
     if comparison is None:
         raise HTTPException(status_code=404, detail="Comparison not available")
     return comparison
