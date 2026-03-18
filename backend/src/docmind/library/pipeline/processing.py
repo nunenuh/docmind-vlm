@@ -191,16 +191,70 @@ For each piece of information found, return a JSON object with:
 Return a JSON object: {"fields": [...], "document_type": "<detected type>"}
 """
 
+TEMPLATE_EXTRACTION_PROMPT = """Analyze this document as a {template_type}.
+
+Extract the following required fields: {required_fields}
+Also extract if present: {optional_fields}
+
+For each field, return a JSON object with:
+- "field_type": one of "key_value", "table_cell", "entity", "text_block"
+- "field_key": the field name from the template
+- "field_value": the extracted text value (null if not found)
+- "page_number": which page (1-indexed)
+- "bounding_box": {{"x": float, "y": float, "width": float, "height": float}} as ratios of page dimensions (0.0-1.0)
+- "confidence": your confidence in this extraction (0.0-1.0)
+- "is_required": true if this is a required field
+- "is_missing": true if the field was not found in the document
+
+Return a JSON object: {{"fields": [...], "document_type": "{template_type}"}}
+"""
+
 DOCUMENT_CATEGORIES = [
     "invoice", "receipt", "medical_report", "contract",
     "id_document", "letter", "form", "other",
 ]
 
 
+def _get_template_config(template_type: str) -> dict | None:
+    """Get template configuration for a given template type.
+
+    Args:
+        template_type: Template name (e.g. "invoice", "receipt").
+
+    Returns:
+        Dict with required_fields and optional_fields lists,
+        or None if template_type is unknown.
+    """
+    templates = {
+        "invoice": {
+            "required_fields": ["invoice_number", "date", "total_amount", "vendor_name"],
+            "optional_fields": ["due_date", "tax_amount", "line_items", "purchase_order"],
+        },
+        "receipt": {
+            "required_fields": ["date", "total_amount", "merchant_name"],
+            "optional_fields": ["tax_amount", "payment_method", "line_items"],
+        },
+        "medical_report": {
+            "required_fields": ["patient_name", "report_date", "report_type"],
+            "optional_fields": ["doctor_name", "diagnosis", "test_results", "facility"],
+        },
+        "contract": {
+            "required_fields": ["parties", "effective_date", "contract_type"],
+            "optional_fields": ["expiry_date", "terms", "signatures", "governing_law"],
+        },
+        "id_document": {
+            "required_fields": ["full_name", "document_number", "date_of_birth"],
+            "optional_fields": ["expiry_date", "nationality", "address", "issuing_authority"],
+        },
+    }
+    return templates.get(template_type)
+
+
 def extract_node(state: dict) -> dict:
     """Extract structured data from document images using VLM.
 
     In general mode (no template), uses GENERAL_EXTRACTION_PROMPT.
+    In template mode, uses TEMPLATE_EXTRACTION_PROMPT with required/optional fields.
     Parses fields from VLM response, attaches confidence scores,
     and optionally classifies document type.
 
@@ -227,7 +281,21 @@ def extract_node(state: dict) -> dict:
         provider = get_vlm_provider()
 
         # Build prompt based on mode
-        prompt = GENERAL_EXTRACTION_PROMPT
+        if template_type:
+            config = _get_template_config(template_type)
+            if config is None:
+                logger.warning("Unknown template type requested: %s", template_type)
+                return {
+                    "status": "error",
+                    "error_message": "Unknown template type. See server logs for details.",
+                }
+            prompt = TEMPLATE_EXTRACTION_PROMPT.format(
+                template_type=template_type,
+                required_fields=", ".join(config["required_fields"]),
+                optional_fields=", ".join(config["optional_fields"]),
+            )
+        else:
+            prompt = GENERAL_EXTRACTION_PROMPT
 
         _notify(0.3, "Running VLM extraction")
 
