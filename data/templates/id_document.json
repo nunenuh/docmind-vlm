@@ -1,1 +1,7 @@
-{}
+{
+  "type": "id_document",
+  "name": "ID Document",
+  "description": "Government-issued identification documents",
+  "required_fields": ["full_name", "document_number", "date_of_birth"],
+  "optional_fields": ["expiry_date", "nationality", "address", "issuing_authority"]
+}

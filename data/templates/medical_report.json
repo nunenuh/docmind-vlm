@@ -1,1 +1,7 @@
-{}
+{
+  "type": "medical_report",
+  "name": "Medical Report",
+  "description": "Medical lab reports and diagnostic documents",
+  "required_fields": ["patient_name", "report_date", "report_type"],
+  "optional_fields": ["doctor_name", "diagnosis", "test_results", "facility"]
+}
