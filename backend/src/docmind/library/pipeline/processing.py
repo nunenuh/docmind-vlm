@@ -744,9 +744,58 @@ def store_node(state: dict) -> dict:
         }
 
 
+def should_continue(state: dict) -> str:
+    """Conditional edge function for the processing graph.
+
+    Returns "end" if the pipeline has errored, "continue" otherwise.
+    """
+    if state.get("status") == "error":
+        return "end"
+    return "continue"
+
+
+def build_processing_graph():
+    """Build and compile the LangGraph processing pipeline.
+
+    Graph: preprocess -> extract -> postprocess -> store
+    Each node has a conditional edge that short-circuits to END on error.
+
+    Returns:
+        Compiled StateGraph ready for invocation.
+    """
+    from langgraph.graph import END, StateGraph
+
+    graph = StateGraph(ProcessingState)
+    graph.add_node("preprocess", preprocess_node)
+    graph.add_node("extract", extract_node)
+    graph.add_node("postprocess", postprocess_node)
+    graph.add_node("store", store_node)
+    graph.set_entry_point("preprocess")
+    graph.add_conditional_edges(
+        "preprocess", should_continue, {"continue": "extract", "end": END}
+    )
+    graph.add_conditional_edges(
+        "extract", should_continue, {"continue": "postprocess", "end": END}
+    )
+    graph.add_conditional_edges(
+        "postprocess", should_continue, {"continue": "store", "end": END}
+    )
+    graph.add_edge("store", END)
+    return graph.compile()
+
+
+processing_graph = build_processing_graph()
+
+
 def run_processing_pipeline(initial_state: dict) -> dict:
     """Run the full processing pipeline.
 
-    Stub implementation — raises NotImplementedError.
+    Invokes the compiled LangGraph with the given initial state.
+
+    Args:
+        initial_state: ProcessingState dict with document data.
+
+    Returns:
+        Final state dict after all nodes have executed.
     """
-    raise NotImplementedError("Processing pipeline not yet implemented")
+    return processing_graph.invoke(initial_state)
