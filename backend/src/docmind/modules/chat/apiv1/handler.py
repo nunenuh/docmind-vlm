@@ -50,6 +50,6 @@ async def get_chat_history(
     current_user: dict = Depends(get_current_user),
 ):
     chat_usecase = ChatUseCase()
-    return chat_usecase.get_history(
+    return await chat_usecase.get_history(
         document_id=document_id, user_id=current_user["id"], page=page, limit=limit
     )
