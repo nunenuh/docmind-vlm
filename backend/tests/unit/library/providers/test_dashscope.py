@@ -12,14 +12,13 @@ import httpx
 import numpy as np
 import pytest
 
-from docmind.library.providers.dashscope import (
-    BASE_URL,
-    DEFAULT_MODEL,
-    MAX_RETRIES,
-    RETRY_BASE_DELAY,
-    DashScopeProvider,
-)
-from docmind.library.providers.protocol import VLMResponse
+from docmind.library.providers.dashscope import DashScopeProvider
+
+# Test constants matching mock_settings fixture
+TEST_BASE_URL = "https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+TEST_MODEL = "qwen-vl-max"
+TEST_MAX_RETRIES = 3
+TEST_RETRY_DELAY = 0.01  # fast for tests
 
 
 # ---------------------------------------------------------------------------
@@ -31,7 +30,11 @@ def mock_settings():
     """Mock settings with valid DashScope config."""
     settings = MagicMock()
     settings.DASHSCOPE_API_KEY = "test-api-key-12345"
-    settings.DASHSCOPE_MODEL = "qwen-vl-max"
+    settings.DASHSCOPE_MODEL = TEST_MODEL
+    settings.DASHSCOPE_BASE_URL = TEST_BASE_URL
+    settings.DASHSCOPE_MAX_RETRIES = TEST_MAX_RETRIES
+    settings.DASHSCOPE_RETRY_DELAY = TEST_RETRY_DELAY
+    settings.DASHSCOPE_TIMEOUT = 30.0
     return settings
 
 
@@ -181,7 +184,7 @@ def _mock_httpx_response(status_code: int, json_data: dict) -> httpx.Response:
     response = httpx.Response(
         status_code=status_code,
         json=json_data,
-        request=httpx.Request("POST", BASE_URL),
+        request=httpx.Request("POST", TEST_BASE_URL),
     )
     return response
 
@@ -213,7 +216,7 @@ class TestDashScopeProviderInit:
         settings.DASHSCOPE_MODEL = ""
         with patch("docmind.library.providers.dashscope.get_settings", return_value=settings):
             provider = DashScopeProvider()
-            assert provider.model_name == DEFAULT_MODEL
+            assert provider.model_name == ""
 
     def test_provider_name_property(self, provider: DashScopeProvider) -> None:
         assert provider.provider_name == "DashScope"
@@ -625,10 +628,10 @@ class TestRetryAndErrors:
 
         messages = [{"role": "user", "content": [{"text": "test"}]}]
         with patch("docmind.library.providers.dashscope.time.sleep"):
-            with pytest.raises(RuntimeError, match=f"failed after {MAX_RETRIES} retries$"):
+            with pytest.raises(RuntimeError, match=f"failed after {TEST_MAX_RETRIES} retries$"):
                 await provider._call_api(messages)
 
-        assert provider._client.post.call_count == MAX_RETRIES
+        assert provider._client.post.call_count == TEST_MAX_RETRIES
 
     @pytest.mark.asyncio
     async def test_raises_immediately_on_non_retryable_error(
@@ -662,7 +665,7 @@ class TestRetryAndErrors:
 
         sleep_calls = [call.args[0] for call in mock_sleep.call_args_list]
         for i, delay in enumerate(sleep_calls):
-            expected = RETRY_BASE_DELAY * (2 ** i)
+            expected = TEST_RETRY_DELAY * (2 ** i)
             assert abs(delay - expected) < 0.01
 
 

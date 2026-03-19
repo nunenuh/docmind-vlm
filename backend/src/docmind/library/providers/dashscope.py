@@ -39,8 +39,8 @@ class DashScopeProvider:
                 "DASHSCOPE_API_KEY is required when VLM_PROVIDER=dashscope"
             )
         self._model = settings.DASHSCOPE_MODEL
-        self._base_url = settings.DASHSCOPE_self._base_url
-        self._max_retries = settings.DASHSCOPE_self._max_retries
+        self._base_url = settings.DASHSCOPE_BASE_URL
+        self._max_retries = settings.DASHSCOPE_MAX_RETRIES
         self._retry_delay = settings.DASHSCOPE_RETRY_DELAY
         self._client = httpx.AsyncClient(timeout=settings.DASHSCOPE_TIMEOUT)
 
