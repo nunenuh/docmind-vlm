@@ -64,6 +64,10 @@ export async function fetchDocument(id: string): Promise<DocumentResponse> {
   return apiFetch<DocumentResponse>(`/api/v1/documents/${id}`);
 }
 
+export async function fetchDocumentUrl(id: string): Promise<{ url: string }> {
+  return apiFetch<{ url: string }>(`/api/v1/documents/${id}/url`);
+}
+
 export async function deleteDocument(id: string): Promise<void> {
   await apiFetch<void>(`/api/v1/documents/${id}`, { method: "DELETE" });
 }

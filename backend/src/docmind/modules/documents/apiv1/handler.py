@@ -121,6 +121,25 @@ async def get_document(
     return document
 
 
+@router.get("/{document_id}/url")
+async def get_document_url(
+    document_id: str, current_user: dict = Depends(get_current_user)
+):
+    """Get a signed URL for downloading the document file."""
+    from docmind.dbase.supabase.storage import get_signed_url
+
+    usecase = DocumentUseCase()
+    doc = await usecase.repo.get_by_id(document_id, current_user["id"])
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        url = get_signed_url(doc.storage_path)
+        return {"url": url}
+    except Exception as e:
+        logger.error("Failed to generate signed URL: %s", e)
+        raise HTTPException(status_code=500, detail="Failed to generate file URL")
+
+
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
     document_id: str, current_user: dict = Depends(get_current_user)

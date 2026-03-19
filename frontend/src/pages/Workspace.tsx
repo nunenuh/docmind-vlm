@@ -1,6 +1,7 @@
 import { useParams, Link } from "react-router-dom";
-import { FileText, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { FileText, ArrowLeft, Eye, EyeOff, Loader2 } from "lucide-react";
 import { useWorkspaceStore } from "@/stores/workspace-store";
+import { useDocument, useDocumentUrl } from "@/hooks/useDocuments";
 import { DocumentViewer } from "@/components/workspace/DocumentViewer";
 import { ExtractionPanel } from "@/components/workspace/ExtractionPanel";
 import { AuditPanel } from "@/components/workspace/AuditPanel";
@@ -20,6 +21,8 @@ const tabs: { id: TabId; label: string }[] = [
 export function Workspace() {
   const { documentId } = useParams<{ documentId: string }>();
   const { activeTab, setActiveTab, overlayMode, setOverlayMode } = useWorkspaceStore();
+  const { data: doc, isLoading: docLoading } = useDocument(documentId ?? "");
+  const { data: urlData } = useDocumentUrl(documentId ?? "");
 
   if (!documentId) {
     return <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500">Document not found</div>;
@@ -35,7 +38,7 @@ export function Workspace() {
           </Link>
           <FileText className="w-4 h-4 text-blue-400" />
           <span className="text-sm text-white font-medium truncate max-w-[200px]">
-            {documentId}
+            {doc?.filename ?? documentId}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -58,7 +61,7 @@ export function Workspace() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Document viewer */}
         <div className="flex-1 min-w-0">
-          <DocumentViewer />
+          <DocumentViewer imageUrl={urlData?.url} />
         </div>
 
         {/* Right: Sidebar */}

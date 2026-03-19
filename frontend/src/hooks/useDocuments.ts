@@ -1,5 +1,21 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchDocuments, uploadDocument, deleteDocument } from "@/lib/api";
+import { fetchDocuments, fetchDocument, fetchDocumentUrl, uploadDocument, deleteDocument } from "@/lib/api";
+
+export function useDocument(documentId: string) {
+  return useQuery({
+    queryKey: ["document", documentId],
+    queryFn: () => fetchDocument(documentId),
+    enabled: !!documentId,
+  });
+}
+
+export function useDocumentUrl(documentId: string) {
+  return useQuery({
+    queryKey: ["document-url", documentId],
+    queryFn: () => fetchDocumentUrl(documentId),
+    enabled: !!documentId,
+  });
+}
 
 export function useDocuments(page = 1, limit = 20) {
   return useQuery({ queryKey: ["documents", page, limit], queryFn: () => fetchDocuments(page, limit) });
