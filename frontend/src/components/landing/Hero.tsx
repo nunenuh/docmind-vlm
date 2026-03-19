@@ -27,7 +27,7 @@ export function Hero() {
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
           <Link
-            to="/dashboard"
+            to="/login"
             className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium px-8 py-3 rounded-lg transition-colors text-lg"
           >
             Get Started
