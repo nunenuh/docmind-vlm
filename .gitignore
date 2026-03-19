@@ -31,3 +31,4 @@ data/demo/documents/*
 !data/demo/documents/.gitkeep
 data/demo/baselines/*
 !data/demo/baselines/.gitkeep
+!data/demo/baselines/*.json
