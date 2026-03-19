@@ -352,7 +352,8 @@ def reason_node(state: dict) -> dict:
         page_images = state.get("page_images", [])[:_MAX_PAGE_IMAGES]
         callback = state.get("stream_callback")
 
-        prompt = f"{context}\n\n{instruction}\n\nUser question: {message}"
+        full_message = f"{context}\n\n{instruction}\n\nUser question: {message}"
+        history = state.get("conversation_history", [])[-_MAX_CONVERSATION_HISTORY:]
 
         provider = get_vlm_provider()
 
@@ -360,15 +361,16 @@ def reason_node(state: dict) -> dict:
         try:
             response = loop.run_until_complete(
                 provider.chat(
-                    prompt=prompt,
-                    system_prompt=GROUNDING_SYSTEM_PROMPT,
                     images=page_images,
+                    message=full_message,
+                    history=history,
+                    system_prompt=GROUNDING_SYSTEM_PROMPT,
                 )
             )
         finally:
             loop.close()
 
-        answer = response.get("content", "")
+        answer = response.content if hasattr(response, "content") else response.get("content", "")
 
         # Stream tokens via callback
         if callback and answer:

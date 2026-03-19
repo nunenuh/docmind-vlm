@@ -5,6 +5,7 @@ Chat database operations via SQLAlchemy.
 """
 
 from sqlalchemy import func, select
+from sqlalchemy.orm import selectinload
 
 from docmind.core.logging import get_logger
 from docmind.dbase.psql.core.session import AsyncSessionLocal
@@ -96,6 +97,7 @@ class ChatRepository:
 
             stmt = (
                 select(ChatMessage)
+                .options(selectinload(ChatMessage.citations))
                 .where(
                     ChatMessage.document_id == document_id,
                     ChatMessage.user_id == user_id,
