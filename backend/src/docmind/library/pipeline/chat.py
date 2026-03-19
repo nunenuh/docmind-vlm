@@ -97,8 +97,9 @@ _INTENT_LIMITS: dict[str, int] = {
     "summarization": 20,
 }
 
-_LOW_CONFIDENCE_THRESHOLD = 0.6
-_MAX_REQUERY_FIELDS = 3
+def _get_chat_settings():
+    from docmind.core.config import get_settings
+    return get_settings()
 
 
 def _classify_intent(message: str) -> tuple[str, float]:
@@ -231,9 +232,9 @@ def retrieve_node(state: dict) -> dict:
     if intent == "factual_lookup" and page_images:
         low_conf = [
             f for f in relevant
-            if f.get("confidence", 1.0) < _LOW_CONFIDENCE_THRESHOLD
+            if f.get("confidence", 1.0) < _get_chat_settings().CHAT_LOW_CONFIDENCE
         ]
-        for f in low_conf[:_MAX_REQUERY_FIELDS]:
+        for f in low_conf[:_get_chat_settings().CHAT_MAX_REQUERY_FIELDS]:
             bbox = f.get("bounding_box", {})
             if bbox:
                 re_queried.append({
@@ -255,8 +256,6 @@ GROUNDING_SYSTEM_PROMPT = """You are a document analysis assistant. You MUST ans
 
 When referencing specific data, mention the page number (e.g., "on page 1")."""
 
-_MAX_PAGE_IMAGES = 4
-_MAX_CONVERSATION_HISTORY = 6
 
 _REASONING_INSTRUCTIONS: dict[str, str] = {
     "factual_lookup": "Provide a precise, exact answer based on the document data. Quote the relevant values directly.",
@@ -311,7 +310,7 @@ def _build_context(state: dict) -> str:
     # Conversation history (capped)
     history = state.get("conversation_history", [])
     if history:
-        recent = history[-_MAX_CONVERSATION_HISTORY:]
+        recent = history[-_get_chat_settings().CHAT_MAX_HISTORY:]
         parts.append("\nCONVERSATION HISTORY:")
         for msg in recent:
             role = msg.get("role", "user").upper()
@@ -349,11 +348,11 @@ def reason_node(state: dict) -> dict:
         context = _build_context(state)
         instruction = _get_reasoning_instruction(state.get("intent", "factual_lookup"))
         message = state.get("message", "")
-        page_images = state.get("page_images", [])[:_MAX_PAGE_IMAGES]
+        page_images = state.get("page_images", [])[:_get_chat_settings().CHAT_MAX_PAGE_IMAGES]
         callback = state.get("stream_callback")
 
         full_message = f"{context}\n\n{instruction}\n\nUser question: {message}"
-        history = state.get("conversation_history", [])[-_MAX_CONVERSATION_HISTORY:]
+        history = state.get("conversation_history", [])[-_get_chat_settings().CHAT_MAX_HISTORY:]
 
         provider = get_vlm_provider()
 

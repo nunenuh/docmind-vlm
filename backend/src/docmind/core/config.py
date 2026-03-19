@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     # DashScope
     DASHSCOPE_API_KEY: str = Field(default="")
     DASHSCOPE_MODEL: str = Field(default="qwen-vl-max")
+    DASHSCOPE_BASE_URL: str = Field(
+        default="https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+    )
+    DASHSCOPE_MAX_RETRIES: int = Field(default=3)
+    DASHSCOPE_RETRY_DELAY: float = Field(default=2.0)
+    DASHSCOPE_TIMEOUT: float = Field(default=120.0)
 
     # OpenAI
     OPENAI_API_KEY: str = Field(default="")
@@ -70,6 +76,28 @@ class Settings(BaseSettings):
 
     # Data
     DATA_DIR: str = Field(default="data")
+
+    # Upload limits
+    MAX_UPLOAD_SIZE: int = Field(default=20_971_520)  # 20MB
+    MAX_FILENAME_LENGTH: int = Field(default=255)
+
+    # CV preprocessing
+    CV_MAX_DIMENSION: int = Field(default=4096)
+    CV_TARGET_DPI: int = Field(default=300)
+
+    # Pipeline confidence
+    CONFIDENCE_VLM_WEIGHT: float = Field(default=0.7)
+    CONFIDENCE_CV_WEIGHT: float = Field(default=0.3)
+    CONFIDENCE_LOW_THRESHOLD: float = Field(default=0.5)
+
+    # Chat pipeline
+    CHAT_MAX_PAGE_IMAGES: int = Field(default=4)
+    CHAT_MAX_HISTORY: int = Field(default=6)
+    CHAT_MAX_REQUERY_FIELDS: int = Field(default=3)
+    CHAT_LOW_CONFIDENCE: float = Field(default=0.6)
+
+    # SSE
+    SSE_HEARTBEAT_TIMEOUT: float = Field(default=30.0)
 
     @property
     def allowed_origins(self) -> list[str]:

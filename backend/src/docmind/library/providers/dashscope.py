@@ -20,17 +20,10 @@ from docmind.library.providers.protocol import VLMResponse, encode_image_base64
 
 logger = logging.getLogger(__name__)
 
-BASE_URL = "https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
-DEFAULT_MODEL = "qwen-vl-max"
-MAX_RETRIES = 3
-RETRY_BASE_DELAY = 2.0  # seconds, doubles each retry
-REQUEST_TIMEOUT = 120.0  # seconds
-
-
 class DashScopeProvider:
     """DashScope VLM provider using Qwen-VL models.
 
-    Requires DASHSCOPE_API_KEY environment variable.
+    All configuration is read from get_settings().
     """
 
     def __init__(self) -> None:
@@ -45,8 +38,11 @@ class DashScopeProvider:
             raise RuntimeError(
                 "DASHSCOPE_API_KEY is required when VLM_PROVIDER=dashscope"
             )
-        self._model = settings.DASHSCOPE_MODEL or DEFAULT_MODEL
-        self._client = httpx.AsyncClient(timeout=REQUEST_TIMEOUT)
+        self._model = settings.DASHSCOPE_MODEL
+        self._base_url = settings.DASHSCOPE_self._base_url
+        self._max_retries = settings.DASHSCOPE_self._max_retries
+        self._retry_delay = settings.DASHSCOPE_RETRY_DELAY
+        self._client = httpx.AsyncClient(timeout=settings.DASHSCOPE_TIMEOUT)
 
     @property
     def provider_name(self) -> str:
@@ -198,7 +194,7 @@ class DashScopeProvider:
         """
         try:
             response = await self._client.post(
-                BASE_URL,
+                self._base_url,
                 headers=self._build_headers(),
                 json={
                     "model": self._model,
@@ -260,10 +256,10 @@ class DashScopeProvider:
         headers = self._build_headers()
         last_error: Exception | None = None
 
-        for attempt in range(MAX_RETRIES):
+        for attempt in range(self._max_retries):
             try:
                 response = await self._client.post(
-                    BASE_URL,
+                    self._base_url,
                     headers=headers,
                     json=payload,
                 )
@@ -273,10 +269,10 @@ class DashScopeProvider:
             except httpx.HTTPStatusError as e:
                 last_error = e
                 if e.response.status_code == 429:
-                    wait = RETRY_BASE_DELAY * (2 ** attempt)
+                    wait = self._retry_delay * (2 ** attempt)
                     logger.warning(
                         "DashScope rate limited. Waiting %.1fs (attempt %d/%d)",
-                        wait, attempt + 1, MAX_RETRIES,
+                        wait, attempt + 1, self._max_retries,
                     )
                     time.sleep(wait)
                     continue
@@ -289,15 +285,15 @@ class DashScopeProvider:
 
             except httpx.RequestError as e:
                 last_error = e
-                wait = RETRY_BASE_DELAY * (2 ** attempt)
+                wait = self._retry_delay * (2 ** attempt)
                 logger.warning(
                     "DashScope request error: %s. Retrying in %.1fs (attempt %d/%d)",
-                    e, wait, attempt + 1, MAX_RETRIES,
+                    e, wait, attempt + 1, self._max_retries,
                 )
                 time.sleep(wait)
 
         raise RuntimeError(
-            f"DashScope API failed after {MAX_RETRIES} retries"
+            f"DashScope API failed after {self._max_retries} retries"
         ) from last_error
 
     def _parse_response(self, raw: dict) -> VLMResponse:
