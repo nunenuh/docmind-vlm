@@ -3,7 +3,7 @@ import { FileText, LogOut, Loader2, FolderOpen } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { signOut } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/auth-store";
-import { useDocuments, useCreateDocument, useDeleteDocument } from "@/hooks/useDocuments";
+import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useDocuments";
 import { UploadArea } from "@/components/workspace/UploadArea";
 import { DocumentCard } from "@/components/dashboard/DocumentCard";
 
@@ -14,17 +14,11 @@ export function Dashboard() {
   const limit = 20;
 
   const { data, isLoading } = useDocuments(page, limit);
-  const createDoc = useCreateDocument();
+  const uploadDoc = useUploadDocument();
   const deleteDoc = useDeleteDocument();
 
-  const handleUpload = async (file: File) => {
-    const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
-    createDoc.mutate({
-      filename: file.name,
-      file_type: ext === "pdf" ? "pdf" : "image",
-      file_size: file.size,
-      storage_path: `pending/${file.name}`,
-    });
+  const handleUpload = (file: File) => {
+    uploadDoc.mutate(file);
   };
 
   const handleDelete = (id: string) => {
@@ -74,7 +68,7 @@ export function Dashboard() {
 
         {/* Upload area */}
         <div className="mb-8">
-          <UploadArea onUpload={handleUpload} isUploading={createDoc.isPending} />
+          <UploadArea onUpload={handleUpload} isUploading={uploadDoc.isPending} />
         </div>
 
         {/* Document grid */}

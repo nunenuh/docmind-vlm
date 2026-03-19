@@ -1,15 +1,14 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { fetchDocuments, createDocument, deleteDocument } from "@/lib/api";
-import type { DocumentCreate } from "@/types/api";
+import { fetchDocuments, uploadDocument, deleteDocument } from "@/lib/api";
 
 export function useDocuments(page = 1, limit = 20) {
   return useQuery({ queryKey: ["documents", page, limit], queryFn: () => fetchDocuments(page, limit) });
 }
 
-export function useCreateDocument() {
+export function useUploadDocument() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (data: DocumentCreate) => createDocument(data),
+    mutationFn: (file: File) => uploadDocument(file),
     onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["documents"] }); },
   });
 }

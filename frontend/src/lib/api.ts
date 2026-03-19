@@ -38,8 +38,22 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
   return response.json() as Promise<T>;
 }
 
-export async function createDocument(data: DocumentCreate): Promise<DocumentResponse> {
-  return apiFetch<DocumentResponse>("/api/v1/documents", { method: "POST", body: JSON.stringify(data) });
+export async function uploadDocument(file: File): Promise<DocumentResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${BASE_URL}/api/v1/documents`, {
+    method: "POST",
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: formData,
+  });
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try { const body = await response.json(); detail = body.detail ?? detail; } catch { detail = response.statusText || detail; }
+    throw new ApiError(response.status, detail);
+  }
+  return response.json() as Promise<DocumentResponse>;
 }
 
 export async function fetchDocuments(page: number, limit: number): Promise<DocumentListResponse> {
