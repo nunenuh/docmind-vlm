@@ -45,10 +45,10 @@ dev: stop ## Run backend + frontend (background, logs to .pids/)
 	@echo "  Stop:     make stop"
 
 dev-fg: ## Run backend + frontend (foreground, Ctrl+C to stop both)
-	@trap 'kill 0' EXIT; \
+	@bash -c 'trap "kill 0; exit" SIGINT SIGTERM; \
 	cd backend && .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT) & \
 	cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0 & \
-	wait
+	wait'
 
 backend: ## FastAPI dev server (foreground)
 	cd backend && .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT)
@@ -57,16 +57,19 @@ frontend: ## Vite dev server (foreground)
 	cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0
 
 stop: ## Stop background dev servers
+	@# Kill by PID file (process group)
 	@if [ -f $(PID_DIR)/backend.pid ]; then \
-		kill $$(cat $(PID_DIR)/backend.pid) 2>/dev/null || true; \
+		kill -- -$$(cat $(PID_DIR)/backend.pid) 2>/dev/null || kill $$(cat $(PID_DIR)/backend.pid) 2>/dev/null || true; \
 		rm -f $(PID_DIR)/backend.pid; \
-		echo "Backend stopped"; \
 	fi
 	@if [ -f $(PID_DIR)/frontend.pid ]; then \
-		kill $$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || true; \
+		kill -- -$$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || kill $$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || true; \
 		rm -f $(PID_DIR)/frontend.pid; \
-		echo "Frontend stopped"; \
 	fi
+	@# Fallback: kill any remaining processes on our ports
+	@lsof -ti :$(BACKEND_PORT) 2>/dev/null | xargs -r kill 2>/dev/null || true
+	@lsof -ti :$(FRONTEND_PORT) 2>/dev/null | xargs -r kill 2>/dev/null || true
+	@echo "Servers stopped"
 
 logs: ## Tail both server logs
 	@tail -f $(PID_DIR)/backend.log $(PID_DIR)/frontend.log
