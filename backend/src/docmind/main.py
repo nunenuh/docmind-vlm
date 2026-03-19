@@ -7,8 +7,9 @@ FastAPI app factory. Configures CORS, registers routers, manages lifecycle.
 import logging
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .core.config import get_settings
 from .core.logging import setup_logging
@@ -56,6 +57,15 @@ def create_app() -> FastAPI:
     )
 
     application.include_router(api_router, prefix="/api")
+
+    @application.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Catch unhandled exceptions and return proper JSON with CORS headers."""
+        logger.error("Unhandled exception: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     return application
 
