@@ -1,0 +1,62 @@
+{
+  "document_type": "receipt",
+  "template_type": "receipt",
+  "mode": "template",
+  "processing_time_ms": 1800,
+  "fields": [
+    {
+      "field_type": "key_value",
+      "field_key": "merchant_name",
+      "field_value": "Coffee Bean & Tea Leaf",
+      "page_number": 1,
+      "bounding_box": {"x": 0.15, "y": 0.05, "width": 0.7, "height": 0.06},
+      "confidence": 0.93,
+      "vlm_confidence": 0.95,
+      "cv_quality_score": 0.88,
+      "is_required": true,
+      "is_missing": false
+    },
+    {
+      "field_type": "key_value",
+      "field_key": "date",
+      "field_value": "2026-03-10",
+      "page_number": 1,
+      "bounding_box": {"x": 0.1, "y": 0.12, "width": 0.3, "height": 0.04},
+      "confidence": 0.90,
+      "vlm_confidence": 0.92,
+      "cv_quality_score": 0.85,
+      "is_required": true,
+      "is_missing": false
+    },
+    {
+      "field_type": "key_value",
+      "field_key": "total_amount",
+      "field_value": "$23.50",
+      "page_number": 1,
+      "bounding_box": {"x": 0.55, "y": 0.75, "width": 0.35, "height": 0.05},
+      "confidence": 0.88,
+      "vlm_confidence": 0.91,
+      "cv_quality_score": 0.80,
+      "is_required": true,
+      "is_missing": false
+    },
+    {
+      "field_type": "key_value",
+      "field_key": "payment_method",
+      "field_value": "Visa ending 4242",
+      "page_number": 1,
+      "bounding_box": {"x": 0.1, "y": 0.82, "width": 0.5, "height": 0.04},
+      "confidence": 0.78,
+      "vlm_confidence": 0.82,
+      "cv_quality_score": 0.68,
+      "is_required": false,
+      "is_missing": false
+    }
+  ],
+  "audit_entries": [
+    {"step_name": "preprocess", "step_order": 1, "duration_ms": 300, "input_summary": {"file_type": "image"}, "output_summary": {"page_count": 1}, "parameters": {}},
+    {"step_name": "extract", "step_order": 2, "duration_ms": 950, "input_summary": {"mode": "template", "template_type": "receipt"}, "output_summary": {"field_count": 4}, "parameters": {}},
+    {"step_name": "postprocess", "step_order": 3, "duration_ms": 100, "input_summary": {"raw_field_count": 4}, "output_summary": {"enhanced_field_count": 4}, "parameters": {}},
+    {"step_name": "store", "step_order": 4, "duration_ms": 40, "input_summary": {"field_count": 4}, "output_summary": {"extraction_id": "demo-ext-002"}, "parameters": {}}
+  ]
+}
