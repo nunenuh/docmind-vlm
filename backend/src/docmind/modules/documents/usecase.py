@@ -6,7 +6,6 @@ Document use case — orchestrates service + repository calls.
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
 from typing import AsyncGenerator
 
 from docmind.core.logging import get_logger
@@ -85,26 +84,55 @@ class DocumentUseCase:
             updated_at=doc.updated_at,
         )
 
-    def get_document(self, user_id: str, document_id: str) -> DocumentResponse | None:
+    async def get_document(self, user_id: str, document_id: str) -> DocumentResponse | None:
+        doc = await self.repo.get_by_id(document_id, user_id)
+        if doc is None:
+            return None
         return DocumentResponse(
-            id=document_id,
-            filename="stub.pdf",
-            file_type="pdf",
-            file_size=1024,
-            status="uploaded",
-            document_type=None,
-            page_count=0,
-            created_at=datetime.now(timezone.utc),
-            updated_at=datetime.now(timezone.utc),
+            id=str(doc.id),
+            filename=doc.filename,
+            file_type=doc.file_type,
+            file_size=doc.file_size,
+            status=doc.status,
+            document_type=doc.document_type,
+            page_count=doc.page_count,
+            created_at=doc.created_at,
+            updated_at=doc.updated_at,
         )
 
-    def get_documents(
+    async def get_documents(
         self, user_id: str, page: int, limit: int
     ) -> DocumentListResponse:
-        return DocumentListResponse(items=[], total=0, page=page, limit=limit)
+        items, total = await self.repo.list_for_user(user_id, page, limit)
+        return DocumentListResponse(
+            items=[
+                DocumentResponse(
+                    id=str(doc.id),
+                    filename=doc.filename,
+                    file_type=doc.file_type,
+                    file_size=doc.file_size,
+                    status=doc.status,
+                    document_type=doc.document_type,
+                    page_count=doc.page_count,
+                    created_at=doc.created_at,
+                    updated_at=doc.updated_at,
+                )
+                for doc in items
+            ],
+            total=total,
+            page=page,
+            limit=limit,
+        )
 
-    def delete_document(self, user_id: str, document_id: str) -> bool:
-        return False
+    async def delete_document(self, user_id: str, document_id: str) -> bool:
+        storage_path = await self.repo.delete(document_id, user_id)
+        if storage_path is None:
+            return False
+        try:
+            await asyncio.to_thread(self.service.delete_storage_file, storage_path)
+        except Exception:
+            logger.warning("storage_cleanup_failed", storage_path=storage_path)
+        return True
 
     def trigger_processing(
         self, document_id: str, template_type: str | None = None
