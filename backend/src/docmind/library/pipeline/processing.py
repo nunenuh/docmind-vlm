@@ -300,12 +300,27 @@ def extract_node(state: dict) -> dict:
 
         _notify(0.3, "Running VLM extraction")
 
-        # Call VLM provider
+        # Use a single event loop for all async provider calls
+        # to avoid httpx.AsyncClient being bound to a closed loop
+        async def _run_extraction():
+            vlm_resp = await provider.extract(images=page_images, prompt=prompt)
+            doc_type = vlm_resp["structured_data"].get("document_type", template_type)
+
+            # Classify if general mode and type not detected
+            if not template_type and not doc_type and page_images:
+                _notify(0.8, "Classifying document type")
+                classify_resp = await provider.classify(
+                    image=page_images[0], categories=DOCUMENT_CATEGORIES
+                )
+                doc_type = classify_resp["structured_data"].get(
+                    "document_type", "other"
+                )
+
+            return vlm_resp, doc_type
+
         loop = asyncio.new_event_loop()
         try:
-            vlm_response = loop.run_until_complete(
-                provider.extract(images=page_images, prompt=prompt)
-            )
+            vlm_response, document_type = loop.run_until_complete(_run_extraction())
         finally:
             loop.close()
 
@@ -314,7 +329,6 @@ def extract_node(state: dict) -> dict:
         # Parse fields from VLM response
         structured = vlm_response["structured_data"]
         raw_fields = structured.get("fields", [])
-        document_type = structured.get("document_type", template_type)
 
         # Attach VLM confidence to each field (immutable — new dicts)
         response_confidence = vlm_response["confidence"]
@@ -322,21 +336,6 @@ def extract_node(state: dict) -> dict:
             {**field, "vlm_confidence": field.get("confidence", response_confidence)}
             for field in raw_fields
         ]
-
-        # Classify document type if general mode and not detected
-        if not template_type and not document_type and page_images:
-            _notify(0.8, "Classifying document type")
-            classify_loop = asyncio.new_event_loop()
-            try:
-                classify_response = classify_loop.run_until_complete(
-                    provider.classify(image=page_images[0], categories=DOCUMENT_CATEGORIES)
-                )
-            finally:
-                classify_loop.close()
-
-            document_type = classify_response["structured_data"].get(
-                "document_type", "other"
-            )
 
         # Serialize VLM response (exclude raw_response for state)
         serialized_vlm = {
