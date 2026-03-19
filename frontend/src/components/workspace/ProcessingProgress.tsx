@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Loader2, CheckCircle, AlertCircle, Play } from "lucide-react";
 import { processDocument } from "@/lib/api";
 import { useWorkspaceStore } from "@/stores/workspace-store";
@@ -24,10 +24,24 @@ export function ProcessingProgress({ documentId, templateType, onComplete }: Pro
   );
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
 
   const startProcessing = useCallback(() => {
     setIsProcessing(true);
     setError(null);
+    setShowDropdown(true);
     setSteps(PIPELINE_STEPS.map((name) => ({ name, status: "pending" })));
     setProgress(0);
 
@@ -74,63 +88,107 @@ export function ProcessingProgress({ documentId, templateType, onComplete }: Pro
     );
   }, [documentId, templateType, setIsProcessing, onComplete]);
 
-  return (
-    <div className="p-4">
-      {!isProcessing && progress === 0 && !error && (
-        <button
-          onClick={startProcessing}
-          className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-medium py-3 rounded-lg transition-colors"
-        >
-          <Play className="w-4 h-4" />
-          Process Document
-        </button>
-      )}
+  // Idle state — show the button
+  if (!isProcessing && progress === 0 && !error) {
+    return (
+      <button
+        onClick={startProcessing}
+        className="flex items-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium px-3 py-1.5 rounded transition-colors"
+      >
+        <Play className="w-3.5 h-3.5" />
+        Process Document
+      </button>
+    );
+  }
 
-      {(isProcessing || progress > 0) && (
-        <div className="space-y-4">
+  // Active / completed / error — compact indicator + dropdown
+  const activeStep = steps.find((s) => s.status === "active");
+  const isDone = progress === 100 && !isProcessing;
+
+  return (
+    <div className="relative" ref={dropdownRef}>
+      {/* Compact header indicator */}
+      <button
+        onClick={() => setShowDropdown(!showDropdown)}
+        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded transition-colors ${
+          error
+            ? "bg-red-600/20 text-red-400"
+            : isDone
+              ? "bg-green-600/20 text-green-400"
+              : "bg-blue-600/20 text-blue-300"
+        }`}
+      >
+        {isProcessing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+        {isDone && <CheckCircle className="w-3.5 h-3.5" />}
+        {error && <AlertCircle className="w-3.5 h-3.5" />}
+        {isProcessing && activeStep ? (
+          <span className="capitalize">{activeStep.name}...</span>
+        ) : isDone ? (
+          "Done"
+        ) : error ? (
+          "Failed"
+        ) : null}
+      </button>
+
+      {/* Dropdown with details */}
+      {showDropdown && (
+        <div className="absolute right-0 top-full mt-2 w-64 bg-gray-900 border border-gray-700 rounded-lg shadow-xl z-50 p-3 space-y-3">
           {/* Progress bar */}
-          <div className="w-full bg-gray-800 rounded-full h-2">
+          <div className="w-full bg-gray-800 rounded-full h-1.5">
             <div
-              className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+              className={`h-1.5 rounded-full transition-all duration-300 ${
+                error ? "bg-red-500" : "bg-blue-500"
+              }`}
               style={{ width: `${progress}%` }}
             />
           </div>
 
           {/* Steps */}
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {steps.map((step) => (
-              <div key={step.name} className="flex items-center gap-3">
-                {step.status === "done" && <CheckCircle className="w-4 h-4 text-green-400" />}
-                {step.status === "active" && <Loader2 className="w-4 h-4 text-blue-400 animate-spin" />}
-                {step.status === "pending" && <div className="w-4 h-4 rounded-full border border-gray-700" />}
-                {step.status === "error" && <AlertCircle className="w-4 h-4 text-red-400" />}
-                <span className={`text-sm capitalize ${step.status === "active" ? "text-white" : "text-gray-500"}`}>
+              <div key={step.name} className="flex items-center gap-2">
+                {step.status === "done" && <CheckCircle className="w-3.5 h-3.5 text-green-400 flex-shrink-0" />}
+                {step.status === "active" && <Loader2 className="w-3.5 h-3.5 text-blue-400 animate-spin flex-shrink-0" />}
+                {step.status === "pending" && <div className="w-3.5 h-3.5 rounded-full border border-gray-700 flex-shrink-0" />}
+                {step.status === "error" && <AlertCircle className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />}
+                <span className={`text-xs capitalize ${step.status === "active" ? "text-white" : "text-gray-500"}`}>
                   {step.name}
                 </span>
                 {step.message && step.status === "active" && (
-                  <span className="text-xs text-gray-600 ml-auto">{step.message}</span>
+                  <span className="text-[10px] text-gray-600 ml-auto truncate max-w-[100px]">{step.message}</span>
                 )}
               </div>
             ))}
           </div>
-        </div>
-      )}
 
-      {error && (
-        <div className="mt-4 p-3 bg-red-900/20 border border-red-800 rounded-lg">
-          <div className="flex items-center gap-2 text-sm text-red-400">
-            <AlertCircle className="w-4 h-4" />
-            {error}
-          </div>
-        </div>
-      )}
+          {/* Error message */}
+          {error && (
+            <div className="text-xs text-red-400 bg-red-900/20 p-2 rounded">
+              {error}
+            </div>
+          )}
 
-      {progress === 100 && !isProcessing && (
-        <div className="mt-4 p-3 bg-green-900/20 border border-green-800 rounded-lg">
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <CheckCircle className="w-4 h-4" />
-            Processing complete
-          </div>
+          {/* Retry button on error */}
+          {error && (
+            <button
+              onClick={startProcessing}
+              className="w-full flex items-center justify-center gap-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium py-2 rounded transition-colors"
+            >
+              <Play className="w-3 h-3" />
+              Retry
+            </button>
+          )}
+
+          {/* Process again after done */}
+          {isDone && (
+            <button
+              onClick={startProcessing}
+              className="w-full flex items-center justify-center gap-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 text-xs font-medium py-2 rounded transition-colors"
+            >
+              <Play className="w-3 h-3" />
+              Reprocess
+            </button>
+          )}
         </div>
       )}
     </div>
