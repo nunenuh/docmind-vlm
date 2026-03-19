@@ -665,17 +665,93 @@ def postprocess_node(state: dict) -> dict:
 async def _persist_results(state: dict, extraction_id: str) -> None:
     """Persist extraction results to the database.
 
-    Stub — will be implemented when DB layer is wired up.
-    Currently a no-op placeholder that tests can mock.
+    Inserts Extraction, ExtractedField, and AuditEntry records.
+    Updates Document status to 'ready'.
 
     Args:
         state: ProcessingState dict with enhanced_fields, audit_entries, etc.
         extraction_id: UUID string for the new extraction record.
     """
+    from docmind.dbase.psql.core.session import AsyncSessionLocal
+    from docmind.dbase.psql.models import (
+        AuditEntry,
+        Document,
+        ExtractedField,
+        Extraction,
+    )
+    from sqlalchemy import update
+
+    document_id = state.get("document_id", "")
+    template_type = state.get("template_type")
+    mode = "template" if template_type else "general"
+    enhanced_fields = state.get("enhanced_fields", [])
+    audit_entries = state.get("audit_entries", [])
+    start_time = state.get("_start_time", time.time())
+    processing_time_ms = int((time.time() - start_time) * 1000)
+
+    async with AsyncSessionLocal() as session:
+        # Insert Extraction record
+        extraction = Extraction(
+            id=extraction_id,
+            document_id=document_id,
+            mode=mode,
+            template_type=template_type,
+            processing_time_ms=processing_time_ms,
+        )
+        session.add(extraction)
+
+        # Insert ExtractedField records
+        for field in enhanced_fields:
+            ef = ExtractedField(
+                extraction_id=extraction_id,
+                field_type=field.get("field_type", "key_value"),
+                field_key=field.get("field_key"),
+                field_value=field.get("field_value", ""),
+                page_number=field.get("page_number", 1),
+                bounding_box=field.get("bounding_box", {}),
+                confidence=field.get("confidence", 0.0),
+                vlm_confidence=field.get("vlm_confidence", 0.0),
+                cv_quality_score=field.get("cv_quality_score", 0.0),
+                is_required=field.get("is_required", False),
+                is_missing=field.get("is_missing", False),
+            )
+            session.add(ef)
+
+        # Insert AuditEntry records
+        for entry in audit_entries:
+            ae = AuditEntry(
+                extraction_id=extraction_id,
+                step_name=entry.get("step_name", ""),
+                step_order=entry.get("step_order", 0),
+                input_summary=entry.get("input_summary", {}),
+                output_summary=entry.get("output_summary", {}),
+                parameters=entry.get("parameters", {}),
+                duration_ms=entry.get("duration_ms", 0),
+            )
+            session.add(ae)
+
+        # Update Document status
+        page_count = state.get("page_count", 0)
+        document_type = state.get("document_type")
+        stmt = (
+            update(Document)
+            .where(Document.id == document_id)
+            .values(
+                status="ready",
+                page_count=page_count,
+                document_type=document_type,
+                updated_at=datetime.now(timezone.utc),
+            )
+        )
+        await session.execute(stmt)
+        await session.commit()
+
     logger.info(
-        "Persisting extraction %s for document %s (stub)",
+        "Persisted extraction %s for document %s (%d fields, %d audit entries)",
         extraction_id,
-        state.get("document_id"),
+        document_id,
+        len(enhanced_fields),
+        len(audit_entries),
     )
 
 
