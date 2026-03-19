@@ -1,4 +1,10 @@
-.PHONY: help setup setup-backend setup-frontend dev backend frontend docker-up docker-build docker-down test test-unit test-integration test-coverage lint format
+.PHONY: help setup setup-backend setup-frontend dev dev-backend dev-frontend backend frontend stop docker-up docker-build docker-down test test-unit test-integration test-coverage lint format
+
+# ── Config ────────────────────────────────────────────
+BACKEND_PORT  ?= 8009
+FRONTEND_PORT ?= 5177
+ROOT_DIR      := $(shell pwd)
+PID_DIR       := $(ROOT_DIR)/.pids
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -7,9 +13,13 @@ help: ## Show this help
 
 setup: setup-backend setup-frontend ## First-time setup: env files + all deps
 
-setup-backend: ## Setup backend: .env + poetry install
+setup-backend: ## Setup backend: .env + install deps
 	@test -f backend/.env || cp backend/.env.example backend/.env
-	cd backend && poetry install
+	@if command -v poetry >/dev/null 2>&1; then \
+		cd backend && poetry install; \
+	else \
+		cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"; \
+	fi
 
 setup-frontend: ## Setup frontend: .env + npm install
 	@test -f frontend/.env || cp frontend/.env.example frontend/.env
@@ -17,14 +27,55 @@ setup-frontend: ## Setup frontend: .env + npm install
 
 # ── Dev Servers ────────────────────────────────────────
 
-dev: ## Run backend + frontend in parallel
-	@make backend & make frontend
+dev: stop ## Run backend + frontend (background, logs to .pids/)
+	@mkdir -p $(PID_DIR)
+	@echo "Starting backend on :$(BACKEND_PORT)..."
+	@cd backend && .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT) \
+		> $(PID_DIR)/backend.log 2>&1 & echo $$! > $(PID_DIR)/backend.pid
+	@echo "Starting frontend on :$(FRONTEND_PORT)..."
+	@cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0 \
+		> $(PID_DIR)/frontend.log 2>&1 & echo $$! > $(PID_DIR)/frontend.pid
+	@sleep 2
+	@echo ""
+	@echo "  Backend:  http://localhost:$(BACKEND_PORT)"
+	@echo "  Frontend: http://localhost:$(FRONTEND_PORT)"
+	@echo ""
+	@echo "  Logs:     tail -f $(PID_DIR)/backend.log"
+	@echo "            tail -f $(PID_DIR)/frontend.log"
+	@echo "  Stop:     make stop"
 
-backend: ## FastAPI dev server on port 8009
-	cd backend && poetry run uvicorn docmind.main:app --reload --host 0.0.0.0 --port 8009
+dev-fg: ## Run backend + frontend (foreground, Ctrl+C to stop both)
+	@trap 'kill 0' EXIT; \
+	cd backend && .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT) & \
+	cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0 & \
+	wait
 
-frontend: ## Vite dev server on port 5177
-	cd frontend && npm run dev -- --port 5177
+backend: ## FastAPI dev server (foreground)
+	cd backend && .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port $(BACKEND_PORT)
+
+frontend: ## Vite dev server (foreground)
+	cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0
+
+stop: ## Stop background dev servers
+	@if [ -f $(PID_DIR)/backend.pid ]; then \
+		kill $$(cat $(PID_DIR)/backend.pid) 2>/dev/null || true; \
+		rm -f $(PID_DIR)/backend.pid; \
+		echo "Backend stopped"; \
+	fi
+	@if [ -f $(PID_DIR)/frontend.pid ]; then \
+		kill $$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || true; \
+		rm -f $(PID_DIR)/frontend.pid; \
+		echo "Frontend stopped"; \
+	fi
+
+logs: ## Tail both server logs
+	@tail -f $(PID_DIR)/backend.log $(PID_DIR)/frontend.log
+
+logs-backend: ## Tail backend log
+	@tail -f $(PID_DIR)/backend.log
+
+logs-frontend: ## Tail frontend log
+	@tail -f $(PID_DIR)/frontend.log
 
 # ── Docker ─────────────────────────────────────────────
 
@@ -40,22 +91,22 @@ docker-down: ## Stop all services
 # ── Tests ──────────────────────────────────────────────
 
 test: ## All tests
-	cd backend && poetry run pytest tests/ -v
+	cd backend && .venv/bin/python -m pytest tests/ -v
 
 test-unit: ## Unit tests only
-	cd backend && poetry run pytest tests/unit/ -v
+	cd backend && .venv/bin/python -m pytest tests/unit/ -v
 
 test-integration: ## Integration tests (requires Supabase)
-	cd backend && poetry run pytest tests/integration/ -v
+	cd backend && .venv/bin/python -m pytest tests/integration/ -v
 
 test-coverage: ## Tests with coverage report
-	cd backend && poetry run pytest tests/ --cov=docmind --cov-report=term-missing --cov-fail-under=80
+	cd backend && .venv/bin/python -m pytest tests/ --cov=docmind --cov-report=term-missing --cov-fail-under=80
 
 # ── Lint / Format ──────────────────────────────────────
 
 lint: ## Lint checks (ruff)
-	cd backend && poetry run ruff check src/ tests/
+	cd backend && .venv/bin/ruff check src/ tests/
 
-format: ## Auto-format (black + isort)
-	cd backend && poetry run black src/ tests/
-	cd backend && poetry run isort src/ tests/
+format: ## Auto-format (ruff)
+	cd backend && .venv/bin/ruff format src/ tests/
+	cd backend && .venv/bin/ruff check --fix src/ tests/

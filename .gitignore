@@ -5,6 +5,9 @@
 *.swo
 *~
 
+# Dev server PIDs
+.pids/
+
 # OS
 .DS_Store
 Thumbs.db
