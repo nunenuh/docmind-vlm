@@ -86,14 +86,18 @@ async def create_document(
     file_type = _MIME_TO_FILE_TYPE[file.content_type]  # guaranteed by validate_upload
 
     usecase = DocumentUseCase()
-    return await usecase.create_document(
-        user_id=current_user["id"],
-        filename=filename,
-        file_type=file_type,
-        file_size=len(file_bytes),
-        file_bytes=file_bytes,
-        content_type=file.content_type,
-    )
+    try:
+        return await usecase.create_document(
+            user_id=current_user["id"],
+            filename=filename,
+            file_type=file_type,
+            file_size=len(file_bytes),
+            file_bytes=file_bytes,
+            content_type=file.content_type,
+        )
+    except Exception as e:
+        logger.error("Document upload failed: %s", e)
+        raise HTTPException(status_code=500, detail="Document upload failed")
 
 
 @router.get("", response_model=DocumentListResponse)
