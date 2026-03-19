@@ -135,12 +135,12 @@ class DocumentUseCase:
         return True
 
     def trigger_processing(
-        self, document_id: str, template_type: str | None = None
+        self, document_id: str, user_id: str, template_type: str | None = None
     ) -> AsyncGenerator[str, None]:
-        return self._processing_stream(document_id, template_type)
+        return self._processing_stream(document_id, user_id, template_type)
 
     async def _processing_stream(
-        self, document_id: str, template_type: str | None
+        self, document_id: str, user_id: str, template_type: str | None
     ) -> AsyncGenerator[str, None]:
         import json
 
@@ -148,7 +148,7 @@ class DocumentUseCase:
             return f"data: {json.dumps({'step': step, 'progress': progress, 'message': message})}\n\n"
 
         # Look up document
-        doc = await self.repo.get_by_id(document_id, user_id="")
+        doc = await self.repo.get_by_id(document_id, user_id=user_id)
         if doc is None:
             yield _sse("error", 0, "Document not found")
             return
@@ -175,7 +175,7 @@ class DocumentUseCase:
 
         initial_state: dict = {
             "document_id": document_id,
-            "user_id": "",
+            "user_id": user_id,
             "file_bytes": file_bytes,
             "file_type": getattr(doc, "file_type", "pdf"),
             "template_type": template_type,

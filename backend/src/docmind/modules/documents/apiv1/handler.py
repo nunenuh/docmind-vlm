@@ -163,7 +163,7 @@ async def process_document(
     if document is None:
         raise HTTPException(status_code=404, detail="Document not found")
     event_stream = usecase.trigger_processing(
-        document_id=document_id, template_type=body.template_type
+        document_id=document_id, user_id=current_user["id"], template_type=body.template_type
     )
     return StreamingResponse(
         event_stream,
