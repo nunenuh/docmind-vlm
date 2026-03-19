@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     DASHSCOPE_API_KEY: str = Field(default="")
     DASHSCOPE_MODEL: str = Field(default="qwen-vl-max")
     DASHSCOPE_BASE_URL: str = Field(
-        default="https://dashscope.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
+        default="https://dashscope-intl.aliyuncs.com/api/v1/services/aigc/multimodal-generation/generation"
     )
     DASHSCOPE_MAX_RETRIES: int = Field(default=3)
     DASHSCOPE_RETRY_DELAY: float = Field(default=2.0)
