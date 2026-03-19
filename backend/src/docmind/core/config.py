@@ -65,6 +65,9 @@ class Settings(BaseSettings):
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
 
+    # Storage
+    STORAGE_BUCKET: str = Field(default="documents")
+
     # Data
     DATA_DIR: str = Field(default="data")
 
