@@ -10,6 +10,12 @@ import type {
   ChatHistoryResponse,
   TemplateListResponse,
   HealthResponse,
+  ProjectResponse,
+  ProjectListResponse,
+  ProjectDocumentResponse,
+  PersonaResponse,
+  ConversationResponse,
+  ConversationDetailResponse,
 } from "@/types/api";
 import { ApiError } from "@/types/api";
 
@@ -164,4 +170,87 @@ export async function fetchTemplate(type: string): Promise<TemplateListResponse>
 
 export async function checkHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/v1/health/status");
+}
+
+// Projects
+export async function fetchProjects(page = 1, limit = 20): Promise<ProjectListResponse> {
+  return apiFetch<ProjectListResponse>(`/api/v1/projects?page=${page}&limit=${limit}`);
+}
+
+export async function fetchProject(id: string): Promise<ProjectResponse> {
+  return apiFetch<ProjectResponse>(`/api/v1/projects/${id}`);
+}
+
+export async function createProject(data: { name: string; description?: string; persona_id?: string }): Promise<ProjectResponse> {
+  return apiFetch<ProjectResponse>("/api/v1/projects", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updateProject(id: string, data: { name?: string; description?: string; persona_id?: string }): Promise<ProjectResponse> {
+  return apiFetch<ProjectResponse>(`/api/v1/projects/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/projects/${id}`, { method: "DELETE" });
+}
+
+export async function addDocumentToProject(projectId: string, file: File): Promise<ProjectDocumentResponse> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/documents`, {
+    method: "POST",
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    body: formData,
+  });
+  if (!response.ok) {
+    let detail = `HTTP ${response.status}`;
+    try { const body = await response.json(); detail = body.detail ?? detail; } catch { detail = response.statusText || detail; }
+    throw new ApiError(response.status, detail);
+  }
+  return response.json();
+}
+
+export async function fetchProjectDocuments(projectId: string): Promise<ProjectDocumentResponse[]> {
+  return apiFetch<ProjectDocumentResponse[]>(`/api/v1/projects/${projectId}/documents`);
+}
+
+export async function removeProjectDocument(projectId: string, docId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/projects/${projectId}/documents/${docId}`, { method: "DELETE" });
+}
+
+export function sendProjectChat(
+  projectId: string, message: string, conversationId: string | null,
+  onMessage: (data: unknown) => void, onError: (error: Error) => void, onComplete: () => void,
+): AbortController {
+  return createSSEStream(`/api/v1/projects/${projectId}/chat`, { message, conversation_id: conversationId }, onMessage, onError, onComplete);
+}
+
+export async function fetchProjectConversations(projectId: string): Promise<ConversationResponse[]> {
+  return apiFetch<ConversationResponse[]>(`/api/v1/projects/${projectId}/conversations`);
+}
+
+export async function fetchConversation(projectId: string, convId: string): Promise<ConversationDetailResponse> {
+  return apiFetch<ConversationDetailResponse>(`/api/v1/projects/${projectId}/conversations/${convId}`);
+}
+
+export async function deleteConversation(projectId: string, convId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/projects/${projectId}/conversations/${convId}`, { method: "DELETE" });
+}
+
+// Personas
+export async function fetchPersonas(): Promise<PersonaResponse[]> {
+  return apiFetch<PersonaResponse[]>("/api/v1/personas");
+}
+
+export async function createPersona(data: { name: string; description?: string; system_prompt: string; tone?: string; rules?: string; boundaries?: string }): Promise<PersonaResponse> {
+  return apiFetch<PersonaResponse>("/api/v1/personas", { method: "POST", body: JSON.stringify(data) });
+}
+
+export async function updatePersona(id: string, data: Partial<{ name: string; description: string; system_prompt: string; tone: string; rules: string; boundaries: string }>): Promise<PersonaResponse> {
+  return apiFetch<PersonaResponse>(`/api/v1/personas/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export async function deletePersona(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/personas/${id}`, { method: "DELETE" });
 }

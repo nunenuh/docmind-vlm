@@ -135,6 +135,66 @@ export interface HealthResponse {
   uptime_seconds: number;
 }
 
+// Projects
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  persona_id: string | null;
+  document_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectListResponse {
+  items: ProjectResponse[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ProjectDocumentResponse {
+  id: string;
+  filename: string;
+  file_type: string;
+  status: string;
+  created_at: string;
+}
+
+export interface PersonaResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  tone: string;
+  rules: string | null;
+  boundaries: string | null;
+  is_preset: boolean;
+  created_at: string;
+}
+
+export interface ConversationResponse {
+  id: string;
+  title: string | null;
+  message_count: number;
+  created_at: string;
+}
+
+export interface MessageResponse {
+  id: string;
+  role: string;
+  content: string;
+  citations: string | null;
+  created_at: string;
+}
+
+export interface ConversationDetailResponse {
+  id: string;
+  title: string | null;
+  messages: MessageResponse[];
+  created_at: string;
+}
+
 export class ApiError extends Error {
   constructor(
     public statusCode: number,

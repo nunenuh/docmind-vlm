@@ -9,6 +9,8 @@ import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { Dashboard } from "@/pages/Dashboard";
 import { Workspace } from "@/pages/Workspace";
+import { ProjectDashboard } from "@/pages/ProjectDashboard";
+import { ProjectWorkspace } from "@/pages/ProjectWorkspace";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, setIsLoading } = useAuthStore();
@@ -42,6 +44,8 @@ export function App() {
             <Route element={<AuthGuard />}>
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/workspace/:documentId" element={<Workspace />} />
+              <Route path="/projects" element={<ProjectDashboard />} />
+              <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
             </Route>
           </Routes>
         </BrowserRouter>

@@ -43,19 +43,35 @@ export function Dashboard() {
             <FileText className="w-5 h-5 text-blue-400" />
             DocMind-VLM
           </Link>
-          <div className="flex items-center gap-4">
-            {user && (
-              <span className="text-sm text-gray-400 hidden sm:block">
-                {user.email}
-              </span>
-            )}
-            <button
-              onClick={handleLogout}
-              className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
-            >
-              <LogOut className="w-4 h-4" />
-              Sign out
-            </button>
+          <div className="flex items-center gap-6">
+            <nav className="flex items-center gap-4">
+              <Link
+                to="/dashboard"
+                className="text-sm text-white font-medium"
+              >
+                Documents
+              </Link>
+              <Link
+                to="/projects"
+                className="text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                Projects
+              </Link>
+            </nav>
+            <div className="flex items-center gap-4">
+              {user && (
+                <span className="text-sm text-gray-400 hidden sm:block">
+                  {user.email}
+                </span>
+              )}
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors"
+              >
+                <LogOut className="w-4 h-4" />
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </header>

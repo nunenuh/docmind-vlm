@@ -10,6 +10,18 @@ export function Navbar() {
           DocMind-VLM
         </Link>
         <div className="flex items-center gap-4">
+          <Link
+            to="/dashboard"
+            className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:block"
+          >
+            Documents
+          </Link>
+          <Link
+            to="/projects"
+            className="text-sm text-gray-400 hover:text-white transition-colors hidden sm:block"
+          >
+            Projects
+          </Link>
           <a
             href="https://github.com/nunenuh/docmind-vlm"
             target="_blank"
