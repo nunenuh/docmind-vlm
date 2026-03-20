@@ -6,6 +6,10 @@ from .citation import Citation
 from .document import Document
 from .extracted_field import ExtractedField
 from .extraction import Extraction
+from .persona import Persona
+from .project import Project
+from .project_conversation import ProjectConversation
+from .project_message import ProjectMessage
 
 __all__ = [
     "Document",
@@ -14,4 +18,8 @@ __all__ = [
     "AuditEntry",
     "ChatMessage",
     "Citation",
+    "Persona",
+    "Project",
+    "ProjectConversation",
+    "ProjectMessage",
 ]

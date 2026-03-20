@@ -323,7 +323,10 @@
       "Bash(.venv/bin/python -m pytest tests/ -q --tb=line)",
       "Bash(.venv/bin/python -m pytest tests/integration/core/test_auth_integration.py::TestProtectedEndpointsNoAuth -v --tb=short)",
       "Bash(.venv/bin/python -m pytest tests/integration/core/test_auth_integration.py::TestProtectedEndpointsValidToken::test_documents_list_with_valid_token -v --tb=line)",
-      "Bash(.venv/bin/python -m pytest tests/integration/core/test_auth_integration.py::TestProtectedEndpointsValidToken::test_documents_list_with_valid_token -v --tb=short)"
+      "Bash(.venv/bin/python -m pytest tests/integration/core/test_auth_integration.py::TestProtectedEndpointsValidToken::test_documents_list_with_valid_token -v --tb=short)",
+      "Bash(.venv/bin/python -m pytest tests/unit/ -q --tb=short)",
+      "Bash(.venv/bin/python -m pytest tests/unit/modules/projects/ tests/unit/modules/personas/ -q --tb=short)",
+      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules/projects /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules/personas /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase/psql/models/project*.py /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase/psql/models/persona.py -type f)"
     ]
   }
 }
