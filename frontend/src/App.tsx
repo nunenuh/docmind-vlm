@@ -5,12 +5,14 @@ import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/auth-store";
 import { AuthGuard } from "@/components/workspace/AuthGuard";
+import { AppShell } from "@/components/layout/AppShell";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { Dashboard } from "@/pages/Dashboard";
 import { Workspace } from "@/pages/Workspace";
 import { ProjectDashboard } from "@/pages/ProjectDashboard";
 import { ProjectWorkspace } from "@/pages/ProjectWorkspace";
+import { Settings } from "@/pages/Settings";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, setIsLoading } = useAuthStore();
@@ -42,10 +44,13 @@ export function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route element={<AuthGuard />}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/workspace/:documentId" element={<Workspace />} />
-              <Route path="/projects" element={<ProjectDashboard />} />
-              <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+              <Route element={<AppShell />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+                <Route path="/projects" element={<ProjectDashboard />} />
+                <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+                <Route path="/workspace/:documentId" element={<Workspace />} />
+                <Route path="/settings" element={<Settings />} />
+              </Route>
             </Route>
           </Routes>
         </BrowserRouter>

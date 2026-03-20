@@ -1,5 +1,5 @@
 import { useParams, Link } from "react-router-dom";
-import { FileText, ArrowLeft, Eye, EyeOff } from "lucide-react";
+import { FileText, ChevronRight, Eye, EyeOff } from "lucide-react";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { useDocument, useDocumentUrl } from "@/hooks/useDocuments";
 import { DocumentViewer } from "@/components/workspace/DocumentViewer";
@@ -26,57 +26,45 @@ export function Workspace() {
 
   if (!documentId) {
     return (
-      <div className="min-h-screen bg-gray-950 flex flex-col items-center justify-center">
+      <div className="h-full flex flex-col items-center justify-center">
         <FileText className="w-12 h-12 text-gray-700 mb-4" />
         <p className="text-gray-500 text-sm">Document not found</p>
-        <Link to="/dashboard" className="text-blue-400 hover:text-blue-300 text-sm mt-3 transition-colors">
-          Back to Dashboard
+        <Link to="/dashboard" className="text-indigo-400 hover:text-indigo-300 text-sm mt-3 transition-colors">
+          Back to Documents
         </Link>
       </div>
     );
   }
 
   return (
-    <div className="h-screen bg-gray-950 flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 h-14 border-b border-gray-800 bg-gray-900/60 backdrop-blur-sm flex-shrink-0">
-        <div className="flex items-center gap-3 min-w-0">
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-1.5 text-gray-400 hover:text-white transition-all duration-200 rounded-md px-2 py-1.5 hover:bg-gray-800 -ml-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
+    <div className="h-screen flex flex-col bg-[#0a0a0f]">
+      {/* Breadcrumb header */}
+      <header className="flex items-center justify-between px-4 h-12 border-b border-[#1e1e2e] bg-[#12121a] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0 text-sm">
+          <Link to="/dashboard" className="text-gray-500 hover:text-gray-300 transition-colors">
+            Documents
           </Link>
-          <div className="w-px h-5 bg-gray-800" />
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-7 h-7 bg-blue-500/10 rounded-md flex items-center justify-center flex-shrink-0">
-              <FileText className="w-3.5 h-3.5 text-blue-400" />
-            </div>
-            <div className="min-w-0">
-              <h1 className="text-sm text-white font-semibold truncate max-w-[300px]">
-                {doc?.filename ?? "Loading..."}
-              </h1>
-              {doc?.file_type && (
-                <p className="text-xs text-gray-500">{doc.file_type.toUpperCase()}</p>
-              )}
-            </div>
-          </div>
+          <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+          <span className="text-white font-medium truncate max-w-[300px]">
+            {doc?.filename ?? "Loading..."}
+          </span>
+          {doc?.file_type && (
+            <span className="text-xs text-gray-500 bg-white/5 px-1.5 py-0.5 rounded ml-1">
+              {doc.file_type.toUpperCase()}
+            </span>
+          )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setOverlayMode(overlayMode === "none" ? "confidence" : "none")}
-            className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-all duration-200 ${
-              overlayMode !== "none"
-                ? "bg-blue-500/20 text-blue-300 border border-blue-500/30"
-                : "text-gray-400 hover:text-white hover:bg-gray-800 border border-transparent"
-            }`}
-          >
-            {overlayMode !== "none" ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-            Overlay
-          </button>
-          <div className="w-px h-5 bg-gray-800" />
-          <ProcessingProgress documentId={documentId} />
-        </div>
+        <button
+          onClick={() => setOverlayMode(overlayMode === "none" ? "confidence" : "none")}
+          className={`flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-md transition-all border ${
+            overlayMode !== "none"
+              ? "bg-indigo-500/10 text-indigo-300 border-indigo-500/20"
+              : "text-gray-400 hover:text-white hover:bg-white/5 border-transparent"
+          }`}
+        >
+          {overlayMode !== "none" ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+          Overlay
+        </button>
       </header>
 
       {/* Split layout */}
@@ -86,27 +74,34 @@ export function Workspace() {
           <DocumentViewer imageUrl={urlData?.url} />
         </div>
 
-        {/* Right: Sidebar */}
-        <div className="w-[420px] flex-shrink-0 border-l border-gray-800 flex flex-col bg-gray-950">
+        {/* Right: Panel */}
+        <div className="w-[420px] flex-shrink-0 border-l border-[#1e1e2e] flex flex-col bg-[#0a0a0f]">
           {/* Tabs */}
-          <div className="flex border-b border-gray-800 bg-gray-900/30">
+          <div className="flex border-b border-[#1e1e2e] bg-[#12121a]">
             {tabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`relative flex-1 text-sm py-3 font-medium transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset ${
+                className={`relative flex-1 text-sm py-3 font-medium transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 focus-visible:ring-inset ${
                   activeTab === tab.id
-                    ? "text-blue-400"
+                    ? "text-indigo-400"
                     : "text-gray-500 hover:text-gray-300"
                 }`}
               >
                 {tab.label}
                 {activeTab === tab.id && (
-                  <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-blue-500 rounded-full" />
+                  <span className="absolute bottom-0 left-2 right-2 h-0.5 bg-indigo-500 rounded-full" />
                 )}
               </button>
             ))}
           </div>
+
+          {/* Processing progress inline (inside extraction panel area) */}
+          {activeTab === "extraction" && (
+            <div className="px-4 py-3 border-b border-[#1e1e2e]">
+              <ProcessingProgress documentId={documentId} />
+            </div>
+          )}
 
           {/* Tab content */}
           <div className="flex-1 overflow-hidden">

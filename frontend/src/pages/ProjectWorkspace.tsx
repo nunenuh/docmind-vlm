@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ArrowLeft, FolderOpen, Bot, Settings, Loader2 } from "lucide-react";
+import { FolderOpen, Bot, Settings, Loader2, ChevronRight } from "lucide-react";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { usePersonas } from "@/hooks/usePersonas";
 import { ProjectDocumentList } from "@/components/project/ProjectDocumentList";
@@ -20,7 +20,7 @@ export function ProjectWorkspace() {
 
   if (!projectId) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center text-gray-500">
+      <div className="h-full flex items-center justify-center text-gray-500">
         Project not found
       </div>
     );
@@ -28,8 +28,8 @@ export function ProjectWorkspace() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-400 animate-spin" />
+      <div className="h-full flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
       </div>
     );
   }
@@ -42,42 +42,41 @@ export function ProjectWorkspace() {
   };
 
   return (
-    <div className="h-screen bg-gray-950 flex flex-col">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 h-12 border-b border-gray-800 bg-gray-900/50 flex-shrink-0">
-        <div className="flex items-center gap-3">
-          <Link to="/projects" className="text-gray-400 hover:text-white transition-colors">
-            <ArrowLeft className="w-4 h-4" />
+    <div className="h-screen flex flex-col bg-[#0a0a0f]">
+      {/* Breadcrumb header */}
+      <header className="flex items-center justify-between px-4 h-12 border-b border-[#1e1e2e] bg-[#12121a] flex-shrink-0">
+        <div className="flex items-center gap-2 min-w-0 text-sm">
+          <Link to="/projects" className="text-gray-500 hover:text-gray-300 transition-colors">
+            Projects
           </Link>
-          <FolderOpen className="w-4 h-4 text-purple-400" />
-          <span className="text-sm text-white font-medium truncate max-w-[200px]">
+          <ChevronRight className="w-3.5 h-3.5 text-gray-600" />
+          <FolderOpen className="w-3.5 h-3.5 text-violet-400" />
+          <span className="text-white font-medium truncate max-w-[200px]">
             {project?.name ?? "Project"}
           </span>
           {persona && (
-            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-900/50 text-blue-300">
+            <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-300 ml-2">
               <Bot className="w-3 h-3" />
               {persona.name}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowSettings(!showSettings)}
-            className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded transition-colors ${
-              showSettings
-                ? "bg-gray-800 text-white"
-                : "text-gray-400 hover:text-white"
-            }`}
-          >
-            <Settings className="w-3.5 h-3.5" />
-            Settings
-          </button>
-        </div>
+        <button
+          onClick={() => setShowSettings(!showSettings)}
+          className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
+            showSettings
+              ? "bg-white/10 text-white"
+              : "text-gray-400 hover:text-white hover:bg-white/5"
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5" />
+          Settings
+        </button>
       </header>
 
-      {/* Settings panel (collapsible) */}
+      {/* Settings panel */}
       {showSettings && (
-        <div className="border-b border-gray-800 bg-gray-900/30 px-4 py-3">
+        <div className="border-b border-[#1e1e2e] bg-[#12121a]/50 px-4 py-3">
           <div className="max-w-sm">
             <label className="block text-xs font-medium text-gray-400 mb-1.5">AI Persona</label>
             <PersonaSelector
@@ -92,7 +91,7 @@ export function ProjectWorkspace() {
       {/* Split layout */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Document list */}
-        <div className="w-[320px] flex-shrink-0 border-r border-gray-800">
+        <div className="w-[300px] flex-shrink-0 border-r border-[#1e1e2e] bg-[#12121a]/30">
           <ProjectDocumentList projectId={projectId} />
         </div>
 
