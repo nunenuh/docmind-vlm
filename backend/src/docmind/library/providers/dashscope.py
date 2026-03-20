@@ -42,7 +42,8 @@ class DashScopeProvider:
         self._base_url = settings.DASHSCOPE_BASE_URL
         self._max_retries = settings.DASHSCOPE_MAX_RETRIES
         self._retry_delay = settings.DASHSCOPE_RETRY_DELAY
-        self._client = httpx.AsyncClient(timeout=settings.DASHSCOPE_TIMEOUT)
+        self._timeout = settings.DASHSCOPE_TIMEOUT
+        self._client = httpx.AsyncClient(timeout=self._timeout)
 
     @property
     def provider_name(self) -> str:

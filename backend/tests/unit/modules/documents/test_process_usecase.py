@@ -40,7 +40,7 @@ class TestTriggerProcessing:
         from docmind.modules.documents.usecase import DocumentUseCase
 
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
-        result = usecase.trigger_processing(document_id="doc-123")
+        result = usecase.trigger_processing(document_id="doc-123", user_id="user-456")
         assert result is not None
 
 
@@ -66,7 +66,7 @@ class TestProcessingStream:
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
 
         events = []
-        async for event in usecase._processing_stream("doc-123", None):
+        async for event in usecase._processing_stream("doc-123", "user-456", None):
             events.append(event)
 
         assert len(events) >= 3
@@ -92,7 +92,7 @@ class TestProcessingStream:
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
 
         events = []
-        async for event in usecase._processing_stream("doc-123", None):
+        async for event in usecase._processing_stream("doc-123", "user-456", None):
             events.append(event)
 
         error_events = [
@@ -116,7 +116,7 @@ class TestProcessingStream:
 
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
 
-        async for _ in usecase._processing_stream("doc-123", None):
+        async for _ in usecase._processing_stream("doc-123", "user-456", None):
             pass
 
         mock_repo.update_status.assert_any_call("doc-123", "error")
@@ -132,7 +132,7 @@ class TestProcessingStream:
         usecase = DocumentUseCase(service=mock_service, repo=repo)
 
         events = []
-        async for event in usecase._processing_stream("nonexistent", None):
+        async for event in usecase._processing_stream("nonexistent", "user-456", None):
             events.append(event)
 
         assert len(events) >= 1
@@ -151,7 +151,7 @@ class TestProcessingStream:
         usecase = DocumentUseCase(service=service, repo=mock_repo)
 
         events = []
-        async for event in usecase._processing_stream("doc-123", None):
+        async for event in usecase._processing_stream("doc-123", "user-456", None):
             events.append(event)
 
         assert len(events) >= 1
@@ -170,7 +170,7 @@ class TestProcessingStream:
 
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
 
-        async for _ in usecase._processing_stream("doc-123", None):
+        async for _ in usecase._processing_stream("doc-123", "user-456", None):
             pass
 
         mock_repo.update_status.assert_any_call("doc-123", "processing")
@@ -191,7 +191,7 @@ class TestProcessingStream:
 
         usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
 
-        async for _ in usecase._processing_stream("doc-123", "invoice"):
+        async for _ in usecase._processing_stream("doc-123", "user-456", "invoice"):
             pass
 
         assert capture_state.captured["template_type"] == "invoice"

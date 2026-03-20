@@ -356,16 +356,19 @@ def reason_node(state: dict) -> dict:
 
         provider = get_vlm_provider()
 
+        # Use a single event loop for all async provider calls
+        # to avoid httpx.AsyncClient being bound to a closed loop
+        async def _run_reasoning():
+            return await provider.chat(
+                images=page_images,
+                message=full_message,
+                history=history,
+                system_prompt=GROUNDING_SYSTEM_PROMPT,
+            )
+
         loop = asyncio.new_event_loop()
         try:
-            response = loop.run_until_complete(
-                provider.chat(
-                    images=page_images,
-                    message=full_message,
-                    history=history,
-                    system_prompt=GROUNDING_SYSTEM_PROMPT,
-                )
-            )
+            response = loop.run_until_complete(_run_reasoning())
         finally:
             loop.close()
 
