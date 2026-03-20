@@ -88,10 +88,12 @@ class TestStorageUploadFile:
     """Tests for the upload_file storage helper."""
 
     @patch("docmind.dbase.supabase.storage.get_supabase_client")
-    def test_upload_file_calls_supabase_storage(self, mock_get_client):
+    @patch("docmind.dbase.supabase.storage.get_settings")
+    def test_upload_file_calls_supabase_storage(self, mock_settings, mock_get_client):
         """upload_file should call Supabase storage.upload()."""
         from docmind.dbase.supabase.storage import upload_file
 
+        mock_settings.return_value = MagicMock(STORAGE_BUCKET="docmindvlm")
         mock_client = MagicMock()
         mock_get_client.return_value = mock_client
         mock_bucket = MagicMock()
@@ -99,7 +101,7 @@ class TestStorageUploadFile:
 
         upload_file("path/to/file.pdf", b"file content", "application/pdf")
 
-        mock_client.storage.from_.assert_called_once_with("documents")
+        mock_client.storage.from_.assert_called_once_with("docmindvlm")
         mock_bucket.upload.assert_called_once_with(
             "path/to/file.pdf",
             b"file content",
