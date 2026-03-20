@@ -36,6 +36,11 @@ EXPECTED_TABLES = {
     "audit_entries",
     "chat_messages",
     "citations",
+    "projects",
+    "personas",
+    "project_conversations",
+    "project_messages",
+    "page_chunks",
 }
 
 pytestmark = [
