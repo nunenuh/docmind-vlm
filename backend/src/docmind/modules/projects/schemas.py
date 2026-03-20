@@ -42,6 +42,11 @@ class ProjectDocumentResponse(BaseModel):
     created_at: datetime
 
 
+class ProjectChatRequest(BaseModel):
+    message: str = Field(..., min_length=1, max_length=10000)
+    conversation_id: str | None = None
+
+
 class ConversationResponse(BaseModel):
     id: str
     title: str | None

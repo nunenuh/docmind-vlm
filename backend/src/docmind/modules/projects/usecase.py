@@ -4,6 +4,10 @@ docmind/modules/projects/usecase.py
 Project use case — orchestrates service + repository calls.
 """
 
+import asyncio
+import json
+from collections.abc import AsyncGenerator
+
 from docmind.core.logging import get_logger
 
 from .repositories import ConversationRepository, ProjectRepository
@@ -234,3 +238,114 @@ class ProjectUseCase:
     ) -> bool:
         """Delete a conversation and all its messages."""
         return await self.conv_repo.delete(conversation_id, user_id)
+
+    async def project_chat_stream(
+        self,
+        project_id: str,
+        user_id: str,
+        message: str,
+        conversation_id: str | None = None,
+    ) -> AsyncGenerator[str, None]:
+        """Stream RAG chat response for a project.
+
+        Args:
+            project_id: Project to chat within.
+            user_id: Authenticated user ID.
+            message: User's chat message.
+            conversation_id: Existing conversation to continue, or None for new.
+
+        Yields:
+            SSE-formatted data strings.
+        """
+        from docmind.library.pipeline.rag import run_rag_chat_pipeline
+        from docmind.modules.personas.repositories import PersonaRepository
+
+        def _sse(event: str, data: dict) -> str:
+            return f"data: {json.dumps({'event': event, **data})}\n\n"
+
+        # Verify project access
+        project = await self.repo.get_by_id(project_id, user_id)
+        if project is None:
+            yield _sse("error", {"message": "Project not found"})
+            return
+
+        # Load persona
+        persona = None
+        if project.persona_id:
+            persona_repo = PersonaRepository()
+            persona_obj = await persona_repo.get_by_id(project.persona_id)
+            if persona_obj:
+                persona = {
+                    "name": persona_obj.name,
+                    "system_prompt": persona_obj.system_prompt,
+                    "tone": persona_obj.tone,
+                    "rules": persona_obj.rules,
+                    "boundaries": persona_obj.boundaries,
+                }
+
+        # Load conversation history
+        history: list[dict] = []
+        if conversation_id:
+            conv = await self.conv_repo.get_by_id(conversation_id, user_id)
+            if conv and hasattr(conv, "messages"):
+                history = [
+                    {"role": msg.role, "content": msg.content}
+                    for msg in conv.messages
+                ]
+
+        # Create or reuse conversation
+        if not conversation_id:
+            conv = await self.conv_repo.create(
+                project_id, user_id, title=message[:50]
+            )
+            conversation_id = str(conv.id)
+
+        # Save user message
+        await self.conv_repo.add_message(conversation_id, "user", message)
+
+        # Build initial state
+        events_buffer: list[str] = []
+
+        def stream_callback(event_type: str, content: str = "", **kwargs: object) -> None:
+            events_buffer.append(
+                _sse(event_type, {"message": content, **kwargs})
+            )
+
+        initial_state = {
+            "project_id": project_id,
+            "user_id": user_id,
+            "message": message,
+            "persona": persona,
+            "conversation_history": history,
+            "stream_callback": stream_callback,
+        }
+
+        # Run pipeline in thread to avoid blocking the event loop
+        result = await asyncio.to_thread(run_rag_chat_pipeline, initial_state)
+
+        # Yield buffered events
+        for event in events_buffer:
+            yield event
+
+        # Yield final answer
+        answer = result.get("answer", "")
+        citations = result.get("citations", [])
+
+        yield _sse(
+            "answer",
+            {
+                "content": answer,
+                "citations": citations,
+                "conversation_id": conversation_id,
+            },
+        )
+
+        # Save assistant message
+        await self.conv_repo.add_message(
+            conversation_id,
+            "assistant",
+            answer,
+            citations=json.dumps(citations) if citations else None,
+        )
+
+        yield _sse("done", {"conversation_id": conversation_id})

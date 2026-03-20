@@ -1,6 +1,7 @@
 """docmind/modules/projects/apiv1/handler.py"""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
@@ -8,6 +9,7 @@ from docmind.core.logging import get_logger
 from ..schemas import (
     ConversationDetailResponse,
     ConversationResponse,
+    ProjectChatRequest,
     ProjectCreate,
     ProjectDocumentResponse,
     ProjectListResponse,
@@ -162,6 +164,31 @@ async def remove_document_from_project(
         raise HTTPException(
             status_code=404, detail="Project or document not found"
         )
+
+
+@router.post("/{project_id}/chat")
+async def project_chat(
+    project_id: str,
+    body: ProjectChatRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """SSE endpoint for project-level RAG chat."""
+    usecase = ProjectUseCase()
+    event_stream = usecase.project_chat_stream(
+        project_id=project_id,
+        user_id=current_user["id"],
+        message=body.message,
+        conversation_id=body.conversation_id,
+    )
+    return StreamingResponse(
+        event_stream,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.get(
