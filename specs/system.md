@@ -67,7 +67,12 @@ backend/                             # Independent Python service
 │       │       │   ├── extracted_field.py
 │       │       │   ├── audit_entry.py
 │       │       │   ├── chat_message.py
-│       │       │   └── citation.py
+│       │       │   ├── citation.py
+│       │       │   ├── project.py
+│       │       │   ├── persona.py
+│       │       │   ├── project_conversation.py
+│       │       │   ├── project_message.py
+│       │       │   └── page_chunk.py
 │       │       ├── services/
 │       │       │   ├── __init__.py
 │       │       │   └── migrate.py    # Programmatic Alembic runner (upgrade/downgrade/generate CLI)
@@ -88,6 +93,13 @@ backend/                             # Independent Python service
 │       │   │   ├── openai.py        # GPT-4o via OpenAI API
 │       │   │   ├── google.py        # Gemini via Google AI API
 │       │   │   └── ollama.py        # Local models via Ollama
+│       │   ├── rag/                 # RAG pipeline (text extraction, chunking, embedding, retrieval)
+│       │   │   ├── __init__.py      # Re-exports: index_document_for_rag, retrieve_chunks
+│       │   │   ├── text_extract.py  # extract_text_from_pdf(), extract_text_from_image()
+│       │   │   ├── chunker.py       # chunk_text() — recursive character splitting
+│       │   │   ├── embedder.py      # EmbeddingProvider protocol, DashScopeEmbedder, get_embedder()
+│       │   │   ├── retriever.py     # retrieve_chunks() — cosine similarity search
+│       │   │   └── indexer.py       # index_document_for_rag() — orchestrates extract → chunk → embed → store
 │       │   └── pipeline/            # LangGraph workflow definitions
 │       │       ├── __init__.py      # Re-exports: run_processing_pipeline, run_chat_pipeline
 │       │       ├── processing.py    # Document processing StateGraph
@@ -131,7 +143,7 @@ backend/                             # Independent Python service
 │       │   │   └── apiv1/
 │       │   │       ├── __init__.py
 │       │   │       └── handler.py   # POST /api/v1/documents/{doc_id}/chat (SSE), GET chat/history
-│       │   └── templates/
+│       │   ├── templates/
 │       │       ├── __init__.py
 │       │       ├── schemas.py       # TemplateResponse, TemplateListResponse
 │       │       ├── services.py      # Load templates from data/templates/*.json
@@ -139,6 +151,22 @@ backend/                             # Independent Python service
 │       │       └── apiv1/
 │       │           ├── __init__.py
 │       │           └── handler.py   # GET /api/v1/templates
+│       │   ├── projects/
+│       │   │   ├── __init__.py
+│       │   │   ├── schemas.py       # ProjectCreate, ProjectResponse, ProjectChatRequest
+│       │   │   ├── services.py      # Project business logic, RAG indexing orchestration
+│       │   │   ├── repositories.py  # Project CRUD, document association, conversation persistence
+│       │   │   ├── usecase.py       # Orchestrates service + repository + RAG pipeline
+│       │   │   └── apiv1/
+│       │   │       ├── __init__.py
+│       │   │       └── handler.py   # Project CRUD, doc management, RAG chat, conversations
+│       │   └── personas/
+│       │       ├── __init__.py
+│       │       ├── schemas.py       # PersonaCreate, PersonaResponse
+│       │       ├── repositories.py  # Persona CRUD (thin — no service layer)
+│       │       └── apiv1/
+│       │           ├── __init__.py
+│       │           └── handler.py   # GET/POST/PUT/DELETE /api/v1/personas
 │       └── shared/
 │           ├── __init__.py
 │           ├── exceptions.py        # Exception hierarchy
@@ -201,6 +229,7 @@ frontend/                            # Independent React app
     ├── index.css                    # Tailwind + CSS variables (light/dark themes)
     ├── components/
     │   ├── ui/                      # shadcn/ui generated components
+    │   ├── project/                 # Project dashboard, document list, persona selector
     │   ├── workspace/               # Document viewer, extraction panel, chat
     │   │   ├── UploadArea.tsx
     │   │   ├── DocumentViewer.tsx
@@ -219,12 +248,16 @@ frontend/                            # Independent React app
     ├── pages/
     │   ├── LandingPage.tsx
     │   ├── Dashboard.tsx
-    │   └── Workspace.tsx
+    │   ├── Workspace.tsx
+    │   ├── ProjectDashboard.tsx
+    │   └── ProjectWorkspace.tsx
     ├── hooks/                       # React Query hooks
     │   ├── useDocuments.ts
     │   ├── useExtraction.ts
     │   ├── useChat.ts
-    │   └── useTemplates.ts
+    │   ├── useTemplates.ts
+    │   ├── useProjects.ts
+    │   └── usePersonas.ts
     ├── lib/
     │   ├── supabase.ts              # Supabase client init + OAuth helpers
     │   ├── api.ts                   # Backend API client (JWT-attached fetch + SSE)
@@ -304,6 +337,15 @@ ALLOWED_ORIGINS_STR=http://localhost:5173,http://localhost:3000
 
 # Data
 DATA_DIR=data
+
+# RAG
+EMBEDDING_PROVIDER=dashscope
+EMBEDDING_MODEL=text-embedding-v3
+EMBEDDING_DIMENSIONS=1024
+RAG_CHUNK_SIZE=512
+RAG_CHUNK_OVERLAP=64
+RAG_TOP_K=8
+RAG_SIMILARITY_THRESHOLD=0.3
 ```
 
 ### `frontend/.env`
@@ -385,6 +427,15 @@ class Settings(BaseSettings):
 
     # Data
     DATA_DIR: str = Field(default="data")
+
+    # RAG
+    EMBEDDING_PROVIDER: str = Field(default="dashscope")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-v3")
+    EMBEDDING_DIMENSIONS: int = Field(default=1024)
+    RAG_CHUNK_SIZE: int = Field(default=512)
+    RAG_CHUNK_OVERLAP: int = Field(default=64)
+    RAG_TOP_K: int = Field(default=8)
+    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.3)
 
     @property
     def allowed_origins(self) -> list[str]:

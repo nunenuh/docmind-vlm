@@ -2,14 +2,19 @@
 
 **Project:** DocMind-VLM
 **Owner:** Erfan
-**Date:** 2026-03-11
-**Status:** Product Definition
+**Date:** 2026-03-20 (revised)
+**Status:** Product Definition — Updated for Knowledge Base + Persona features
 
 ---
 
 ## 1. Executive Summary
 
-DocMind-VLM is a web application that lets users upload documents (PDF, image, scan), extract structured data using a vision-language model enhanced by classical computer vision preprocessing, and then chat with their document to ask contextual questions. The system provides full transparency into the extraction process via audit trails, confidence overlays, and pipeline comparison views.
+DocMind-VLM is a dual-mode intelligent document platform:
+
+1. **Document Extraction** — Upload a document, extract structured fields using VLM + CV preprocessing, view confidence overlays, and chat with the document.
+2. **Knowledge Base** — Create a project, upload multiple documents, configure an AI persona, and chat across all documents using RAG (Retrieval-Augmented Generation) with pgvector.
+
+The system provides full transparency via audit trails, confidence overlays, and source citations. The Knowledge Base mode enables building custom AI assistants grounded in real documents — like Claude Projects or ChatGPT Projects, but with configurable personas and visual document understanding.
 
 ## 2. Problem Statement
 
@@ -32,8 +37,9 @@ Document processing remains a manual, error-prone, and opaque process:
 
 ## 4. Target Audience
 
-- **Primary:** Compliance Officers processing multilingual, scanned, layout-heavy regulatory documents
-- **Secondary:** Operations Analysts processing invoices, receipts, and financial documents
+- **Primary:** Knowledge Base Builders (Customer Success, Support leads) who want AI assistants grounded in their docs
+- **Secondary:** Compliance Officers processing regulatory documents (extraction + cross-doc research)
+- **Secondary:** Operations Analysts processing invoices and financial documents (extraction)
 - **Meta:** Hiring managers evaluating portfolio quality (see User Persona Definition)
 
 ## 5. Functional Requirements
@@ -104,7 +110,32 @@ Document processing remains a manual, error-prone, and opaque process:
 - Multi-turn conversation with context retention
 - Chat history stored per document per user
 
-### FR 10: Export
+### FR 10: Knowledge Base — Projects
+- Create named projects that group multiple documents
+- Upload multiple PDFs/images to a project
+- Documents are automatically indexed for RAG: text extraction → chunking → embedding → pgvector
+- Project-level chat uses RAG retrieval across all project documents
+- Projects can be updated — add/remove documents, re-index automatically
+- Each project shows document count, chunk count, and last updated timestamp
+
+### FR 11: Knowledge Base — Personas
+- Configurable AI personality applied to project chat
+- 5 preset personas: Customer Service Agent, Technical Expert, Onboarding Guide, Legal Advisor, General Assistant
+- Each persona defines: system prompt, tone, behavioral rules, boundaries (things NOT to do)
+- Users can create custom personas or modify presets
+- Persona is selected per-project and controls how the AI responds
+- Persona instructions are prepended to the LLM system prompt during RAG chat
+
+### FR 12: Knowledge Base — RAG Chat
+- Project-level chat that queries across all uploaded documents
+- User message is embedded → pgvector similarity search → top-K chunks retrieved
+- LLM generates answer using retrieved context + persona instructions
+- Every answer cites: document name, page number
+- Multi-turn conversation with history persistence
+- Multiple conversations per project
+- Conversation list with auto-generated titles
+
+### FR 14: Export
 - Export extracted data as: JSON, CSV
 - Copy chat summary to clipboard
 - Download annotated document (with confidence overlay baked in) as PDF
@@ -147,10 +178,11 @@ Document processing remains a manual, error-prone, and opaque process:
 - Users have a modern browser (Chrome, Firefox, Safari, Edge)
 
 **Dependencies:**
-- Alibaba Model Studio (DashScope) — Qwen3-VL API
-- Supabase — Auth, Postgres, Storage
+- Alibaba Model Studio (DashScope) — Qwen3-VL API + text-embedding-v3
+- Supabase — Auth, Postgres (+ pgvector extension), Storage
 - LangGraph — agent orchestration
 - OpenCV — classical CV preprocessing
+- pgvector — vector similarity search for RAG
 - React + TypeScript — frontend
 
 ---

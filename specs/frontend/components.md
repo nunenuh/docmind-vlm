@@ -1184,3 +1184,366 @@ highlightedIds: Set<string>   // CORRECT — not string[]
 // Prefer const assertions for static config
 const THRESHOLDS = { ... } as const;
 ```
+
+---
+
+## Project Components
+
+The project feature introduces multi-document knowledge bases with persona-driven RAG chat. These components live alongside the existing document workspace components.
+
+### Updated Component Tree (additions only)
+
+```
+App.tsx
+├── pages/
+│   ├── ProjectDashboardPage.tsx        <- Project list (auth required)
+│   │   └── ProjectCard.tsx
+│   └── ProjectWorkspacePage.tsx        <- Project workspace (auth required)
+│       ├── ProjectDocumentList.tsx      <- Left panel: project documents
+│       ├── ProjectChatPanel.tsx         <- Right panel: RAG chat
+│       └── PersonaSelector.tsx          <- Header: persona dropdown
+└── components/
+    └── PersonaEditor.tsx               <- Modal: create/edit persona
+```
+
+---
+
+### `ProjectDashboardPage.tsx`
+
+```typescript
+/**
+ * ProjectDashboardPage — Grid of user's projects with creation action
+ *
+ * Props: none (page component, data fetched internally via hooks)
+ *
+ * Layout:
+ *   - Header with title + "New Project" button
+ *   - Responsive card grid (1-col mobile, 2-col tablet, 3-col desktop)
+ *   - Each ProjectCard shows: project name, doc count, persona name, last updated
+ *   - Click card → navigates to /projects/:id (ProjectWorkspacePage)
+ *   - Empty state when no projects exist
+ */
+
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Plus, FolderOpen, FileText, Bot } from "lucide-react";
+import { useProjects, useCreateProject } from "@/hooks/useProjects";
+import type { ProjectResponse } from "@/types/api";
+
+interface ProjectCardProps {
+  project: ProjectResponse;
+  onClick: () => void;
+}
+
+function ProjectCard({ project, onClick }: ProjectCardProps) {
+  return (
+    <Card
+      onClick={onClick}
+      className="p-4 cursor-pointer hover:shadow-md transition-shadow"
+    >
+      <div className="flex items-start justify-between mb-3">
+        <h3 className="text-sm font-semibold truncate">{project.name}</h3>
+        <Badge variant="secondary" className="text-xs shrink-0 ml-2">
+          <FileText className="h-3 w-3 mr-1" />
+          {project.document_count}
+        </Badge>
+      </div>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+        <Bot className="h-3 w-3" />
+        <span className="truncate">{project.persona_name ?? "Default"}</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-2">
+        Updated {new Date(project.updated_at).toLocaleDateString()}
+      </p>
+    </Card>
+  );
+}
+```
+
+**ProjectDashboardPage Rules:**
+- Fetches projects via `useProjects()` hook (React Query)
+- "New Project" opens a `Dialog` with name input + optional persona selection
+- Cards are read-only summaries — no inline editing on the dashboard
+- Uses `useNavigate()` for client-side routing to workspace
+
+---
+
+### `ProjectWorkspacePage.tsx`
+
+```typescript
+/**
+ * ProjectWorkspacePage — Split-panel project workspace
+ *
+ * Props: none (page component, project ID from route params)
+ *
+ * Layout:
+ *   - Header: project name, PersonaSelector dropdown, settings gear icon
+ *   - Left panel (resizable, ~35%): ProjectDocumentList
+ *   - Right panel (~65%): ProjectChatPanel
+ *   - Upload docs via drag-and-drop into the left panel
+ */
+
+import { useParams } from "react-router-dom";
+import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
+import { Settings } from "lucide-react";
+import { PersonaSelector } from "@/components/PersonaSelector";
+import { ProjectDocumentList } from "./ProjectDocumentList";
+import { ProjectChatPanel } from "./ProjectChatPanel";
+import { useProject } from "@/hooks/useProjects";
+
+// Route: /projects/:projectId
+```
+
+**ProjectWorkspacePage Rules:**
+- Project ID extracted from route params via `useParams()`
+- Left/right panels use CSS `grid-cols-[35%_1fr]` or a resizable splitter
+- Header persona selector updates the project's active persona
+- Settings gear opens project settings (rename, delete, persona config)
+
+---
+
+### `PersonaSelector.tsx`
+
+```typescript
+/**
+ * PersonaSelector — Dropdown for selecting a project's active persona
+ *
+ * Props:
+ *   projectId     — current project
+ *   selectedId    — currently active persona ID (null = default)
+ *   onSelect      — called when user picks a persona
+ *   onCustomize   — called when user clicks "Customize" (opens PersonaEditor)
+ */
+
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Bot, ChevronDown, Pencil } from "lucide-react";
+import { usePersonas } from "@/hooks/usePersonas";
+
+interface PersonaSelectorProps {
+  projectId: string;
+  selectedId: string | null;
+  onSelect: (personaId: string) => void;
+  onCustomize: () => void;
+}
+
+export function PersonaSelector({
+  projectId,
+  selectedId,
+  onSelect,
+  onCustomize,
+}: PersonaSelectorProps) {
+  const { data: personas } = usePersonas();
+
+  const selected = personas?.find((p) => p.id === selectedId);
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="gap-2">
+          <Bot className="h-4 w-4" />
+          <span className="truncate max-w-[150px]">
+            {selected?.name ?? "Default Persona"}
+          </span>
+          <ChevronDown className="h-3 w-3" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        {personas?.map((persona) => (
+          <DropdownMenuItem
+            key={persona.id}
+            onClick={() => onSelect(persona.id)}
+            className="flex flex-col items-start"
+          >
+            <span className="font-medium text-sm">{persona.name}</span>
+            <span className="text-xs text-muted-foreground line-clamp-1">
+              {persona.description}
+            </span>
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onClick={onCustomize} className="gap-2">
+          <Pencil className="h-3 w-3" />
+          Customize
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+```
+
+**PersonaSelector Rules:**
+- Fetches personas via `usePersonas()` hook — includes both preset and user-created personas
+- Each item shows persona name + short description (one-line clamp)
+- "Customize" item at the bottom opens `PersonaEditor` modal
+- Selecting a persona calls `onSelect` — parent component persists the change
+
+---
+
+### `PersonaEditor.tsx`
+
+```typescript
+/**
+ * PersonaEditor — Modal for creating or editing a persona
+ *
+ * Props:
+ *   persona   — existing persona to edit (null = create new)
+ *   open      — controlled dialog open state
+ *   onClose   — called on cancel or after save
+ */
+
+import { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { X } from "lucide-react";
+import { useSavePersona } from "@/hooks/usePersonas";
+import type { PersonaResponse } from "@/types/api";
+
+interface PersonaEditorProps {
+  persona: PersonaResponse | null;
+  open: boolean;
+  onClose: () => void;
+}
+
+// Fields:
+//   name          — text input, required
+//   description   — text input, short summary
+//   system_prompt — textarea, the persona's system prompt
+//   tone          — select: "professional" | "friendly" | "technical" | "concise"
+//   rules         — tag input (array of strings), persona behavioral rules
+//   boundaries    — tag input (array of strings), topics the persona should avoid
+//
+// Footer:
+//   - Preview section showing a sample prompt rendered with the persona config
+//   - Cancel button (closes modal, discards changes)
+//   - Save button (calls useSavePersona mutation, then onClose)
+```
+
+**PersonaEditor Rules:**
+- Tag inputs for `rules` and `boundaries` — type text + Enter to add, click X to remove
+- `tone` uses a `<select>` or shadcn `Select` component with preset options
+- Preview section renders a mock prompt: system_prompt + a sample user question to show how the persona will frame responses
+- Save triggers `useSavePersona` mutation (POST for new, PUT for existing)
+- All fields validate on submit — `name` and `system_prompt` are required
+
+---
+
+### `ProjectChatPanel.tsx`
+
+```typescript
+/**
+ * ProjectChatPanel — RAG chat panel with conversation management
+ *
+ * Props:
+ *   projectId — current project for RAG context
+ *   personaId — active persona (null = default)
+ *
+ * Differences from ChatPanel:
+ *   - Left sidebar: conversation list with "New conversation" button
+ *   - Citations show document name + page number (not just page)
+ *   - Persona name displayed at top of chat area
+ *   - Sends to project RAG chat endpoint, not per-document VLM chat
+ */
+
+import { useState, useRef, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
+import { Send, Loader2, Plus, MessageSquare, FileText } from "lucide-react";
+import { createSSEStream } from "@/lib/api";
+import { useProjectConversations, useConversationHistory } from "@/hooks/useProjectChat";
+import type { ProjectChatMessageResponse, ProjectCitation } from "@/types/api";
+
+interface ProjectChatPanelProps {
+  projectId: string;
+  personaId: string | null;
+}
+
+// Layout:
+//   ┌──────────────┬──────────────────────────────────────┐
+//   │ Conversations│  Persona: "Research Analyst"         │
+//   │              │──────────────────────────────────────│
+//   │ + New        │                                      │
+//   │              │  [message list with citations]        │
+//   │ Conv 1       │                                      │
+//   │ Conv 2       │                                      │
+//   │ Conv 3       │──────────────────────────────────────│
+//   │              │  [input area]                        │
+//   └──────────────┴──────────────────────────────────────┘
+//
+// Citation format:
+//   <CitationBlock>
+//     📄 invoice_march.pdf — Page 3
+//     "Total amount due: $1,250.00"
+//   </CitationBlock>
+```
+
+**ProjectChatPanel Rules:**
+- Conversation sidebar lists all conversations for this project via `useProjectConversations()`
+- "New conversation" button creates a fresh thread (new `conversation_id`)
+- Messages stream via SSE from `POST /api/v1/projects/{projectId}/chat`
+- Citations include `document_name` and `page_number` — rendered as "filename — Page N"
+- Persona name displayed as a header badge above the message list
+- Input placeholder: "Ask about your documents..."
+
+---
+
+### `ProjectDocumentList.tsx`
+
+```typescript
+/**
+ * ProjectDocumentList — Document list panel for a project
+ *
+ * Props:
+ *   projectId — current project
+ */
+
+import { useState, useCallback } from "react";
+import { Button } from "@/components/ui/button";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Badge } from "@/components/ui/badge";
+import { Upload, Trash2, FileText, CheckCircle2, Loader2 } from "lucide-react";
+import { useProjectDocuments, useUploadProjectDocument, useDeleteProjectDocument } from "@/hooks/useProjectDocuments";
+import type { ProjectDocumentResponse } from "@/types/api";
+
+interface ProjectDocumentListProps {
+  projectId: string;
+}
+
+// Each document row shows:
+//   - File icon + filename (truncated)
+//   - Page count badge
+//   - Chunk count badge (number of indexed chunks)
+//   - Indexed status: green check (indexed) or spinner (processing)
+//   - Delete button (with confirmation)
+//
+// Bottom section:
+//   - Upload button
+//   - Drag-and-drop area (reuses UploadArea pattern)
+//   - Accepts PDF files, max 20 MB each
+```
+
+**ProjectDocumentList Rules:**
+- Fetches documents via `useProjectDocuments(projectId)` hook
+- Upload triggers chunking + embedding pipeline on the backend
+- Indexed status reflects whether all chunks have embeddings in pgvector
+- Delete button shows a confirmation `Dialog` before removing
+- Drag-and-drop zone at the bottom of the list, styled consistently with `UploadArea`
+- Multiple file upload supported — files are uploaded sequentially

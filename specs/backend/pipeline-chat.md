@@ -853,3 +853,438 @@ async def chat_sse_stream(
 - **Re-querying is limited to 3 fields per turn** and only for factual lookups with low confidence (< 0.6).
 - **Thread isolation**: each `(document_id, user_id)` pair is a separate conversation. No cross-contamination.
 - **Stream callbacks are optional**: all nodes must work without a callback (for testing and batch use).
+
+---
+
+## Project RAG Chat Pipeline
+
+File: `backend/src/docmind/library/pipeline/project_chat.py`
+
+This is a **separate pipeline** from the per-document VLM chat above. It provides multi-document RAG chat within a project, using text embeddings and pgvector similarity search instead of VLM image analysis.
+
+### Key Differences from Per-Document Chat
+
+| Aspect | Per-Document Chat (above) | Project RAG Chat |
+|--------|--------------------------|-----------------|
+| Input | Single document images + extracted fields | Multiple documents' text chunks |
+| Retrieval | Keyword search on extracted fields + VLM re-query | pgvector similarity search across page_chunks |
+| Model | VLM provider (vision + language) | Embedding provider + LLM (text only) |
+| Citations | Bounding boxes on document image | Document name + page number |
+| Persona | Fixed grounding system prompt | Configurable persona system prompt |
+| Scope | One document per conversation | All documents in a project |
+
+---
+
+### State Schema
+
+```python
+class ProjectChatState(TypedDict):
+    """
+    Full state flowing through the project RAG chat pipeline.
+
+    Unlike the per-document ChatState, this pipeline operates on
+    text chunks from multiple documents within a project.
+    """
+    # Input (set before pipeline starts)
+    project_id: str
+    user_id: str
+    conversation_id: str
+    message: str
+    persona_prompt: str  # Persona system prompt (from persona config)
+
+    # Embed output
+    query_embedding: list[float]  # Vector embedding of user message
+
+    # Retrieve output
+    retrieved_chunks: list[dict]  # [{document_id, document_name, page_number, chunk_text, score}, ...]
+
+    # Conversation context
+    conversation_history: list[dict]  # [{"role": str, "content": str}, ...]
+
+    # Reason output
+    answer: str
+
+    # Cite output
+    citations: list[dict]  # [{document_name, page_number, chunk_text}, ...]
+
+    # Pipeline metadata
+    status: str  # "pending" | "embedding" | "retrieving" | "reasoning" | "citing" | "done" | "error"
+    error_message: str | None
+```
+
+---
+
+### Pipeline Overview
+
+```
+User message + persona prompt + conversation history
+    |
+    v  embed_query node
+query_embedding: list[float]
+    |
+    v  retrieve node
+retrieved_chunks: list[dict] (pgvector similarity search across project's page_chunks)
+    |
+    v  reason node
+answer: str (persona prompt + retrieved context + history → LLM)
+    |
+    v  cite node
+citations: list[dict] (document name + page number extracted from answer)
+    |
+    v
+ProjectChatState with final response ready for SSE streaming
+```
+
+---
+
+### `embed_query` Node
+
+```python
+"""
+Embedding node: convert user message to a vector embedding.
+
+Uses the configured embedding provider (e.g., OpenAI text-embedding-3-small,
+DashScope embedding) to produce a dense vector for similarity search.
+"""
+from docmind.library.providers import get_embedding_provider
+
+
+def embed_query_node(state: dict) -> dict:
+    """
+    Pipeline node: embed the user's message.
+
+    Calls the embedding provider to convert the message into a
+    dense vector for pgvector similarity search.
+    """
+    message = state["message"]
+    provider = get_embedding_provider()
+
+    embedding = provider.embed(message)
+
+    logger.info("Embedded query", dimensions=len(embedding))
+
+    return {
+        "query_embedding": embedding,
+        "status": "embedding",
+    }
+```
+
+---
+
+### `retrieve` Node
+
+```python
+"""
+Retrieval node: pgvector similarity search across the project's page_chunks.
+
+Queries the page_chunks table for chunks belonging to documents in the
+project, ranked by cosine similarity to the query embedding.
+"""
+from docmind.core.database import get_async_session
+
+
+async def _pgvector_search(
+    project_id: str,
+    query_embedding: list[float],
+    top_k: int = 10,
+) -> list[dict]:
+    """
+    Search page_chunks by cosine similarity within a project.
+
+    Joins page_chunks → documents to filter by project_id.
+    Returns top_k chunks sorted by similarity score descending.
+    """
+    async with get_async_session() as session:
+        # pgvector cosine similarity query
+        # SELECT pc.chunk_text, pc.page_number, d.filename, d.id,
+        #        1 - (pc.embedding <=> :query_embedding) AS score
+        # FROM page_chunks pc
+        # JOIN documents d ON pc.document_id = d.id
+        # WHERE d.project_id = :project_id
+        # ORDER BY pc.embedding <=> :query_embedding
+        # LIMIT :top_k
+        ...
+
+    return results  # [{document_id, document_name, page_number, chunk_text, score}, ...]
+
+
+def retrieve_node(state: dict) -> dict:
+    """
+    Pipeline node: retrieve relevant chunks via pgvector similarity search.
+
+    Searches across all documents in the project for chunks most
+    similar to the user's query embedding.
+    """
+    import asyncio
+
+    project_id = state["project_id"]
+    query_embedding = state["query_embedding"]
+
+    results = asyncio.get_event_loop().run_until_complete(
+        _pgvector_search(project_id, query_embedding, top_k=10)
+    )
+
+    logger.info(
+        "Retrieved chunks",
+        chunk_count=len(results),
+        project_id=project_id,
+    )
+
+    return {
+        "retrieved_chunks": results,
+        "status": "retrieving",
+    }
+```
+
+---
+
+### `reason` Node
+
+```python
+"""
+Reasoning node: generate an answer using the persona prompt,
+retrieved context, and conversation history.
+
+Unlike the per-document reason node, this uses a text-only LLM
+(no VLM/images) and prepends the persona system prompt.
+"""
+from docmind.library.providers import get_chat_provider
+
+
+def _build_project_context(state: dict) -> str:
+    """Build the retrieval context string for the reasoning prompt."""
+    lines = ["RETRIEVED DOCUMENT CONTEXT:"]
+
+    for chunk in state.get("retrieved_chunks", []):
+        doc_name = chunk.get("document_name", "unknown")
+        page = chunk.get("page_number", "?")
+        text = chunk.get("chunk_text", "")
+        score = chunk.get("score", 0.0)
+
+        lines.append(f"- [{doc_name}, page {page}] (relevance: {score:.2f})")
+        lines.append(f"  \"{text}\"")
+
+    # Include conversation history for context
+    history = state.get("conversation_history", [])
+    if history:
+        lines.append("")
+        lines.append("CONVERSATION HISTORY:")
+        for msg in history[-6:]:  # Last 6 messages max
+            role = msg["role"].upper()
+            content = msg["content"][:200]
+            lines.append(f"[{role}]: {content}")
+
+    return "\n".join(lines)
+
+
+def reason_node(state: dict) -> dict:
+    """
+    Pipeline node: generate an answer grounded in retrieved chunks.
+
+    Constructs a prompt with:
+    1. Persona system prompt (defines tone, rules, boundaries)
+    2. Retrieved chunk context (document name + page + text)
+    3. Conversation history (last 6 messages)
+    4. User message
+
+    Calls a text LLM (not VLM) to generate the answer.
+    """
+    import asyncio
+
+    message = state["message"]
+    persona_prompt = state.get("persona_prompt", "You are a helpful document assistant.")
+    history = state.get("conversation_history", [])
+
+    context = _build_project_context(state)
+
+    user_prompt = f"""{context}
+
+USER QUESTION: {message}"""
+
+    try:
+        provider = get_chat_provider()
+
+        response = asyncio.get_event_loop().run_until_complete(
+            provider.chat(
+                message=user_prompt,
+                history=history,
+                system_prompt=persona_prompt,
+            )
+        )
+
+        answer = response["content"]
+
+        logger.info("Generated project chat answer", char_count=len(answer))
+
+        return {
+            "answer": answer,
+            "status": "reasoning",
+        }
+
+    except Exception as e:
+        logger.error("Project chat reasoning failed", error=str(e))
+        return {
+            "answer": "I encountered an error while analyzing your documents. Please try again.",
+            "error_message": str(e),
+            "status": "error",
+        }
+```
+
+---
+
+### `cite` Node
+
+```python
+"""
+Citation node: extract document-level citations from the answer.
+
+Unlike the per-document cite node which produces bounding boxes,
+this node produces document name + page number citations.
+"""
+import re
+
+
+def _extract_project_citations(
+    answer: str,
+    retrieved_chunks: list[dict],
+) -> list[dict]:
+    """
+    Match answer content to retrieved chunks to generate citations.
+
+    For each retrieved chunk whose text appears in the answer,
+    creates a citation with document name and page number.
+    """
+    citations: list[dict] = []
+    seen: set[str] = set()  # Deduplicate by (document_name, page_number)
+
+    for chunk in retrieved_chunks:
+        chunk_text = chunk.get("chunk_text", "")
+        if not chunk_text or len(chunk_text) < 10:
+            continue
+
+        # Check if key phrases from the chunk appear in the answer
+        # Use first 50 chars as a fingerprint for matching
+        fingerprint = chunk_text[:50].lower().strip()
+        answer_lower = answer.lower()
+
+        # Check for substantial overlap
+        chunk_words = set(chunk_text.lower().split())
+        answer_words = set(answer_lower.split())
+        overlap = len(chunk_words & answer_words) / max(len(chunk_words), 1)
+
+        if overlap > 0.3 or fingerprint in answer_lower:
+            doc_name = chunk.get("document_name", "unknown")
+            page = chunk.get("page_number", 1)
+            key = f"{doc_name}:{page}"
+
+            if key in seen:
+                continue
+            seen.add(key)
+
+            citations.append({
+                "document_name": doc_name,
+                "document_id": chunk.get("document_id"),
+                "page_number": page,
+                "chunk_text": chunk_text[:200],  # Truncate for display
+            })
+
+    return citations
+
+
+def cite_node(state: dict) -> dict:
+    """
+    Pipeline node: extract document citations from the answer.
+
+    Matches answer content to retrieved chunks to create citations
+    that reference specific documents and pages.
+    """
+    answer = state.get("answer", "")
+    retrieved_chunks = state.get("retrieved_chunks", [])
+
+    citations = _extract_project_citations(answer, retrieved_chunks)
+
+    logger.info("Generated project citations", citation_count=len(citations))
+
+    return {
+        "citations": citations,
+        "status": "done",
+    }
+```
+
+---
+
+### Graph Definition
+
+```python
+"""
+Build and compile the project RAG chat StateGraph.
+
+Pipeline flow:
+    embed_query -> retrieve -> reason -> cite -> END
+"""
+from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, StateGraph
+
+
+def build_project_chat_graph() -> StateGraph:
+    """
+    Build the project RAG chat pipeline.
+
+    Linear flow: embed_query -> retrieve -> reason -> cite -> END
+
+    Uses MemorySaver checkpointer for conversation persistence.
+    Each invocation with the same thread_id resumes the conversation.
+    """
+    graph = StateGraph(ProjectChatState)
+
+    graph.add_node("embed_query", embed_query_node)
+    graph.add_node("retrieve", retrieve_node)
+    graph.add_node("reason", reason_node)
+    graph.add_node("cite", cite_node)
+
+    graph.set_entry_point("embed_query")
+
+    graph.add_edge("embed_query", "retrieve")
+    graph.add_edge("retrieve", "reason")
+    graph.add_edge("reason", "cite")
+    graph.add_edge("cite", END)
+
+    checkpointer = MemorySaver()
+    return graph.compile(checkpointer=checkpointer)
+
+
+# Module-level compiled graph (reused across invocations)
+project_chat_graph = build_project_chat_graph()
+
+
+def run_project_chat_pipeline(initial_state: dict, config: dict) -> dict:
+    """
+    Run the full project RAG chat pipeline.
+
+    Entry point called by modules/project_chat/usecase.py.
+
+    Args:
+        initial_state: ProjectChatState dict with input fields populated.
+        config: LangGraph config with thread_id for conversation isolation.
+
+    Returns:
+        Final ProjectChatState dict with all outputs.
+    """
+    return project_chat_graph.invoke(initial_state, config=config)
+```
+
+**Thread ID format:** `"{project_id}:{user_id}:{conversation_id}"` — supports multiple conversations per user per project.
+
+---
+
+### Project RAG Chat Rules
+
+- **No VLM / no images** — this pipeline is pure text RAG. It uses an embedding provider for query vectorization and a text LLM for answer generation.
+- **Embedding provider, not VLM provider** — `get_embedding_provider()` returns the configured embedding model (e.g., OpenAI `text-embedding-3-small`, DashScope text embedding).
+- **Retrieval from pgvector** — chunks are stored in `page_chunks` table with pgvector embeddings. Similarity search uses cosine distance (`<=>`).
+- **Persona system prompt** — the persona's `system_prompt` is prepended to the LLM context, replacing the fixed grounding prompt used in per-document chat.
+- **Citations reference documents, not bounding boxes** — each citation includes `document_name` and `page_number`, not pixel-level regions.
+- **Multiple conversations per project** — thread ID includes `conversation_id` to support parallel conversation threads.
+- **Conversation history capped at 6 messages** in the reasoning prompt, consistent with the per-document pipeline.
+- **Top-k retrieval defaults to 10 chunks** — adjustable based on context window budget.
+- **Pipeline never imports from `docmind/modules/`** — consistent with the per-document pipeline isolation rule.
