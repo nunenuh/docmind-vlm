@@ -333,7 +333,8 @@
       "Bash(PYTHONPATH=src .venv/bin/alembic revision --autogenerate -m \"add project, persona, conversation, and page_chunk tables\")",
       "Bash(PYTHONPATH=src .venv/bin/alembic revision -m \"add project, persona, conversation, and page_chunk tables\")",
       "Bash(PYTHONPATH=src .venv/bin/alembic revision -m \"enable pgvector extension\")",
-      "Bash(PYTHONPATH=src .venv/bin/python -c \":*)"
+      "Bash(PYTHONPATH=src .venv/bin/python -c \":*)",
+      "Bash(.venv/bin/python -m pytest tests/e2e/ -v --tb=short)"
     ]
   }
 }
