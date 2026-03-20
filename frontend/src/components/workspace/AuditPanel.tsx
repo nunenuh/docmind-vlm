@@ -10,17 +10,21 @@ export function AuditPanel({ documentId }: AuditPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center py-16">
         <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+        <p className="text-xs text-gray-500 mt-3">Loading audit trail...</p>
       </div>
     );
   }
 
   if (!entries || entries.length === 0) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <Clock className="w-10 h-10 mx-auto mb-3 text-gray-700" />
-        <p>No audit trail available.</p>
+      <div className="flex flex-col items-center justify-center py-16 px-6">
+        <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4">
+          <Clock className="w-6 h-6 text-gray-700" />
+        </div>
+        <p className="text-sm font-medium text-gray-400 mb-1">No audit trail</p>
+        <p className="text-xs text-gray-600 text-center">Processing history will appear here after the document is processed.</p>
       </div>
     );
   }

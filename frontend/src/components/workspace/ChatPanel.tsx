@@ -70,9 +70,12 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {messages.length === 0 && !isStreaming && (
-          <div className="text-center py-12 text-gray-500">
-            <Bot className="w-10 h-10 mx-auto mb-3 text-gray-700" />
-            <p>Ask a question about this document</p>
+          <div className="flex flex-col items-center justify-center py-16 px-6">
+            <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4">
+              <Bot className="w-6 h-6 text-gray-700" />
+            </div>
+            <p className="text-sm font-medium text-gray-400 mb-1">Chat with this document</p>
+            <p className="text-xs text-gray-600 text-center">Ask questions and get answers with source citations.</p>
           </div>
         )}
 
@@ -103,14 +106,14 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             placeholder="Ask about this document..."
-            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-blue-500 transition-colors"
+            className="flex-1 bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500/50 transition-all duration-200"
             rows={1}
             disabled={isStreaming}
           />
           <button
             onClick={handleSend}
             disabled={!input.trim() || isStreaming}
-            className="p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg text-white transition-colors"
+            className="p-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg text-white transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <Send className="w-4 h-4" />
           </button>

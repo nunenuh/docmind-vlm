@@ -14,15 +14,15 @@ export function Hero() {
         </div>
 
         <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-          Chat with any document.{" "}
+          Extract, understand, and{" "}
           <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-cyan-400">
-            See exactly what the AI sees.
+            chat with your documents.
           </span>
         </h1>
 
         <p className="text-lg sm:text-xl text-gray-400 max-w-2xl mx-auto mb-10">
-          Upload PDFs or images. Extract structured data with confidence scores
-          and bounding boxes. Ask questions and get answers with source citations.
+          Upload PDFs or images for AI-powered data extraction with confidence scores.
+          Build a Knowledge Base across multiple documents and chat with a configurable AI persona.
         </p>
 
         <div className="flex flex-col sm:flex-row items-center justify-center gap-4">

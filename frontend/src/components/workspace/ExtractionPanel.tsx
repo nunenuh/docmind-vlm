@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Code, Table2, Loader2 } from "lucide-react";
+import { Code, Table2, Loader2, FileSearch } from "lucide-react";
 import { useExtraction } from "@/hooks/useExtraction";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -15,17 +15,21 @@ export function ExtractionPanel({ documentId }: ExtractionPanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center py-16">
         <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+        <p className="text-xs text-gray-500 mt-3">Loading extraction data...</p>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <p>No extraction data available.</p>
-        <p className="text-sm mt-1">Process the document to extract fields.</p>
+      <div className="flex flex-col items-center justify-center py-16 px-6">
+        <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4">
+          <FileSearch className="w-6 h-6 text-gray-700" />
+        </div>
+        <p className="text-sm font-medium text-gray-400 mb-1">No extraction data</p>
+        <p className="text-xs text-gray-600 text-center">Process the document to extract structured fields.</p>
       </div>
     );
   }

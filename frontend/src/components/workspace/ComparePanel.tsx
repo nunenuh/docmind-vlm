@@ -1,4 +1,4 @@
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, GitCompareArrows } from "lucide-react";
 import { useComparison } from "@/hooks/useExtraction";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 
@@ -11,16 +11,21 @@ export function ComparePanel({ documentId }: ComparePanelProps) {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center py-12">
+      <div className="flex flex-col items-center justify-center py-16">
         <Loader2 className="w-6 h-6 text-blue-400 animate-spin" />
+        <p className="text-xs text-gray-500 mt-3">Loading comparison...</p>
       </div>
     );
   }
 
   if (!data) {
     return (
-      <div className="text-center py-12 text-gray-500">
-        <p>No comparison data available.</p>
+      <div className="flex flex-col items-center justify-center py-16 px-6">
+        <div className="w-12 h-12 rounded-xl bg-gray-900 border border-gray-800 flex items-center justify-center mb-4">
+          <GitCompareArrows className="w-6 h-6 text-gray-700" />
+        </div>
+        <p className="text-sm font-medium text-gray-400 mb-1">No comparison data</p>
+        <p className="text-xs text-gray-600 text-center">Process the document to compare raw VLM output with enhanced results.</p>
       </div>
     );
   }

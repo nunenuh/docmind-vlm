@@ -35,16 +35,16 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
   return (
     <div
       onClick={() => navigate(`/workspace/${document.id}`)}
-      className="group bg-gray-900/50 border border-gray-800 rounded-xl p-5 cursor-pointer hover:border-blue-500/30 transition-colors"
+      className="group bg-gray-900/50 border border-gray-800 rounded-lg p-5 cursor-pointer hover:border-gray-700 hover:bg-gray-900/80 transition-all duration-200 focus-within:ring-2 focus-within:ring-blue-500"
     >
       <div className="flex items-start justify-between mb-3">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0">
+          <div className="w-10 h-10 bg-blue-500/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-blue-500/15 transition-colors duration-200">
             <FileText className="w-5 h-5 text-blue-400" />
           </div>
           <div className="min-w-0">
-            <h3 className="text-white font-medium truncate">{document.filename}</h3>
-            <p className="text-sm text-gray-500">{formatDate(document.created_at)}</p>
+            <h3 className="text-white font-medium truncate text-sm">{document.filename}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{formatDate(document.created_at)}</p>
           </div>
         </div>
         <button
@@ -52,7 +52,7 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
             e.stopPropagation();
             onDelete(document.id);
           }}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all"
+          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-red-500/10 text-gray-500 hover:text-red-400 transition-all duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-red-500"
           aria-label="Delete document"
         >
           <Trash2 className="w-4 h-4" />
@@ -64,7 +64,7 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
           {status.icon}
           {status.label}
         </span>
-        <span className="text-xs text-gray-600 bg-gray-800/50 px-2 py-1 rounded">
+        <span className="text-xs text-gray-500 bg-gray-800/50 px-2 py-1 rounded">
           {document.file_type.toUpperCase()}
         </span>
         <span className="text-xs text-gray-600">

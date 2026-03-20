@@ -1,4 +1,4 @@
-import { FileUp, Eye, GitCompare, MessageSquare } from "lucide-react";
+import { FileUp, Eye, GitCompare, MessageSquare, Library } from "lucide-react";
 import type { ReactNode } from "react";
 
 interface FeatureItem {
@@ -37,6 +37,13 @@ const features: FeatureItem[] = [
     detail:
       "Natural language Q&A grounded in the document data. Every answer includes page citations and bounding box references you can verify.",
   },
+  {
+    icon: <Library className="w-6 h-6" />,
+    title: "Knowledge Base",
+    description: "Build a searchable knowledge base from all your documents.",
+    detail:
+      "Upload multiple documents into a project, index them with pgvector embeddings, and chat across your entire collection with a configurable AI persona using RAG.",
+  },
 ];
 
 export function Features() {
@@ -52,11 +59,11 @@ export function Features() {
           </p>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-8">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="group bg-gray-900/50 border border-gray-800 rounded-xl p-8 hover:border-blue-500/30 transition-colors"
+              className="group bg-gray-900/50 border border-gray-800 rounded-xl p-8 hover:border-blue-500/30 transition-all duration-200 hover:bg-gray-900/70"
             >
               <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center text-blue-400 mb-5 group-hover:bg-blue-500/20 transition-colors">
                 {feature.icon}
