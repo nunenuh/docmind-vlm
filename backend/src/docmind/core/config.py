@@ -90,6 +90,15 @@ class Settings(BaseSettings):
     CONFIDENCE_CV_WEIGHT: float = Field(default=0.3)
     CONFIDENCE_LOW_THRESHOLD: float = Field(default=0.5)
 
+    # RAG
+    EMBEDDING_PROVIDER: str = Field(default="dashscope")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-v3")
+    EMBEDDING_DIMENSIONS: int = Field(default=1024)
+    RAG_CHUNK_SIZE: int = Field(default=512)
+    RAG_CHUNK_OVERLAP: int = Field(default=64)
+    RAG_TOP_K: int = Field(default=5)
+    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.7)
+
     # Chat pipeline
     CHAT_MAX_PAGE_IMAGES: int = Field(default=4)
     CHAT_MAX_HISTORY: int = Field(default=6)

@@ -6,6 +6,7 @@ from .citation import Citation
 from .document import Document
 from .extracted_field import ExtractedField
 from .extraction import Extraction
+from .page_chunk import PageChunk
 from .persona import Persona
 from .project import Project
 from .project_conversation import ProjectConversation
@@ -18,6 +19,7 @@ __all__ = [
     "AuditEntry",
     "ChatMessage",
     "Citation",
+    "PageChunk",
     "Persona",
     "Project",
     "ProjectConversation",
