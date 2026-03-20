@@ -1,4 +1,4 @@
-.PHONY: help setup setup-backend setup-frontend dev dev-backend dev-frontend backend frontend stop docker-up docker-build docker-down test test-unit test-integration test-coverage lint format
+.PHONY: help setup setup-backend setup-frontend dev dev-backend dev-frontend backend frontend stop docker-up docker-build docker-down test test-unit test-integration test-coverage lint format migrate migrate-create migrate-downgrade migrate-history
 
 # ── Config ────────────────────────────────────────────
 BACKEND_PORT  ?= 8009
@@ -104,6 +104,20 @@ test-integration: ## Integration tests (requires Supabase)
 
 test-coverage: ## Tests with coverage report
 	cd backend && .venv/bin/python -m pytest tests/ --cov=docmind --cov-report=term-missing --cov-fail-under=80
+
+# ── Migrations ────────────────────────────────────────
+
+migrate: ## Run database migrations to latest
+	cd backend && PYTHONPATH=src .venv/bin/alembic upgrade head
+
+migrate-create: ## Create a new migration (usage: make migrate-create msg="description")
+	cd backend && PYTHONPATH=src .venv/bin/alembic revision --autogenerate -m "$(msg)"
+
+migrate-downgrade: ## Downgrade one migration
+	cd backend && PYTHONPATH=src .venv/bin/alembic downgrade -1
+
+migrate-history: ## Show migration history
+	cd backend && PYTHONPATH=src .venv/bin/alembic history --verbose
 
 # ── Lint / Format ──────────────────────────────────────
 

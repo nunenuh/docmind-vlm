@@ -328,7 +328,12 @@
       "Bash(.venv/bin/python -m pytest tests/unit/modules/projects/ tests/unit/modules/personas/ -q --tb=short)",
       "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules/projects /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules/personas /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase/psql/models/project*.py /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase/psql/models/persona.py -type f)",
       "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ -q --tb=short)",
-      "Bash(.venv/bin/python -m pytest tests/unit/library/pipeline/test_rag_pipeline.py -q --tb=short)"
+      "Bash(.venv/bin/python -m pytest tests/unit/library/pipeline/test_rag_pipeline.py -q --tb=short)",
+      "Bash(PYTHONPATH=src .venv/bin/alembic heads)",
+      "Bash(PYTHONPATH=src .venv/bin/alembic revision --autogenerate -m \"add project, persona, conversation, and page_chunk tables\")",
+      "Bash(PYTHONPATH=src .venv/bin/alembic revision -m \"add project, persona, conversation, and page_chunk tables\")",
+      "Bash(PYTHONPATH=src .venv/bin/alembic revision -m \"enable pgvector extension\")",
+      "Bash(PYTHONPATH=src .venv/bin/python -c \":*)"
     ]
   }
 }
