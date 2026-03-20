@@ -41,11 +41,16 @@ export function ChatPanel({ documentId }: ChatPanelProps) {
         const event = data as Record<string, unknown>;
         if (event.type === "token") {
           setStreamingContent((prev) => prev + (event.content ?? ""));
+        } else if (event.type === "error") {
+          setStreamingContent(String(event.message ?? "An error occurred"));
+        } else if (event.type === "done") {
+          // Pipeline complete — history will refresh
         }
       },
-      () => {
+      (error: Error) => {
         setIsStreaming(false);
-        setStreamingContent("");
+        setStreamingContent(`Error: ${error.message}`);
+        setTimeout(() => setStreamingContent(""), 5000);
       },
       () => {
         setIsStreaming(false);

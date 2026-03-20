@@ -20,7 +20,7 @@ from .schemas import (
 
 logger = get_logger(__name__)
 
-_HEARTBEAT_TIMEOUT = 30.0
+_HEARTBEAT_TIMEOUT = 120.0  # DashScope can be slow
 
 
 class ChatUseCase:
