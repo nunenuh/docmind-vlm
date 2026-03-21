@@ -206,7 +206,14 @@ def _search_fields(
             scored.append((score, field))
 
     scored.sort(key=lambda x: x[0], reverse=True)
-    return [f for _, f in scored[:limit]]
+    results = [f for _, f in scored[:limit]]
+
+    # For broad/generic queries with no keyword matches,
+    # include all fields so the VLM has full context
+    if not results and fields:
+        return fields[:limit]
+
+    return results
 
 
 def retrieve_node(state: dict) -> dict:
