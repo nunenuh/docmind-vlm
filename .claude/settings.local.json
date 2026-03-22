@@ -340,7 +340,9 @@
       "Bash(.venv/bin/pip show:*)",
       "Bash(.venv/bin/pip install:*)",
       "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ -v --tb=short)",
-      "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ tests/unit/library/pipeline/test_chat_retrieve.py -q --tb=line)"
+      "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ tests/unit/library/pipeline/test_chat_retrieve.py -q --tb=line)",
+      "Bash(.venv/bin/python -m pytest tests/e2e/test_project_real.py tests/e2e/test_document_real.py -v --tb=short)",
+      "Bash(timeout 60 .venv/bin/python -m pytest tests/e2e/test_project_real.py::TestProjectLifecycleReal -v --tb=short)"
     ]
   }
 }
