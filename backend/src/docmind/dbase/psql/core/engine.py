@@ -1,7 +1,13 @@
 """PostgreSQL Async Engine.
 
 Provides async SQLAlchemy engine for PostgreSQL connections.
-Uses NullPool with connection retry for Supabase free tier resilience.
+Configured for Supabase compatibility (direct or pooler).
+
+Key settings (from Supabase + asyncpg best practices):
+- NullPool: fresh connection per request (let Supavisor manage pooling)
+- statement_cache_size=0: prevents prepared statement conflicts
+- prepared_statement_cache_size=0: same, for SQLAlchemy layer
+- pool_pre_ping=True: validate connections before use
 """
 
 from functools import lru_cache
@@ -14,21 +20,26 @@ from docmind.core.config import get_settings
 
 
 def create_async_engine() -> AsyncEngine:
-    """Create async PostgreSQL engine with retry-friendly settings.
+    """Create async PostgreSQL engine optimized for Supabase.
 
-    Uses NullPool (fresh connection per request) and increased
-    connect timeout for Supabase free tier reliability.
+    Works with both direct connection (port 5432) and
+    Supavisor pooler (port 6543).
     """
     settings = get_settings()
     return sqlalchemy_create_async_engine(
         settings.database_url,
         poolclass=NullPool,
         echo=settings.APP_DEBUG,
+        pool_pre_ping=True,
         connect_args={
-            "timeout": 30,
-            "command_timeout": 30,
+            # Disable prepared statement caching (required for Supabase pooler)
+            "statement_cache_size": 0,
+            "prepared_statement_cache_size": 0,
+            # Connection timeout
+            "timeout": 60,
+            "command_timeout": 60,
             "server_settings": {
-                "statement_timeout": "30000",
+                "statement_timeout": "60000",
             },
         },
     )
