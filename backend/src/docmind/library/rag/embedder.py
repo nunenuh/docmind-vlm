@@ -46,7 +46,7 @@ async def _embed_dashscope(texts: list[str], settings) -> list[list[float]]:
         "/services/aigc/multimodal-generation/generation",
         "/services/embeddings/text-embedding/text-embedding",
     )
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.EMBEDDING_TIMEOUT) as client:
         response = await client.post(
             base_url,
             headers={"Authorization": f"Bearer {settings.DASHSCOPE_API_KEY}"},
@@ -75,7 +75,7 @@ async def _embed_openai(texts: list[str], settings) -> list[list[float]]:
     Returns:
         List of embedding vectors.
     """
-    async with httpx.AsyncClient(timeout=60.0) as client:
+    async with httpx.AsyncClient(timeout=settings.EMBEDDING_TIMEOUT) as client:
         response = await client.post(
             "https://api.openai.com/v1/embeddings",
             headers={"Authorization": f"Bearer {settings.OPENAI_API_KEY}"},

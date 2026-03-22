@@ -43,6 +43,8 @@ class DashScopeProvider:
         self._max_retries = settings.DASHSCOPE_MAX_RETRIES
         self._retry_delay = settings.DASHSCOPE_RETRY_DELAY
         self._timeout = settings.DASHSCOPE_TIMEOUT
+        self._max_tokens = settings.DASHSCOPE_MAX_TOKENS
+        self._temperature = settings.DASHSCOPE_TEMPERATURE
         self._client = httpx.AsyncClient(timeout=self._timeout)
 
     @property
@@ -232,8 +234,8 @@ class DashScopeProvider:
             "model": self._model,
             "input": {"messages": messages},
             "parameters": {
-                "max_tokens": 4096,
-                "temperature": 0.1,
+                "max_tokens": self._max_tokens,
+                "temperature": self._temperature,
                 "result_format": "message",
             },
         }

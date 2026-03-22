@@ -8,6 +8,7 @@ import asyncio
 import uuid
 from typing import AsyncGenerator
 
+from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
 from docmind.library.pipeline.processing import run_processing_pipeline
 
@@ -16,8 +17,6 @@ from .schemas import DocumentListResponse, DocumentResponse
 from .services import DocumentService
 
 logger = get_logger(__name__)
-
-_HEARTBEAT_TIMEOUT = 30.0
 
 
 class DocumentUseCase:
@@ -204,7 +203,7 @@ class DocumentUseCase:
         try:
             while not pipeline_task.done():
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=_HEARTBEAT_TIMEOUT)
+                    event = await asyncio.wait_for(queue.get(), timeout=get_settings().SSE_HEARTBEAT_TIMEOUT)
                     if event is None:
                         break
                     yield _sse(event["step"], event["progress"], event["message"])

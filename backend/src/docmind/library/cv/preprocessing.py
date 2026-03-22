@@ -13,16 +13,16 @@ import cv2
 import fitz  # PyMuPDF
 import numpy as np
 
+from docmind.core.config import get_settings
+
 logger = logging.getLogger(__name__)
 
-MAX_DIMENSION = 4096  # Maximum width or height in pixels
-TARGET_DPI = 300  # Rendering DPI for PDF pages
 SUPPORTED_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "tiff", "webp"}
 
 
 def convert_pdf_to_images(
     pdf_bytes: bytes,
-    dpi: int = TARGET_DPI,
+    dpi: int | None = None,
 ) -> list[np.ndarray]:
     """Convert a PDF file to a list of BGR images, one per page.
 
@@ -42,6 +42,9 @@ def convert_pdf_to_images(
     """
     if not pdf_bytes:
         raise ValueError("PDF bytes cannot be empty")
+
+    if dpi is None:
+        dpi = get_settings().CV_TARGET_DPI
 
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
     try:
@@ -104,7 +107,7 @@ def load_image(image_bytes: bytes) -> np.ndarray:
 
 def normalize_image(
     image: np.ndarray,
-    max_dimension: int = MAX_DIMENSION,
+    max_dimension: int | None = None,
 ) -> np.ndarray:
     """Normalize an image for consistent downstream processing.
 
@@ -120,6 +123,9 @@ def normalize_image(
     Returns:
         Normalized BGR uint8 ndarray. Original is not modified.
     """
+    if max_dimension is None:
+        max_dimension = get_settings().CV_MAX_DIMENSION
+
     # Ensure BGR uint8
     if len(image.shape) == 2:
         result = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)

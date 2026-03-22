@@ -107,9 +107,30 @@ class Settings(BaseSettings):
     CHAT_MAX_HISTORY: int = Field(default=6)
     CHAT_MAX_REQUERY_FIELDS: int = Field(default=3)
     CHAT_LOW_CONFIDENCE: float = Field(default=0.6)
+    CHAT_HEARTBEAT_TIMEOUT: float = Field(default=120.0)
 
     # SSE
     SSE_HEARTBEAT_TIMEOUT: float = Field(default=30.0)
+
+    # Embedding
+    EMBEDDING_TIMEOUT: float = Field(default=60.0)
+
+    # DashScope VLM generation parameters
+    DASHSCOPE_MAX_TOKENS: int = Field(default=4096)
+    DASHSCOPE_TEMPERATURE: float = Field(default=0.1)
+
+    # CV Processing
+    CV_DESKEW_THRESHOLD: float = Field(default=2.0)
+    CV_QUALITY_GRID_SIZE: int = Field(default=4)
+
+    # Confidence thresholds
+    CONFIDENCE_HIGH_THRESHOLD: float = Field(default=0.8)
+    CONFIDENCE_MEDIUM_THRESHOLD: float = Field(default=0.5)
+
+    # Colors (confidence overlay)
+    COLOR_CONFIDENCE_HIGH: str = Field(default="#22c55e")
+    COLOR_CONFIDENCE_MEDIUM: str = Field(default="#f59e0b")
+    COLOR_CONFIDENCE_LOW: str = Field(default="#ef4444")
 
     @property
     def allowed_origins(self) -> list[str]:

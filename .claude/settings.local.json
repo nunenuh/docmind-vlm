@@ -349,7 +349,10 @@
       "mcp__plugin_context7_context7__query-docs",
       "WebFetch(domain:supabase.com)",
       "WebFetch(domain:medium.com)",
-      "WebFetch(domain:dev.to)"
+      "WebFetch(domain:dev.to)",
+      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library -type f -name *.py)",
+      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules -type f -name *.py)",
+      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase -type f -name *.py)"
     ]
   }
 }

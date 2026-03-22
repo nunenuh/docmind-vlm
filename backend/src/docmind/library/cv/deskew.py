@@ -9,6 +9,8 @@ All functions are pure: take ndarray, return ndarray. Never mutate the input.
 import cv2
 import numpy as np
 
+from docmind.core.config import get_settings
+
 
 def detect_skew(image: np.ndarray) -> float:
     """Detect document skew angle using Hough line transform.

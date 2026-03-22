@@ -8,6 +8,7 @@ import asyncio
 import json
 from typing import Any, AsyncGenerator
 
+from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
 from docmind.library.pipeline.chat import run_chat_pipeline
 
@@ -19,8 +20,6 @@ from .schemas import (
 )
 
 logger = get_logger(__name__)
-
-_HEARTBEAT_TIMEOUT = 120.0  # DashScope can be slow
 
 
 class ChatUseCase:
@@ -118,7 +117,7 @@ class ChatUseCase:
         try:
             while not pipeline_task.done():
                 try:
-                    event = await asyncio.wait_for(queue.get(), timeout=_HEARTBEAT_TIMEOUT)
+                    event = await asyncio.wait_for(queue.get(), timeout=get_settings().CHAT_HEARTBEAT_TIMEOUT)
                     if event is None:
                         break
                     yield _sse(event)

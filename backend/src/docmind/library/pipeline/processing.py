@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any, Callable, TypedDict
 
+from docmind.core.config import get_settings
 from docmind.library.cv.deskew import detect_and_correct
 from docmind.library.cv.preprocessing import convert_to_page_images
 from docmind.library.cv.quality import assess_regions
@@ -99,6 +100,7 @@ def preprocess_node(state: dict) -> dict:
     """
     start_time = time.time()
     progress_callback = state.get("progress_callback")
+    settings = get_settings()
 
     def _notify(progress: float, message: str) -> None:
         if progress_callback is not None:
@@ -117,7 +119,7 @@ def preprocess_node(state: dict) -> dict:
         corrected_images = []
         skew_angles = []
         for page_img in raw_images:
-            corrected, angle = detect_and_correct(page_img)
+            corrected, angle = detect_and_correct(page_img, threshold=settings.CV_DESKEW_THRESHOLD)
             corrected_images.append(corrected)
             skew_angles.append(angle)
 
@@ -151,8 +153,8 @@ def preprocess_node(state: dict) -> dict:
                 "skew_angles": skew_angles,
             },
             "parameters": {
-                "deskew_threshold": 2.0,
-                "quality_grid": "4x4",
+                "deskew_threshold": settings.CV_DESKEW_THRESHOLD,
+                "quality_grid": f"{settings.CV_QUALITY_GRID_SIZE}x{settings.CV_QUALITY_GRID_SIZE}",
             },
             "duration_ms": duration_ms,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -388,9 +390,6 @@ def extract_node(state: dict) -> dict:
         }
 
 
-CONFIDENCE_VLM_WEIGHT = 0.7
-CONFIDENCE_CV_WEIGHT = 0.3
-LOW_CONFIDENCE_THRESHOLD = 0.5
 
 
 def _lookup_cv_quality(
@@ -426,7 +425,7 @@ def _lookup_cv_quality(
 def _merge_confidence(vlm_confidence: float, cv_quality: float) -> float:
     """Merge VLM confidence with CV quality score.
 
-    Formula: final = vlm * 0.7 + cv * 0.3, clamped to [0.0, 1.0].
+    Formula: final = vlm * vlm_weight + cv * cv_weight, clamped to [0.0, 1.0].
 
     Args:
         vlm_confidence: VLM extraction confidence (0.0-1.0).
@@ -435,7 +434,8 @@ def _merge_confidence(vlm_confidence: float, cv_quality: float) -> float:
     Returns:
         Merged confidence rounded to 4 decimal places.
     """
-    merged = (vlm_confidence * CONFIDENCE_VLM_WEIGHT) + (cv_quality * CONFIDENCE_CV_WEIGHT)
+    settings = get_settings()
+    merged = (vlm_confidence * settings.CONFIDENCE_VLM_WEIGHT) + (cv_quality * settings.CONFIDENCE_CV_WEIGHT)
     return round(max(0.0, min(1.0, merged)), 4)
 
 
@@ -452,7 +452,7 @@ def _generate_low_confidence_explanation(
         Explanation string if confidence < threshold, None otherwise.
     """
     confidence = field.get("confidence", 0.0)
-    if confidence >= LOW_CONFIDENCE_THRESHOLD:
+    if confidence >= get_settings().CONFIDENCE_LOW_THRESHOLD:
         return None
     reasons = []
     vlm_conf = field.get("vlm_confidence", 0.0)
@@ -545,6 +545,7 @@ def postprocess_node(state: dict) -> dict:
     """
     start_time = time.time()
     progress_callback = state.get("progress_callback")
+    settings = get_settings()
 
     def _notify(progress: float, message: str) -> None:
         if progress_callback is not None:
@@ -630,13 +631,13 @@ def postprocess_node(state: dict) -> dict:
                 "added_count": len(added_ids),
                 "low_confidence_count": sum(
                     1 for f in final_fields
-                    if f.get("confidence", 1.0) < LOW_CONFIDENCE_THRESHOLD
+                    if f.get("confidence", 1.0) < settings.CONFIDENCE_LOW_THRESHOLD
                 ),
             },
             "parameters": {
-                "vlm_weight": CONFIDENCE_VLM_WEIGHT,
-                "cv_weight": CONFIDENCE_CV_WEIGHT,
-                "low_confidence_threshold": LOW_CONFIDENCE_THRESHOLD,
+                "vlm_weight": settings.CONFIDENCE_VLM_WEIGHT,
+                "cv_weight": settings.CONFIDENCE_CV_WEIGHT,
+                "low_confidence_threshold": settings.CONFIDENCE_LOW_THRESHOLD,
             },
             "duration_ms": duration_ms,
             "timestamp": datetime.now(timezone.utc).isoformat(),

@@ -12,10 +12,9 @@ import fitz  # PyMuPDF
 import numpy as np
 import pytest
 
+from docmind.core.config import get_settings
 from docmind.library.cv.preprocessing import (
-    MAX_DIMENSION,
     SUPPORTED_EXTENSIONS,
-    TARGET_DPI,
     convert_pdf_to_images,
     convert_to_page_images,
     load_image,
@@ -71,7 +70,7 @@ def synthetic_jpg_bytes() -> bytes:
 
 @pytest.fixture
 def large_image() -> np.ndarray:
-    """Create an image exceeding MAX_DIMENSION."""
+    """Create an image exceeding get_settings().CV_MAX_DIMENSION."""
     return np.zeros((5000, 6000, 3), dtype=np.uint8)
 
 
@@ -219,7 +218,7 @@ class TestNormalizeImage:
     def test_scales_down_large_image(self, large_image: np.ndarray) -> None:
         result = normalize_image(large_image)
         h, w = result.shape[:2]
-        assert max(h, w) <= MAX_DIMENSION
+        assert max(h, w) <= get_settings().CV_MAX_DIMENSION
 
     def test_preserves_aspect_ratio(self, large_image: np.ndarray) -> None:
         original_ratio = large_image.shape[1] / large_image.shape[0]
@@ -299,13 +298,13 @@ class TestConvertToPageImages:
             convert_to_page_images(b"data", "bmp")
 
     def test_output_is_normalized(self, synthetic_pdf_bytes: bytes) -> None:
-        """All output images should be BGR uint8 and within MAX_DIMENSION."""
+        """All output images should be BGR uint8 and within get_settings().CV_MAX_DIMENSION."""
         images = convert_to_page_images(synthetic_pdf_bytes, "pdf")
         for img in images:
             assert img.dtype == np.uint8
             assert len(img.shape) == 3
             assert img.shape[2] == 3
-            assert max(img.shape[:2]) <= MAX_DIMENSION
+            assert max(img.shape[:2]) <= get_settings().CV_MAX_DIMENSION
 
     @pytest.mark.parametrize("ext", ["pdf", "png", "jpg", "jpeg", "tiff", "webp"])
     def test_supported_extensions_constant(self, ext: str) -> None:
@@ -322,10 +321,10 @@ class TestConstants:
     """Verify module-level constants match spec."""
 
     def test_max_dimension(self) -> None:
-        assert MAX_DIMENSION == 4096
+        assert get_settings().CV_MAX_DIMENSION == 4096
 
     def test_target_dpi(self) -> None:
-        assert TARGET_DPI == 300
+        assert get_settings().CV_TARGET_DPI == 300
 
     def test_supported_extensions(self) -> None:
         assert SUPPORTED_EXTENSIONS == {"pdf", "png", "jpg", "jpeg", "tiff", "webp"}
