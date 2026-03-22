@@ -56,7 +56,7 @@ backend: ## FastAPI dev server (foreground)
 frontend: ## Vite dev server (foreground)
 	cd frontend && npx vite --port $(FRONTEND_PORT) --host 0.0.0.0
 
-stop: ## Stop background dev servers
+stop: ## Stop background dev servers + kill ports
 	@# Kill by PID file (process group)
 	@if [ -f $(PID_DIR)/backend.pid ]; then \
 		kill -- -$$(cat $(PID_DIR)/backend.pid) 2>/dev/null || kill $$(cat $(PID_DIR)/backend.pid) 2>/dev/null || true; \
@@ -66,10 +66,15 @@ stop: ## Stop background dev servers
 		kill -- -$$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || kill $$(cat $(PID_DIR)/frontend.pid) 2>/dev/null || true; \
 		rm -f $(PID_DIR)/frontend.pid; \
 	fi
-	@# Fallback: kill any remaining processes on our ports
-	@lsof -ti :$(BACKEND_PORT) 2>/dev/null | xargs -r kill 2>/dev/null || true
-	@lsof -ti :$(FRONTEND_PORT) 2>/dev/null | xargs -r kill 2>/dev/null || true
-	@echo "Servers stopped"
+	@# Force kill anything on our ports (SIGKILL, repeat to catch respawns)
+	@for i in 1 2 3; do \
+		lsof -ti :$(BACKEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true; \
+		lsof -ti :$(FRONTEND_PORT) 2>/dev/null | xargs -r kill -9 2>/dev/null || true; \
+		fuser -k $(BACKEND_PORT)/tcp 2>/dev/null || true; \
+		fuser -k $(FRONTEND_PORT)/tcp 2>/dev/null || true; \
+		sleep 0.2; \
+	done
+	@echo "Servers stopped (ports $(BACKEND_PORT) + $(FRONTEND_PORT) freed)"
 
 logs: ## Tail both server logs
 	@tail -f $(PID_DIR)/backend.log $(PID_DIR)/frontend.log
