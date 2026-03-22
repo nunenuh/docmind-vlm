@@ -78,12 +78,14 @@ class TestSearchFields:
 
         assert len(results) <= 20
 
-    def test_returns_empty_for_no_match(self, sample_fields):
+    def test_falls_back_to_all_fields_for_no_keyword_match(self, sample_fields):
+        """When no keywords match, falls back to all fields for broad context."""
         from docmind.library.pipeline.chat import _search_fields
 
         results = _search_fields(sample_fields, "xyzzyspoon", "factual_lookup")
 
-        assert results == []
+        # Fallback: returns all fields so VLM has context for generic queries
+        assert len(results) > 0
 
     def test_empty_fields_returns_empty(self):
         from docmind.library.pipeline.chat import _search_fields

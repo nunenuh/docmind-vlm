@@ -336,7 +336,11 @@
       "Bash(PYTHONPATH=src .venv/bin/python -c \":*)",
       "Bash(.venv/bin/python -m pytest tests/e2e/ -v --tb=short)",
       "Bash(make migrate:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(.venv/bin/pip show:*)",
+      "Bash(.venv/bin/pip install:*)",
+      "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ -v --tb=short)",
+      "Bash(.venv/bin/python -m pytest tests/unit/library/rag/ tests/unit/library/pipeline/test_chat_retrieve.py -q --tb=line)"
     ]
   }
 }
