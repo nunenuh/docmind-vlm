@@ -112,6 +112,14 @@ async def add_document_to_project(
     document_id: str = Query(...),
     current_user: dict = Depends(get_current_user),
 ):
+    from docmind.modules.documents.repositories import DocumentRepository
+
+    # Fetch document info first (before long-running indexing)
+    doc_repo = DocumentRepository()
+    doc = await doc_repo.get_by_id(document_id, current_user["id"])
+    if doc is None:
+        raise HTTPException(status_code=404, detail="Document not found")
+
     usecase = ProjectUseCase()
     added = await usecase.add_document(
         user_id=current_user["id"],
@@ -120,18 +128,17 @@ async def add_document_to_project(
     )
     if not added:
         raise HTTPException(
-            status_code=404, detail="Project or document not found"
+            status_code=404, detail="Project not found"
         )
 
-    # Fetch the linked document to return
-    docs = await usecase.list_documents(
-        user_id=current_user["id"], project_id=project_id
+    # Return document info we already have (avoid extra DB call after indexing)
+    return ProjectDocumentResponse(
+        id=str(doc.id),
+        filename=doc.filename,
+        file_type=doc.file_type,
+        status=doc.status,
+        created_at=doc.created_at,
     )
-    for doc in docs:
-        if doc.id == document_id:
-            return doc
-
-    raise HTTPException(status_code=404, detail="Document not found after linking")
 
 
 @router.get(
