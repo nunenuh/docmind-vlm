@@ -73,32 +73,52 @@ export function ProjectChatPanel({ projectId }: ProjectChatPanelProps) {
     };
     setMessages((prev) => [...prev, userMsg]);
 
+    let answer = "";
+
     sendProjectChat(
       projectId,
       message,
       activeConvId,
       (data: unknown) => {
         const event = data as Record<string, unknown>;
-        if (event.type === "token") {
-          setStreamingContent((prev) => prev + (event.content ?? ""));
+        // Handle different event types from RAG pipeline
+        if (event.event === "answer" || event.type === "answer") {
+          answer = (event.content as string) ?? "";
+          setStreamingContent(answer);
+        } else if (event.event === "token" || event.type === "token") {
+          answer += (event.content as string) ?? "";
+          setStreamingContent(answer);
         }
-        if (event.type === "conversation_id" && event.conversation_id) {
+        // Capture conversation ID
+        if (event.conversation_id) {
           setActiveConvId(event.conversation_id as string);
         }
       },
-      () => {
+      (error: Error) => {
         setIsStreaming(false);
         setStreamingContent("");
+        // Show error as assistant message
+        setMessages((prev) => [
+          ...prev,
+          {
+            id: `error-${Date.now()}`,
+            role: "assistant",
+            content: `Error: ${error.message}`,
+            citations: null,
+            created_at: new Date().toISOString(),
+          },
+        ]);
       },
       () => {
         setIsStreaming(false);
-        if (streamingContent) {
+        // Add the accumulated answer as assistant message
+        if (answer) {
           setMessages((prev) => [
             ...prev,
             {
               id: `assistant-${Date.now()}`,
               role: "assistant",
-              content: streamingContent,
+              content: answer,
               citations: null,
               created_at: new Date().toISOString(),
             },
@@ -108,7 +128,7 @@ export function ProjectChatPanel({ projectId }: ProjectChatPanelProps) {
         refetchConversations();
       },
     );
-  }, [input, isStreaming, projectId, activeConvId, refetchConversations, streamingContent]);
+  }, [input, isStreaming, projectId, activeConvId, refetchConversations]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -144,10 +164,12 @@ export function ProjectChatPanel({ projectId }: ProjectChatPanelProps) {
           ) : (
             <div className="py-1">
               {convList.map((conv: ConversationResponse) => (
-                <button
+                <div
                   key={conv.id}
                   onClick={() => loadConversation(conv.id)}
-                  className={`group w-full text-left px-3 py-2 text-xs transition-colors flex items-start gap-2 ${
+                  role="button"
+                  tabIndex={0}
+                  className={`group w-full text-left px-3 py-2 text-xs transition-colors flex items-start gap-2 cursor-pointer ${
                     activeConvId === conv.id
                       ? "bg-gray-800/80 text-white"
                       : "text-gray-400 hover:bg-gray-800/40 hover:text-gray-300"
@@ -162,7 +184,7 @@ export function ProjectChatPanel({ projectId }: ProjectChatPanelProps) {
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
-                </button>
+                </div>
               ))}
             </div>
           )}

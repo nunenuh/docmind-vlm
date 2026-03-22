@@ -163,14 +163,20 @@ class ProjectUseCase:
         if not added:
             return False
 
-        # Trigger RAG indexing in background
+        # Trigger RAG indexing in background (non-blocking)
+        import asyncio
+        asyncio.create_task(self._safe_index(project_id, document_id, user_id))
+
+        return True
+
+    async def _safe_index(
+        self, project_id: str, document_id: str, user_id: str
+    ) -> None:
+        """Background wrapper for RAG indexing with error handling."""
         try:
             await self._index_document_for_rag(project_id, document_id, user_id)
         except Exception as e:
             logger.error("RAG indexing failed for doc %s: %s", document_id, e)
-            # Don't fail the add — document is linked, indexing can retry later
-
-        return True
 
     async def _index_document_for_rag(
         self, project_id: str, document_id: str, user_id: str
