@@ -194,21 +194,14 @@ export async function deleteProject(id: string): Promise<void> {
 }
 
 export async function addDocumentToProject(projectId: string, file: File): Promise<ProjectDocumentResponse> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
-  const formData = new FormData();
-  formData.append("file", file);
-  const response = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/documents`, {
-    method: "POST",
-    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
-    body: formData,
-  });
-  if (!response.ok) {
-    let detail = `HTTP ${response.status}`;
-    try { const body = await response.json(); detail = body.detail ?? detail; } catch { detail = response.statusText || detail; }
-    throw new ApiError(response.status, detail);
-  }
-  return response.json();
+  // Step 1: Upload file as a document
+  const doc = await uploadDocument(file);
+
+  // Step 2: Link the document to the project
+  return apiFetch<ProjectDocumentResponse>(
+    `/api/v1/projects/${projectId}/documents?document_id=${doc.id}`,
+    { method: "POST" },
+  );
 }
 
 export async function fetchProjectDocuments(projectId: string): Promise<ProjectDocumentResponse[]> {
