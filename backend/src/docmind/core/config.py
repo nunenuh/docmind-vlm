@@ -59,6 +59,9 @@ class Settings(BaseSettings):
     DB_USER: str = Field(default="postgres")
     DB_PASSWORD: str = Field(default="")
     DB_NAME: str = Field(default="postgres")
+    DB_CONNECT_TIMEOUT: int = Field(default=60)
+    DB_MAX_RETRIES: int = Field(default=3)
+    DB_RETRY_DELAY: float = Field(default=1.0)
 
     @property
     def database_url(self) -> str:
@@ -97,7 +100,7 @@ class Settings(BaseSettings):
     RAG_CHUNK_SIZE: int = Field(default=512)
     RAG_CHUNK_OVERLAP: int = Field(default=64)
     RAG_TOP_K: int = Field(default=5)
-    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.7)
+    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.1)
 
     # Chat pipeline
     CHAT_MAX_PAGE_IMAGES: int = Field(default=4)

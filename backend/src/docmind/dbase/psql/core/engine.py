@@ -26,6 +26,7 @@ def create_async_engine() -> AsyncEngine:
     Supavisor pooler (port 6543).
     """
     settings = get_settings()
+    timeout = settings.DB_CONNECT_TIMEOUT
     return sqlalchemy_create_async_engine(
         settings.database_url,
         poolclass=NullPool,
@@ -35,11 +36,11 @@ def create_async_engine() -> AsyncEngine:
             # Disable prepared statement caching (required for Supabase pooler)
             "statement_cache_size": 0,
             "prepared_statement_cache_size": 0,
-            # Connection timeout
-            "timeout": 60,
-            "command_timeout": 60,
+            # Connection timeout from settings
+            "timeout": timeout,
+            "command_timeout": timeout,
             "server_settings": {
-                "statement_timeout": "60000",
+                "statement_timeout": str(timeout * 1000),
             },
         },
     )
