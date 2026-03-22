@@ -153,12 +153,55 @@ class ProjectUseCase:
     async def add_document(
         self, user_id: str, project_id: str, document_id: str
     ) -> bool:
-        """Link a document to a project."""
+        """Link a document to a project and trigger RAG indexing."""
         # Verify project ownership
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
             return False
-        return await self.repo.add_document(project_id, document_id)
+
+        added = await self.repo.add_document(project_id, document_id)
+        if not added:
+            return False
+
+        # Trigger RAG indexing in background
+        try:
+            await self._index_document_for_rag(project_id, document_id, user_id)
+        except Exception as e:
+            logger.error("RAG indexing failed for doc %s: %s", document_id, e)
+            # Don't fail the add — document is linked, indexing can retry later
+
+        return True
+
+    async def _index_document_for_rag(
+        self, project_id: str, document_id: str, user_id: str
+    ) -> None:
+        """Download file and run RAG indexing pipeline."""
+        from docmind.dbase.supabase.storage import get_file_bytes
+        from docmind.library.rag.indexer import index_document
+        from docmind.modules.documents.repositories import DocumentRepository
+
+        doc_repo = DocumentRepository()
+        doc = await doc_repo.get_by_id(document_id, user_id)
+        if doc is None:
+            logger.warning("Document %s not found for RAG indexing", document_id)
+            return
+
+        # Download file bytes from storage
+        import asyncio
+        file_bytes = await asyncio.to_thread(get_file_bytes, doc.storage_path)
+
+        # Run indexing
+        chunk_count = await index_document(
+            document_id=document_id,
+            project_id=project_id,
+            file_bytes=file_bytes,
+            file_type=doc.file_type,
+            filename=doc.filename,
+        )
+        logger.info(
+            "RAG indexed doc %s: %d chunks for project %s",
+            document_id, chunk_count, project_id,
+        )
 
     async def list_documents(
         self, user_id: str, project_id: str

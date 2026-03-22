@@ -92,7 +92,7 @@ class Settings(BaseSettings):
 
     # RAG
     EMBEDDING_PROVIDER: str = Field(default="dashscope")
-    EMBEDDING_MODEL: str = Field(default="text-embedding-v3")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-v4")
     EMBEDDING_DIMENSIONS: int = Field(default=1024)
     RAG_CHUNK_SIZE: int = Field(default=512)
     RAG_CHUNK_OVERLAP: int = Field(default=64)
