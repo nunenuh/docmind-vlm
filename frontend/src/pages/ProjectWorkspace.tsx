@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { FolderOpen, Bot, Settings, Loader2, ChevronRight } from "lucide-react";
+import { FolderOpen, Bot, Settings, Loader2, ChevronRight, X } from "lucide-react";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { usePersonas } from "@/hooks/usePersonas";
-import { ProjectDocumentList } from "@/components/project/ProjectDocumentList";
+import { ProjectSidebar } from "@/components/project/ProjectSidebar";
 import { ProjectChatPanel } from "@/components/project/ProjectChatPanel";
 import { PersonaSelector } from "@/components/project/PersonaSelector";
 import { PersonaEditor } from "@/components/project/PersonaEditor";
@@ -17,6 +17,7 @@ export function ProjectWorkspace() {
 
   const [showSettings, setShowSettings] = useState(false);
   const [showPersonaEditor, setShowPersonaEditor] = useState(false);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
 
   if (!projectId) {
     return (
@@ -28,7 +29,7 @@ export function ProjectWorkspace() {
 
   if (isLoading) {
     return (
-      <div className="h-full flex items-center justify-center">
+      <div className="h-full flex items-center justify-center bg-[#0a0a0f]">
         <Loader2 className="w-8 h-8 text-indigo-400 animate-spin" />
       </div>
     );
@@ -36,10 +37,10 @@ export function ProjectWorkspace() {
 
   if (!project) {
     return (
-      <div className="h-full flex flex-col items-center justify-center gap-4 text-gray-400">
+      <div className="h-full flex flex-col items-center justify-center gap-4 text-gray-400 bg-[#0a0a0f]">
         <FolderOpen className="w-12 h-12 text-gray-600" />
         <p className="text-lg font-medium">Project not found</p>
-        <p className="text-sm text-gray-500">It may have been deleted or you don't have access.</p>
+        <p className="text-sm text-gray-500">It may have been deleted or you don&apos;t have access.</p>
         <Link to="/projects" className="text-indigo-400 hover:text-indigo-300 text-sm">
           Back to Projects
         </Link>
@@ -56,7 +57,7 @@ export function ProjectWorkspace() {
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f]">
-      {/* Breadcrumb header */}
+      {/* Header */}
       <header className="flex items-center justify-between px-4 h-12 border-b border-[#1e1e2e] bg-[#12121a] flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0 text-sm">
           <Link to="/projects" className="text-gray-500 hover:text-gray-300 transition-colors">
@@ -87,31 +88,65 @@ export function ProjectWorkspace() {
         </button>
       </header>
 
-      {/* Settings panel */}
-      {showSettings && (
-        <div className="border-b border-[#1e1e2e] bg-[#12121a]/50 px-4 py-3">
-          <div className="max-w-sm">
-            <label className="block text-xs font-medium text-gray-400 mb-1.5">AI Persona</label>
-            <PersonaSelector
-              value={project?.persona_id ?? null}
-              onChange={handlePersonaChange}
-              onCreateNew={() => setShowPersonaEditor(true)}
+      {/* Main content */}
+      <div className="flex-1 flex overflow-hidden relative">
+        {/* Left sidebar */}
+        <ProjectSidebar
+          projectId={projectId}
+          activeConvId={activeConvId}
+          onSelectConversation={setActiveConvId}
+          onNewChat={() => setActiveConvId(null)}
+        />
+
+        {/* Chat area */}
+        <main className="flex-1 min-w-0">
+          <ProjectChatPanel
+            projectId={projectId}
+            activeConversationId={activeConvId}
+            onConversationCreated={setActiveConvId}
+          />
+        </main>
+
+        {/* Settings slide-over */}
+        {showSettings && (
+          <>
+            <div
+              className="absolute inset-0 bg-black/30 z-20"
+              onClick={() => setShowSettings(false)}
             />
-          </div>
-        </div>
-      )}
-
-      {/* Split layout */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Left: Document list */}
-        <div className="w-[300px] flex-shrink-0 border-r border-[#1e1e2e] bg-[#12121a]/30">
-          <ProjectDocumentList projectId={projectId} />
-        </div>
-
-        {/* Right: Chat panel */}
-        <div className="flex-1 min-w-0">
-          <ProjectChatPanel projectId={projectId} />
-        </div>
+            <div className="absolute right-0 top-0 bottom-0 w-80 bg-[#12121a] border-l border-[#1e1e2e] z-30 shadow-2xl flex flex-col">
+              <div className="flex items-center justify-between px-4 py-3 border-b border-[#1e1e2e]">
+                <h3 className="text-sm font-semibold text-white">Project Settings</h3>
+                <button
+                  onClick={() => setShowSettings(false)}
+                  className="p-1 text-gray-400 hover:text-white transition-colors rounded-md hover:bg-white/5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 space-y-4 flex-1 overflow-y-auto">
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">Project Name</label>
+                  <p className="text-sm text-white">{project?.name}</p>
+                </div>
+                {project?.description && (
+                  <div>
+                    <label className="block text-xs font-medium text-gray-400 mb-1.5">Description</label>
+                    <p className="text-sm text-gray-300">{project.description}</p>
+                  </div>
+                )}
+                <div>
+                  <label className="block text-xs font-medium text-gray-400 mb-1.5">AI Persona</label>
+                  <PersonaSelector
+                    value={project?.persona_id ?? null}
+                    onChange={handlePersonaChange}
+                    onCreateNew={() => setShowPersonaEditor(true)}
+                  />
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* Persona Editor Modal */}

@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Loader2, FolderOpen, Plus, X } from "lucide-react";
+import { Loader2, FolderOpen, Plus, X, Bot, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useProjects, useCreateProject, useDeleteProject } from "@/hooks/useProjects";
 import { usePersonas } from "@/hooks/usePersonas";
 import { ProjectCard } from "@/components/project/ProjectCard";
-import { PersonaSelector } from "@/components/project/PersonaSelector";
 import { PersonaEditor } from "@/components/project/PersonaEditor";
 import type { PersonaResponse } from "@/types/api";
 
@@ -49,9 +48,19 @@ export function ProjectDashboard() {
     deleteProj.mutate(id);
   };
 
+  const openNewModal = () => {
+    setNewName("");
+    setNewDescription("");
+    setNewPersonaId(null);
+    setShowNewModal(true);
+  };
+
   const personaMap = new Map(
     (personas ?? []).map((p: PersonaResponse) => [p.id, p.name]),
   );
+
+  const presetPersonas = (personas ?? []).filter((p: PersonaResponse) => p.is_preset);
+  const customPersonas = (personas ?? []).filter((p: PersonaResponse) => !p.is_preset);
 
   const projects = data?.items ?? [];
   const total = data?.total ?? 0;
@@ -68,7 +77,7 @@ export function ProjectDashboard() {
           </p>
         </div>
         <button
-          onClick={() => setShowNewModal(true)}
+          onClick={openNewModal}
           className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
         >
           <Plus className="w-4 h-4" />
@@ -89,7 +98,7 @@ export function ProjectDashboard() {
           <h3 className="text-lg font-semibold text-white mb-2">No projects yet</h3>
           <p className="text-gray-500 text-sm mb-6">Create one to get started.</p>
           <button
-            onClick={() => setShowNewModal(true)}
+            onClick={openNewModal}
             className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium rounded-lg transition-colors"
           >
             <Plus className="w-4 h-4" />
@@ -144,52 +153,128 @@ export function ProjectDashboard() {
       {showNewModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowNewModal(false)} />
-          <div className="relative bg-[#12121a] border border-[#1e1e2e] rounded-xl w-full max-w-md mx-4 shadow-2xl">
-            <div className="flex items-center justify-between p-5 border-b border-[#1e1e2e]">
-              <h2 className="text-lg font-semibold text-white">New Project</h2>
+          <div className="relative bg-[#12121a] border border-[#1e1e2e] rounded-2xl w-full max-w-lg mx-4 shadow-2xl overflow-hidden">
+            {/* Header */}
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e2e]">
+              <div>
+                <h2 className="text-lg font-semibold text-white">Create New Project</h2>
+                <p className="text-xs text-gray-500 mt-0.5">Set up a document workspace with AI</p>
+              </div>
               <button
                 onClick={() => setShowNewModal(false)}
-                className="p-1 text-gray-400 hover:text-white transition-colors rounded-md hover:bg-white/5"
+                className="p-1.5 text-gray-400 hover:text-white transition-colors rounded-lg hover:bg-white/5"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleCreate} className="p-5 space-y-4">
+            <form onSubmit={handleCreate} className="p-6 space-y-5">
+              {/* Name */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Name *</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Project Name <span className="text-red-400">*</span>
+                </label>
                 <input
                   type="text"
                   value={newName}
                   onChange={(e) => setNewName(e.target.value)}
-                  placeholder="e.g. Q4 Financial Reports"
-                  className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  placeholder="e.g., Customer Support Docs"
+                  className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
                   autoFocus
                   required
                 />
               </div>
 
+              {/* Description */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">Description</label>
+                <label className="block text-sm font-medium text-gray-300 mb-1.5">
+                  Description <span className="text-gray-600 font-normal">(optional)</span>
+                </label>
                 <textarea
                   value={newDescription}
                   onChange={(e) => setNewDescription(e.target.value)}
-                  placeholder="What is this project about?"
+                  placeholder="What kind of documents will this project contain?"
                   rows={2}
-                  className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-lg px-3 py-2.5 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-indigo-500 transition-colors"
+                  className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-500 resize-none focus:outline-none focus:border-indigo-500 transition-colors"
                 />
               </div>
 
+              {/* Persona selection */}
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1.5">AI Persona</label>
-                <PersonaSelector
-                  value={newPersonaId}
-                  onChange={setNewPersonaId}
-                  onCreateNew={() => setShowPersonaEditor(true)}
-                />
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  AI Persona <span className="text-gray-600 font-normal">(optional)</span>
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {/* No persona option */}
+                  <button
+                    type="button"
+                    onClick={() => setNewPersonaId(null)}
+                    className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all border ${
+                      newPersonaId === null
+                        ? "border-indigo-500 bg-indigo-500/10 text-white"
+                        : "border-[#2a2a3a] bg-[#0a0a0f] text-gray-400 hover:border-[#3a3a4a] hover:text-gray-300"
+                    }`}
+                  >
+                    <X className="w-4 h-4 flex-shrink-0" />
+                    <span>No persona</span>
+                    {newPersonaId === null && (
+                      <Check className="w-3.5 h-3.5 text-indigo-400 ml-auto" />
+                    )}
+                  </button>
+
+                  {/* Preset personas */}
+                  {presetPersonas.map((p: PersonaResponse) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setNewPersonaId(p.id)}
+                      className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all border ${
+                        newPersonaId === p.id
+                          ? "border-indigo-500 bg-indigo-500/10 text-white"
+                          : "border-[#2a2a3a] bg-[#0a0a0f] text-gray-400 hover:border-[#3a3a4a] hover:text-gray-300"
+                      }`}
+                    >
+                      <Bot className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                      {newPersonaId === p.id && (
+                        <Check className="w-3.5 h-3.5 text-indigo-400 ml-auto flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+
+                  {/* Custom personas */}
+                  {customPersonas.map((p: PersonaResponse) => (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => setNewPersonaId(p.id)}
+                      className={`relative flex items-center gap-2 px-3 py-2.5 rounded-xl text-left text-sm transition-all border ${
+                        newPersonaId === p.id
+                          ? "border-indigo-500 bg-indigo-500/10 text-white"
+                          : "border-[#2a2a3a] bg-[#0a0a0f] text-gray-400 hover:border-[#3a3a4a] hover:text-gray-300"
+                      }`}
+                    >
+                      <Bot className="w-4 h-4 flex-shrink-0" />
+                      <span className="truncate">{p.name}</span>
+                      {newPersonaId === p.id && (
+                        <Check className="w-3.5 h-3.5 text-indigo-400 ml-auto flex-shrink-0" />
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Create custom persona link */}
+                <button
+                  type="button"
+                  onClick={() => setShowPersonaEditor(true)}
+                  className="mt-2 text-xs text-indigo-400 hover:text-indigo-300 transition-colors"
+                >
+                  + Create custom persona
+                </button>
               </div>
 
-              <div className="flex items-center justify-end gap-3 pt-2">
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-3 pt-1 border-t border-[#1e1e2e]">
                 <button
                   type="button"
                   onClick={() => setShowNewModal(false)}
@@ -200,7 +285,7 @@ export function ProjectDashboard() {
                 <button
                   type="submit"
                   disabled={createProj.isPending || !newName.trim()}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-lg transition-colors"
+                  className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-medium rounded-xl transition-colors"
                 >
                   {createProj.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
                   Create Project
