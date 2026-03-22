@@ -34,6 +34,19 @@ export function ProjectWorkspace() {
     );
   }
 
+  if (!project) {
+    return (
+      <div className="h-full flex flex-col items-center justify-center gap-4 text-gray-400">
+        <FolderOpen className="w-12 h-12 text-gray-600" />
+        <p className="text-lg font-medium">Project not found</p>
+        <p className="text-sm text-gray-500">It may have been deleted or you don't have access.</p>
+        <Link to="/projects" className="text-indigo-400 hover:text-indigo-300 text-sm">
+          Back to Projects
+        </Link>
+      </div>
+    );
+  }
+
   const persona = personas?.find((p: PersonaResponse) => p.id === project?.persona_id);
 
   const handlePersonaChange = (personaId: string | null) => {
