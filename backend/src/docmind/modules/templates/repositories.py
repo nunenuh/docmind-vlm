@@ -11,7 +11,7 @@ from docmind.dbase.psql.models import Template
 
 logger = logging.getLogger(__name__)
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
+TEMPLATES_DIR = Path(__file__).resolve().parents[5] / "data" / "templates"
 
 
 class TemplateRepository:
