@@ -408,6 +408,13 @@ class ProjectUseCase:
 
         context_text = "\n\n".join(context_parts) if context_parts else "No relevant context found."
 
+        # Load document metadata for the system prompt
+        doc_list = await self.repo.list_documents(project_id, user_id)
+        doc_metadata = "\n".join(
+            f"- {getattr(d, 'filename', 'unknown')} ({getattr(d, 'file_type', '?')}, {getattr(d, 'page_count', 0)} pages)"
+            for d in doc_list
+        ) if doc_list else "No documents uploaded."
+
         # Build system prompt
         system_prompt = (
             persona["system_prompt"]
@@ -422,9 +429,11 @@ class ProjectUseCase:
             system_prompt += f"\n\nBoundaries: {persona['boundaries']}"
 
         system_prompt += (
+            f"\n\nPROJECT DOCUMENTS ({len(doc_list) if doc_list else 0} files):\n{doc_metadata}"
             "\n\nIMPORTANT: Base your answers ONLY on the provided context. "
             "Cite sources using [Source N] notation. "
-            "If the context doesn't contain relevant information, say so clearly."
+            "If the context doesn't contain relevant information, say so clearly. "
+            "When asked about files or documents, refer to the PROJECT DOCUMENTS list above."
         )
 
         # Build full message with context

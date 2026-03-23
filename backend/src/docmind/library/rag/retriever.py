@@ -224,7 +224,50 @@ async def _retrieve_hybrid(
         })
 
     fused.sort(key=lambda x: x["rrf_score"], reverse=True)
-    return fused[:top_k]
+    return _diversify_results(fused, top_k)
+
+
+def _diversify_results(results: list[dict], top_k: int) -> list[dict]:
+    """Diversify results to include chunks from different documents.
+
+    Uses a round-robin strategy: pick the best chunk from each document
+    first, then fill remaining slots with next-best chunks.
+
+    Args:
+        results: Sorted list of chunk dicts (best first).
+        top_k: Maximum results to return.
+
+    Returns:
+        Diversified list of chunk dicts, up to top_k.
+    """
+    if len(results) <= top_k:
+        return results
+
+    # Group by document
+    doc_buckets: dict[str, list[dict]] = {}
+    for r in results:
+        doc_id = r["document_id"]
+        if doc_id not in doc_buckets:
+            doc_buckets[doc_id] = []
+        doc_buckets[doc_id].append(r)
+
+    # Round-robin: pick best from each doc, then second-best, etc.
+    diversified: list[dict] = []
+    seen_ids: set[str] = set()
+    max_rounds = top_k
+
+    for _round in range(max_rounds):
+        for doc_id, chunks in doc_buckets.items():
+            if _round < len(chunks):
+                chunk = chunks[_round]
+                cid = chunk["chunk_id"]
+                if cid not in seen_ids:
+                    diversified.append(chunk)
+                    seen_ids.add(cid)
+                    if len(diversified) >= top_k:
+                        return diversified
+
+    return diversified[:top_k]
 
 
 def _cosine_similarity(a: list[float], b: list[float]) -> float:
