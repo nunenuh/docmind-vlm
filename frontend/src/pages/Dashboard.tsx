@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { Loader2, Upload, ChevronLeft, ChevronRight, Plus, FileText, Image, Search } from "lucide-react";
+import { Loader2, Upload, ChevronLeft, ChevronRight, Plus, FileText, Image, Search, FolderOpen, Database, HardDrive } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
 import { useDocuments, useUploadDocument, useDeleteDocument } from "@/hooks/useDocuments";
+import { fetchAnalytics } from "@/lib/api";
 import { UploadArea } from "@/components/workspace/UploadArea";
 import { DocumentCard } from "@/components/dashboard/DocumentCard";
 
@@ -11,6 +13,7 @@ export function Dashboard() {
   const limit = 20;
 
   const { data, isLoading } = useDocuments(page, limit);
+  const { data: analytics } = useQuery({ queryKey: ["analytics"], queryFn: fetchAnalytics, staleTime: 30_000 });
   const uploadDoc = useUploadDocument();
   const deleteDoc = useDeleteDocument();
 
@@ -53,22 +56,37 @@ export function Dashboard() {
       </div>
 
       {/* Stats row */}
-      {total > 0 && (
-        <div className="grid grid-cols-3 gap-4 mb-6">
+      {(total > 0 || analytics) && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
           <StatCard
-            label="Total Documents"
-            value={total}
+            label="Documents"
+            value={(analytics?.documents as Record<string, unknown>)?.total as number ?? total}
             icon={<FileText className="w-4 h-4 text-indigo-400" />}
           />
           <StatCard
-            label="PDFs"
-            value={documents.filter((d) => d.file_type === "pdf").length}
-            icon={<FileText className="w-4 h-4 text-rose-400" />}
+            label="Pages"
+            value={analytics?.pages_processed as number ?? 0}
+            icon={<FileText className="w-4 h-4 text-cyan-400" />}
           />
           <StatCard
-            label="Images"
-            value={documents.filter((d) => ["png", "jpg", "jpeg", "webp", "tiff"].includes(d.file_type)).length}
+            label="Projects"
+            value={analytics?.projects as number ?? 0}
+            icon={<FolderOpen className="w-4 h-4 text-violet-400" />}
+          />
+          <StatCard
+            label="RAG Chunks"
+            value={analytics?.rag_chunks as number ?? 0}
+            icon={<Database className="w-4 h-4 text-amber-400" />}
+          />
+          <StatCard
+            label="Ready"
+            value={((analytics?.documents as Record<string, unknown>)?.by_status as Record<string, number>)?.ready ?? 0}
             icon={<Image className="w-4 h-4 text-emerald-400" />}
+          />
+          <StatCard
+            label="Storage"
+            value={`${analytics?.storage_mb ?? 0} MB`}
+            icon={<HardDrive className="w-4 h-4 text-rose-400" />}
           />
         </div>
       )}
@@ -162,7 +180,7 @@ export function Dashboard() {
   );
 }
 
-function StatCard({ label, value, icon }: { label: string; value: number; icon: React.ReactNode }) {
+function StatCard({ label, value, icon }: { label: string; value: number | string; icon: React.ReactNode }) {
   return (
     <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3">
       <div className="flex items-center gap-2 mb-1">

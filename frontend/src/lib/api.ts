@@ -202,6 +202,10 @@ export async function fetchProjectChunks(
   return apiFetch(`/api/v1/projects/${projectId}/chunks?${params}`);
 }
 
+export async function fetchAnalytics(): Promise<Record<string, unknown>> {
+  return apiFetch("/api/v1/analytics/summary");
+}
+
 export async function checkHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/v1/health/status");
 }
