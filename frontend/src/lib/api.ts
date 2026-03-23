@@ -194,6 +194,14 @@ export async function duplicateTemplate(templateId: string): Promise<TemplateDet
   return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}/duplicate`, { method: "POST" });
 }
 
+export async function fetchProjectChunks(
+  projectId: string, documentId?: string
+): Promise<{ total: number; items: Record<string, unknown>[] }> {
+  const params = new URLSearchParams();
+  if (documentId) params.set("document_id", documentId);
+  return apiFetch(`/api/v1/projects/${projectId}/chunks?${params}`);
+}
+
 export async function checkHealth(): Promise<HealthResponse> {
   return apiFetch<HealthResponse>("/api/v1/health/status");
 }

@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { FolderOpen, Bot, Settings, Loader2, ChevronRight, X } from "lucide-react";
+import { FolderOpen, Bot, Settings, Loader2, ChevronRight, X, Database } from "lucide-react";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { usePersonas } from "@/hooks/usePersonas";
 import { ProjectSidebar } from "@/components/project/ProjectSidebar";
 import { ProjectChatPanel } from "@/components/project/ProjectChatPanel";
 import { PersonaSelector } from "@/components/project/PersonaSelector";
 import { PersonaEditor } from "@/components/project/PersonaEditor";
+import { ChunkBrowser } from "@/components/project/ChunkBrowser";
 import type { PersonaResponse } from "@/types/api";
 
 export function ProjectWorkspace() {
@@ -142,6 +143,15 @@ export function ProjectWorkspace() {
                     onChange={handlePersonaChange}
                     onCreateNew={() => setShowPersonaEditor(true)}
                   />
+                </div>
+
+                {/* RAG Chunks */}
+                <div>
+                  <label className="flex items-center gap-2 text-xs font-medium text-gray-400 mb-2">
+                    <Database className="w-3.5 h-3.5" />
+                    RAG Chunks
+                  </label>
+                  <ChunkBrowser projectId={projectId} />
                 </div>
               </div>
             </div>
