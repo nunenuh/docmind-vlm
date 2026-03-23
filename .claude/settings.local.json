@@ -355,7 +355,8 @@
       "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase -type f -name *.py)",
       "Bash(npx supabase:*)",
       "Bash(docker --version)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(git branch:*)"
     ]
   }
 }
