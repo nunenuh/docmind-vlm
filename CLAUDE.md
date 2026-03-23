@@ -71,6 +71,7 @@ RAG Chat Pipeline (project-level):
 | `specs/backend/pipeline-chat.md` | LangGraph chat agent pipeline + RAG chat pipeline |
 | `specs/backend/projects.md` | Project + Persona data model, CRUD, API |
 | `specs/backend/rag.md` | RAG pipeline: chunking, embedding, pgvector retrieval |
+| `specs/backend/streaming-thinking.md` | DashScope SSE streaming with thinking/reasoning |
 | `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
 | `specs/frontend/state.md` | State management: React Query + Zustand |
 | `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors |
