@@ -12,45 +12,64 @@ class TemplateFieldDef(BaseModel):
     validation: str | None = None
     values: list[str] | None = None
     columns: list[str] | None = None
+    required: bool = True
 
 
 class TemplateSummary(BaseModel):
-    """Summary for listing templates."""
+    id: str
     type: str
     name: str
     name_en: str = ""
     description: str = ""
     description_en: str = ""
     category: str = "general"
+    is_preset: bool = False
     required_field_count: int = 0
     optional_field_count: int = 0
     total_field_count: int = 0
 
 
 class TemplateDetail(BaseModel):
-    """Full template with field definitions."""
+    id: str
     type: str
     name: str
     name_en: str = ""
     description: str = ""
     description_en: str = ""
     category: str = "general"
-    required_fields: list[TemplateFieldDef | str] = []
-    optional_fields: list[TemplateFieldDef | str] = []
+    is_preset: bool = False
+    fields: list[Any] = []
     extraction_prompt: str = ""
 
 
-class TemplateResponse(BaseModel):
-    """Backward-compatible response (used by existing handler)."""
+class TemplateCreateRequest(BaseModel):
     type: str
     name: str
-    description: str = ""
-    required_fields: list[Any] = []
-    optional_fields: list[Any] = []
-    name_en: str = ""
-    description_en: str = ""
-    category: str = "general"
-    extraction_prompt: str = ""
+    name_en: str | None = None
+    description: str | None = None
+    description_en: str | None = None
+    category: str | None = "custom"
+    fields: list[TemplateFieldDef] | None = None
+    extraction_prompt: str | None = None
+
+
+class TemplateUpdateRequest(BaseModel):
+    name: str | None = None
+    name_en: str | None = None
+    description: str | None = None
+    description_en: str | None = None
+    category: str | None = None
+    fields: list[Any] | None = None
+    extraction_prompt: str | None = None
+
+
+class AutoDetectResponse(BaseModel):
+    document_type: str
+    document_name: str
+    language: str = "unknown"
+    confidence: float = 0.0
+    detected_fields: list[Any] = []
+    suggested_template: dict = {}
 
 
 class TemplateListResponse(BaseModel):

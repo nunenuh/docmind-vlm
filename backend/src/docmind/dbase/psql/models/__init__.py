@@ -11,6 +11,7 @@ from .persona import Persona
 from .project import Project
 from .project_conversation import ProjectConversation
 from .project_message import ProjectMessage
+from .template import Template
 
 __all__ = [
     "Document",
@@ -24,4 +25,5 @@ __all__ = [
     "Project",
     "ProjectConversation",
     "ProjectMessage",
+    "Template",
 ]
