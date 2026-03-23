@@ -108,17 +108,57 @@ export interface ChatHistoryResponse {
   limit: number;
 }
 
-export interface TemplateResponse {
+export interface TemplateFieldDef {
+  key: string;
+  label: string;
+  label_en?: string;
+  type: string;
+  validation?: string | null;
+  values?: string[] | null;
+  required: boolean;
+}
+
+export interface TemplateSummary {
+  id: string;
   type: string;
   name: string;
-  description: string;
-  required_fields: string[];
-  optional_fields: string[];
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category: string;
+  is_preset: boolean;
+  required_field_count: number;
+  optional_field_count: number;
+  total_field_count: number;
+}
+
+export interface TemplateDetail {
+  id: string;
+  type: string;
+  name: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category: string;
+  is_preset: boolean;
+  fields: TemplateFieldDef[];
+  extraction_prompt: string;
 }
 
 export interface TemplateListResponse {
-  items: TemplateResponse[];
+  items: TemplateSummary[];
 }
+
+export interface AutoDetectResponse {
+  document_type: string;
+  document_name: string;
+  language: string;
+  confidence: number;
+  detected_fields: TemplateFieldDef[];
+  suggested_template: Record<string, unknown>;
+}
+
+export type TemplateResponse = TemplateSummary;
 
 export interface HealthComponentResponse {
   name: string;

@@ -17,7 +17,7 @@ import type {
   ConversationResponse,
   ConversationDetailResponse,
 } from "@/types/api";
-import { ApiError } from "@/types/api";
+import { ApiError, TemplateDetail } from "@/types/api";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
 
@@ -164,8 +164,32 @@ export async function fetchTemplates(): Promise<TemplateListResponse> {
   return apiFetch<TemplateListResponse>("/api/v1/templates");
 }
 
-export async function fetchTemplate(type: string): Promise<TemplateListResponse> {
-  return apiFetch<TemplateListResponse>(`/api/v1/templates?type=${type}`);
+export async function fetchTemplateDetail(templateId: string): Promise<TemplateDetail> {
+  return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}`);
+}
+
+export async function createTemplate(data: Record<string, unknown>): Promise<TemplateDetail> {
+  return apiFetch<TemplateDetail>("/api/v1/templates", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateTemplate(templateId: string, data: Record<string, unknown>): Promise<TemplateDetail> {
+  return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteTemplate(templateId: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/templates/${templateId}`, { method: "DELETE" });
+}
+
+export async function duplicateTemplate(templateId: string): Promise<TemplateDetail> {
+  return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}/duplicate`, { method: "POST" });
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
