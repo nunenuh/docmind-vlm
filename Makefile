@@ -85,6 +85,30 @@ logs-backend: ## Tail backend log
 logs-frontend: ## Tail frontend log
 	@tail -f $(PID_DIR)/frontend.log
 
+# ── Supabase Local ────────────────────────────────────
+
+supabase-start: ## Start local Supabase (Postgres + Auth + Storage)
+	npx supabase start
+
+supabase-stop: ## Stop local Supabase
+	npx supabase stop
+
+supabase-status: ## Show local Supabase status + URLs
+	npx supabase status
+
+use-local: ## Switch to local Supabase (.env.local → .env)
+	@cp backend/.env backend/.env.cloud.bak
+	@cp backend/.env.local backend/.env
+	@echo "Switched to LOCAL Supabase. Run 'make migrate' to set up tables."
+
+use-cloud: ## Switch back to cloud Supabase (.env.cloud.bak → .env)
+	@if [ -f backend/.env.cloud.bak ]; then \
+		cp backend/.env.cloud.bak backend/.env; \
+		echo "Switched to CLOUD Supabase."; \
+	else \
+		echo "No cloud backup found. Edit backend/.env manually."; \
+	fi
+
 # ── Docker ─────────────────────────────────────────────
 
 docker-up: ## Start all services

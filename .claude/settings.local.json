@@ -352,7 +352,10 @@
       "WebFetch(domain:dev.to)",
       "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library -type f -name *.py)",
       "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules -type f -name *.py)",
-      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase -type f -name *.py)"
+      "Bash(find /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/dbase -type f -name *.py)",
+      "Bash(npx supabase:*)",
+      "Bash(docker --version)",
+      "Bash(docker compose:*)"
     ]
   }
 }
