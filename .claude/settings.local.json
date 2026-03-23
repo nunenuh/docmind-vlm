@@ -356,7 +356,8 @@
       "Bash(npx supabase:*)",
       "Bash(docker --version)",
       "Bash(docker compose:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \"\\\\dt\")"
     ]
   }
 }
