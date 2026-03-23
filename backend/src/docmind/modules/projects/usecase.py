@@ -295,7 +295,10 @@ class ProjectUseCase:
         message: str,
         conversation_id: str | None = None,
     ) -> AsyncGenerator[str, None]:
-        """Stream RAG chat response for a project.
+        """Stream RAG chat response with thinking + answer tokens.
+
+        Uses DashScope SSE streaming. Yields thinking tokens first,
+        then answer tokens, then citations, then done.
 
         Args:
             project_id: Project to chat within.
@@ -306,8 +309,13 @@ class ProjectUseCase:
         Yields:
             SSE-formatted data strings.
         """
-        from docmind.library.pipeline.rag import run_rag_chat_pipeline
+        from docmind.core.config import get_settings
+        from docmind.library.providers.factory import get_vlm_provider
+        from docmind.library.rag.embedder import embed_texts
+        from docmind.library.rag.retriever import retrieve_similar_chunks
         from docmind.modules.personas.repositories import PersonaRepository
+
+        settings = get_settings()
 
         def _sse(event: str, data: dict) -> str:
             return f"data: {json.dumps({'event': event, **data})}\n\n"
@@ -349,41 +357,98 @@ class ProjectUseCase:
             )
             conversation_id = str(conv.id)
 
+        yield _sse("status", {"message": "Saving message...", "conversation_id": conversation_id})
+
         # Save user message
         await self.conv_repo.add_message(conversation_id, "user", message)
 
-        # Build initial state
-        events_buffer: list[str] = []
+        # --- RAG Retrieval ---
+        yield _sse("status", {"message": "Searching documents..."})
 
-        def stream_callback(event_type: str, content: str = "", **kwargs: object) -> None:
-            events_buffer.append(
-                _sse(event_type, {"message": content, **kwargs})
+        try:
+            query_embedding = await embed_texts([message])
+            chunks = await retrieve_similar_chunks(
+                query_embedding=query_embedding[0],
+                project_id=project_id,
+                top_k=settings.RAG_TOP_K,
+                threshold=settings.RAG_SIMILARITY_THRESHOLD,
             )
+        except Exception as e:
+            logger.error("RAG retrieval failed: %s", e)
+            chunks = []
 
-        initial_state = {
-            "project_id": project_id,
-            "user_id": user_id,
-            "message": message,
-            "persona": persona,
-            "conversation_history": history,
-            "stream_callback": stream_callback,
-        }
+        # Build context from retrieved chunks
+        context_parts: list[str] = []
+        citations: list[dict] = []
+        for i, chunk in enumerate(chunks, 1):
+            context_parts.append(
+                f"[Source {i}]: {chunk.get('content', '')}"
+            )
+            citations.append({
+                "source_index": i,
+                "document_id": chunk.get("document_id", ""),
+                "page_number": chunk.get("page_number", 0),
+                "content_preview": chunk.get("content", "")[:100],
+                "similarity": chunk.get("similarity", 0),
+            })
 
-        # Run pipeline in thread to avoid blocking the event loop
-        result = await asyncio.to_thread(run_rag_chat_pipeline, initial_state)
+        context_text = "\n\n".join(context_parts) if context_parts else "No relevant context found."
 
-        # Yield buffered events
-        for event in events_buffer:
-            yield event
+        # Build system prompt
+        system_prompt = (
+            persona["system_prompt"]
+            if persona and persona.get("system_prompt")
+            else "You are a helpful document assistant. Answer based ONLY on the provided context."
+        )
+        if persona and persona.get("tone"):
+            system_prompt += f"\n\nTone: {persona['tone']}"
+        if persona and persona.get("rules"):
+            system_prompt += f"\n\nRules: {persona['rules']}"
+        if persona and persona.get("boundaries"):
+            system_prompt += f"\n\nBoundaries: {persona['boundaries']}"
 
-        # Yield final answer
-        answer = result.get("answer", "")
-        citations = result.get("citations", [])
+        system_prompt += (
+            "\n\nIMPORTANT: Base your answers ONLY on the provided context. "
+            "Cite sources using [Source N] notation. "
+            "If the context doesn't contain relevant information, say so clearly."
+        )
 
+        # Build full message with context
+        full_message = f"CONTEXT:\n{context_text}\n\nQUESTION: {message}"
+
+        # --- Stream LLM Response ---
+        yield _sse("status", {"message": "Generating response..."})
+
+        provider = get_vlm_provider()
+        full_answer = ""
+        full_thinking = ""
+
+        try:
+            async for event in provider.chat_stream(
+                images=[],
+                message=full_message,
+                history=history[-6:],  # Last 3 turns
+                system_prompt=system_prompt,
+                enable_thinking=settings.ENABLE_THINKING,
+            ):
+                if event["type"] == "thinking":
+                    full_thinking += event["content"]
+                    yield _sse("thinking", {"content": event["content"]})
+                elif event["type"] == "answer":
+                    full_answer += event["content"]
+                    yield _sse("token", {"content": event["content"]})
+                elif event["type"] == "done":
+                    pass  # handled below
+        except Exception as e:
+            logger.error("Streaming chat failed: %s", e)
+            full_answer = f"I encountered an error while processing your question. Please try again."
+            yield _sse("token", {"content": full_answer})
+
+        # Yield complete answer + citations
         yield _sse(
             "answer",
             {
-                "content": answer,
+                "content": full_answer,
                 "citations": citations,
                 "conversation_id": conversation_id,
             },
@@ -393,7 +458,7 @@ class ProjectUseCase:
         await self.conv_repo.add_message(
             conversation_id,
             "assistant",
-            answer,
+            full_answer,
             citations=json.dumps(citations) if citations else None,
         )
 

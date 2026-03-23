@@ -189,6 +189,114 @@ class DashScopeProvider:
 
         return await self._call_api(messages)
 
+    async def chat_stream(
+        self,
+        images: list[np.ndarray],
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        enable_thinking: bool = True,
+    ):
+        """Stream chat response with optional thinking/reasoning.
+
+        Uses DashScope SSE streaming with incremental output.
+        Yields dicts with type "thinking", "answer", or "done".
+
+        Args:
+            images: Document page images for visual grounding.
+            message: Current user message.
+            history: Previous messages.
+            system_prompt: System prompt.
+            enable_thinking: Whether to enable reasoning output.
+
+        Yields:
+            {"type": "thinking", "content": "token..."} — reasoning tokens
+            {"type": "answer", "content": "token..."} — answer tokens
+            {"type": "done", "usage": {...}} — stream complete
+        """
+        image_contents = [
+            {"image": f"data:image/jpeg;base64,{encode_image_base64(img)}"}
+            for img in images
+        ]
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": [{"text": system_prompt}]},
+        ]
+
+        if history:
+            first_user_content = image_contents + [{"text": history[0]["content"]}]
+            messages.append({"role": "user", "content": first_user_content})
+            for msg in history[1:]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": [{"text": msg["content"]}],
+                })
+            messages.append({"role": "user", "content": [{"text": message}]})
+        else:
+            current_content = image_contents + [{"text": message}]
+            messages.append({"role": "user", "content": current_content})
+
+        payload = {
+            "model": self._model,
+            "input": {"messages": messages},
+            "parameters": {
+                "max_tokens": self._max_tokens,
+                "temperature": self._temperature,
+                "result_format": "message",
+                "incremental_output": True,
+                "enable_thinking": enable_thinking,
+            },
+        }
+
+        headers = {
+            **self._build_headers(),
+            "X-DashScope-SSE": "enable",
+        }
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with client.stream(
+                "POST", self._base_url, headers=headers, json=payload,
+            ) as response:
+                response.raise_for_status()
+                buffer = ""
+                async for chunk in response.aiter_text():
+                    buffer += chunk
+                    while "\n" in buffer:
+                        line, buffer = buffer.split("\n", 1)
+                        line = line.strip()
+                        if not line or line.startswith("id:") or line.startswith("event:") or line.startswith(":"):
+                            continue
+                        if line.startswith("data:"):
+                            data_str = line[5:]
+                            try:
+                                data = json.loads(data_str)
+                            except json.JSONDecodeError:
+                                continue
+                            choices = data.get("output", {}).get("choices", [])
+                            if not choices:
+                                continue
+                            choice = choices[0]
+                            msg = choice.get("message", {})
+                            finish = choice.get("finish_reason", "null")
+
+                            reasoning = msg.get("reasoning_content", "")
+                            content = msg.get("content", "")
+                            # content can be a list or string
+                            if isinstance(content, list):
+                                content = "".join(
+                                    item.get("text", "") for item in content if isinstance(item, dict)
+                                )
+
+                            if finish == "stop":
+                                usage = data.get("usage", {})
+                                yield {"type": "done", "usage": usage}
+                                return
+
+                            if reasoning:
+                                yield {"type": "thinking", "content": reasoning}
+                            if content:
+                                yield {"type": "answer", "content": content}
+
     async def health_check(self) -> bool:
         """Check DashScope API connectivity.
 

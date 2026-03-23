@@ -119,6 +119,10 @@ class Settings(BaseSettings):
     DASHSCOPE_MAX_TOKENS: int = Field(default=4096)
     DASHSCOPE_TEMPERATURE: float = Field(default=0.1)
 
+    # Streaming + Thinking
+    ENABLE_THINKING: bool = Field(default=True)
+    THINKING_BUDGET: int = Field(default=10000)
+
     # CV Processing
     CV_DESKEW_THRESHOLD: float = Field(default=2.0)
     CV_QUALITY_GRID_SIZE: int = Field(default=4)

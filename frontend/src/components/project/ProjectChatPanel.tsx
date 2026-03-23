@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, User, Bot, FileText, Sparkles } from "lucide-react";
+import { Send, Loader2, User, Bot, FileText, Brain, ChevronDown, ChevronUp } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { sendProjectChat } from "@/lib/api";
@@ -28,14 +28,17 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [thinkingContent, setThinkingContent] = useState("");
   const [isThinking, setIsThinking] = useState(false);
+  const [statusMessage, setStatusMessage] = useState("");
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
+  const [streamingCitations, setStreamingCitations] = useState<Citation[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevConvIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingContent, isThinking]);
+  }, [messages.length, streamingContent, thinkingContent, isThinking]);
 
   // Load messages when active conversation changes
   useEffect(() => {
@@ -45,6 +48,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     if (!activeConversationId) {
       setMessages([]);
       setStreamingContent("");
+      setThinkingContent("");
       return;
     }
 
@@ -70,8 +74,11 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     const message = input.trim();
     setInput("");
     setIsStreaming(true);
-    setIsThinking(true);
+    setIsThinking(false);
     setStreamingContent("");
+    setThinkingContent("");
+    setStatusMessage("Preparing...");
+    setStreamingCitations([]);
 
     const userMsg: MessageResponse = {
       id: `temp-${Date.now()}`,
@@ -83,6 +90,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     setMessages((prev) => [...prev, userMsg]);
 
     let answer = "";
+    let thinking = "";
     let citations: Citation[] = [];
 
     sendProjectChat(
@@ -97,41 +105,67 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
           onConversationCreated(event.conversation_id as string);
         }
 
-        if (event.event === "answer" || event.type === "answer") {
-          setIsThinking(false);
-          answer = (event.content as string) ?? "";
-          setStreamingContent(answer);
+        const eventType = (event.event || event.type) as string;
 
-          // Parse citations if present
-          if (event.citations) {
-            try {
-              citations = typeof event.citations === "string"
-                ? JSON.parse(event.citations)
-                : (event.citations as Citation[]);
-            } catch {
-              // Ignore parse errors
+        switch (eventType) {
+          case "status":
+            setStatusMessage((event.message as string) ?? "");
+            break;
+
+          case "thinking":
+            setIsThinking(true);
+            setStatusMessage("");
+            thinking += (event.content as string) ?? "";
+            setThinkingContent(thinking);
+            break;
+
+          case "token":
+            setIsThinking(false);
+            setStatusMessage("");
+            answer += (event.content as string) ?? "";
+            setStreamingContent(answer);
+            break;
+
+          case "answer":
+            // Final complete answer — don't update streamingContent
+            // as it's already built from tokens. Parse citations.
+            if (event.citations) {
+              try {
+                citations = typeof event.citations === "string"
+                  ? JSON.parse(event.citations as string)
+                  : (event.citations as Citation[]);
+                setStreamingCitations(citations);
+              } catch {
+                // Ignore
+              }
             }
-          }
-        } else if (event.event === "token" || event.type === "token") {
-          setIsThinking(false);
-          answer += (event.content as string) ?? "";
-          setStreamingContent(answer);
-        } else if (event.event === "citations" || event.type === "citations") {
-          if (event.citations) {
-            try {
-              citations = typeof event.citations === "string"
-                ? JSON.parse(event.citations)
-                : (event.citations as Citation[]);
-            } catch {
-              // Ignore parse errors
+            // If we didn't get token events, use the answer content
+            if (!answer) {
+              answer = (event.content as string) ?? "";
+              setStreamingContent(answer);
             }
-          }
+            break;
+
+          case "citations":
+            if (event.citations) {
+              try {
+                citations = typeof event.citations === "string"
+                  ? JSON.parse(event.citations as string)
+                  : (event.citations as Citation[]);
+                setStreamingCitations(citations);
+              } catch {
+                // Ignore
+              }
+            }
+            break;
         }
       },
       (error: Error) => {
         setIsStreaming(false);
         setIsThinking(false);
+        setStatusMessage("");
         setStreamingContent("");
+        setThinkingContent("");
         setMessages((prev) => [
           ...prev,
           {
@@ -144,9 +178,10 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
         ]);
       },
       () => {
-        // Stream complete — add final message (replace streaming bubble)
+        // Stream complete — add final message
         setIsStreaming(false);
         setIsThinking(false);
+        setStatusMessage("");
         if (answer) {
           setMessages((prev) => [
             ...prev,
@@ -156,10 +191,14 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               content: answer,
               citations: citations.length > 0 ? JSON.stringify(citations) : null,
               created_at: new Date().toISOString(),
-            },
+              // Store thinking for this message
+              _thinking: thinking || undefined,
+            } as MessageResponse & { _thinking?: string },
           ]);
         }
         setStreamingContent("");
+        setThinkingContent("");
+        setStreamingCitations([]);
         refetchConversations();
       },
     );
@@ -196,40 +235,63 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
         ) : (
           <>
             {messages.map((msg) => (
-              <MessageBubble key={msg.id} message={msg} />
+              <MessageBubble
+                key={msg.id}
+                message={msg}
+                thinking={(msg as MessageResponse & { _thinking?: string })._thinking}
+              />
             ))}
           </>
         )}
 
-        {/* Thinking indicator */}
-        {isThinking && (
+        {/* Status indicator */}
+        {isStreaming && statusMessage && !isThinking && !streamingContent && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <Bot className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3">
               <div className="flex items-center gap-2 text-sm text-gray-400">
-                <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                <span>Searching documents & thinking...</span>
+                <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin" />
+                <span>{statusMessage}</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Streaming response */}
-        {isStreaming && streamingContent && (
+        {/* Streaming response with thinking */}
+        {isStreaming && (isThinking || streamingContent) && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <Bot className="w-4 h-4 text-indigo-400" />
             </div>
-            <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3 max-w-[80%]">
-              <div className="text-sm text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
-              </div>
-              <div className="flex items-center gap-1.5 mt-2">
-                <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
-                <span className="text-xs text-gray-500">Generating...</span>
-              </div>
+            <div className="max-w-[80%] space-y-2">
+              {/* Thinking section */}
+              {thinkingContent && (
+                <ThinkingSection content={thinkingContent} isActive={isThinking} />
+              )}
+
+              {/* Answer section */}
+              {streamingContent && (
+                <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3">
+                  <div className="text-sm text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+                  </div>
+                  <div className="flex items-center gap-1.5 mt-2">
+                    <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
+                    <span className="text-xs text-gray-500">Generating...</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Streaming citations */}
+              {streamingCitations.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {streamingCitations.map((cite) => (
+                    <CitationTag key={cite.source_index} citation={cite} />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -262,10 +324,56 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
   );
 }
 
-function MessageBubble({ message }: { message: MessageResponse }) {
+function ThinkingSection({ content, isActive }: { content: string; isActive: boolean }) {
+  const [isExpanded, setIsExpanded] = useState(true);
+
+  // Auto-collapse when thinking is done
+  useEffect(() => {
+    if (!isActive && content) {
+      const timer = setTimeout(() => setIsExpanded(false), 500);
+      return () => clearTimeout(timer);
+    }
+  }, [isActive, content]);
+
+  return (
+    <div className="bg-[#0f0f18] border border-[#1a1a2a] rounded-xl overflow-hidden">
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-xs text-gray-400 hover:text-gray-300 transition-colors"
+      >
+        <Brain className={`w-3.5 h-3.5 text-purple-400 ${isActive ? "animate-pulse" : ""}`} />
+        <span>{isActive ? "Thinking..." : "Thought process"}</span>
+        <span className="ml-auto">
+          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </span>
+      </button>
+      {isExpanded && (
+        <div className="px-3 pb-3 max-h-48 overflow-y-auto">
+          <p className="text-xs text-gray-500 leading-relaxed whitespace-pre-wrap font-mono">
+            {content}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CitationTag({ citation }: { citation: Citation }) {
+  return (
+    <div
+      className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#12121a] border border-[#2a2a3a] rounded text-xs text-gray-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors cursor-default"
+      title={citation.content_preview}
+    >
+      <FileText className="w-3 h-3" />
+      <span>Source {citation.source_index}</span>
+      <span className="text-gray-600">p.{citation.page_number}</span>
+    </div>
+  );
+}
+
+function MessageBubble({ message, thinking }: { message: MessageResponse; thinking?: string }) {
   const isUser = message.role === "user";
 
-  // Parse citations from JSON string
   const parsedCitations: Citation[] = (() => {
     if (!message.citations) return [];
     try {
@@ -284,7 +392,13 @@ function MessageBubble({ message }: { message: MessageResponse }) {
       }`}>
         {isUser ? <User className="w-4 h-4 text-gray-300" /> : <Bot className="w-4 h-4 text-indigo-400" />}
       </div>
-      <div className={`max-w-[80%] ${isUser ? "text-right" : ""}`}>
+      <div className={`max-w-[80%] space-y-2 ${isUser ? "text-right" : ""}`}>
+        {/* Thinking (collapsed by default for saved messages) */}
+        {thinking && !isUser && (
+          <ThinkingSection content={thinking} isActive={false} />
+        )}
+
+        {/* Message content */}
         <div className={`rounded-xl px-4 py-3 ${isUser ? "bg-indigo-600/20 border border-indigo-500/20" : "bg-[#12121a] border border-[#1e1e2e]"}`}>
           {isUser ? (
             <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{message.content}</p>
@@ -295,19 +409,11 @@ function MessageBubble({ message }: { message: MessageResponse }) {
           )}
         </div>
 
-        {/* Rendered citations */}
+        {/* Citations */}
         {parsedCitations.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
+          <div className="flex flex-wrap gap-1.5">
             {parsedCitations.map((cite) => (
-              <div
-                key={cite.source_index}
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#12121a] border border-[#2a2a3a] rounded text-xs text-gray-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors cursor-default"
-                title={cite.content_preview}
-              >
-                <FileText className="w-3 h-3" />
-                <span>Source {cite.source_index}</span>
-                <span className="text-gray-600">p.{cite.page_number}</span>
-              </div>
+              <CitationTag key={cite.source_index} citation={cite} />
             ))}
           </div>
         )}
