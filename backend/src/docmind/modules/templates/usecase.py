@@ -13,6 +13,7 @@ import numpy as np
 from docmind.core.logging import get_logger
 
 from .repositories import TemplateRepository
+from .services import TemplateService
 
 logger = get_logger(__name__)
 
@@ -20,8 +21,13 @@ logger = get_logger(__name__)
 class TemplateUseCase:
     """Orchestrates template CRUD, seeding, and auto-detection."""
 
-    def __init__(self, repo: TemplateRepository | None = None) -> None:
+    def __init__(
+        self,
+        repo: TemplateRepository | None = None,
+        service: TemplateService | None = None,
+    ) -> None:
         self.repo = repo or TemplateRepository()
+        self.service = service or TemplateService()
 
     async def list_templates(self, user_id: str) -> list:
         """List all templates for user (presets + custom). Seeds on first call."""
@@ -120,7 +126,7 @@ class TemplateUseCase:
             "suggested_template": {
                 "type": doc_type,
                 "name": doc_name,
-                "category": self._guess_category(doc_type),
+                "category": self.service.guess_category(doc_type),
                 "fields": detected_fields,
             },
         }
@@ -145,18 +151,3 @@ class TemplateUseCase:
         except Exception:
             return None
 
-    @staticmethod
-    def _guess_category(doc_type: str) -> str:
-        """Guess template category from document type."""
-        mapping = {
-            "identity": {"ktp", "kk", "sim", "passport", "id_document"},
-            "vehicle": {"stnk", "bpkb"},
-            "tax": {"npwp", "faktur_pajak", "spt"},
-            "finance": {"invoice", "receipt", "slip_gaji", "kuitansi"},
-            "legal": {"contract", "surat_kuasa", "bast", "agreement"},
-        }
-        dt = doc_type.lower()
-        for category, types in mapping.items():
-            if dt in types:
-                return category
-        return "general"

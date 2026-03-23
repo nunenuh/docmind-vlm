@@ -432,49 +432,18 @@ class ProjectUseCase:
             logger.error("RAG retrieval failed: %s", e)
             chunks = []
 
-        # Build context from retrieved chunks
-        context_parts: list[str] = []
-        citations: list[dict] = []
-        for i, chunk in enumerate(chunks, 1):
-            context_parts.append(
-                f"[Source {i}]: {chunk.get('content', '')}"
-            )
-            citations.append({
-                "source_index": i,
-                "document_id": chunk.get("document_id", ""),
-                "page_number": chunk.get("page_number", 0),
-                "content_preview": chunk.get("content", "")[:100],
-                "similarity": chunk.get("similarity", 0),
-            })
+        # Build context from retrieved chunks (via service)
+        context_text, citations = self.service.build_rag_context(chunks)
 
-        context_text = "\n\n".join(context_parts) if context_parts else "No relevant context found."
-
-        # Load document metadata for the system prompt
+        # Load document metadata for the system prompt (via service)
         doc_list = await self.repo.list_documents(project_id, user_id)
-        doc_metadata = "\n".join(
-            f"- {getattr(d, 'filename', 'unknown')} ({getattr(d, 'file_type', '?')}, {getattr(d, 'page_count', 0)} pages)"
-            for d in doc_list
-        ) if doc_list else "No documents uploaded."
+        doc_metadata = self.service.format_document_metadata(doc_list)
 
-        # Build system prompt
-        system_prompt = (
-            persona["system_prompt"]
-            if persona and persona.get("system_prompt")
-            else "You are a helpful document assistant. Answer based ONLY on the provided context."
-        )
-        if persona and persona.get("tone"):
-            system_prompt += f"\n\nTone: {persona['tone']}"
-        if persona and persona.get("rules"):
-            system_prompt += f"\n\nRules: {persona['rules']}"
-        if persona and persona.get("boundaries"):
-            system_prompt += f"\n\nBoundaries: {persona['boundaries']}"
-
-        system_prompt += (
-            f"\n\nPROJECT DOCUMENTS ({len(doc_list) if doc_list else 0} files):\n{doc_metadata}"
-            "\n\nIMPORTANT: Base your answers ONLY on the provided context. "
-            "Cite sources using [Source N] notation. "
-            "If the context doesn't contain relevant information, say so clearly. "
-            "When asked about files or documents, refer to the PROJECT DOCUMENTS list above."
+        # Build system prompt (via service)
+        system_prompt = self.service.build_system_prompt(
+            persona=persona,
+            doc_metadata=doc_metadata,
+            doc_count=len(doc_list) if doc_list else 0,
         )
 
         # Build full message with context

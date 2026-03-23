@@ -18,27 +18,20 @@ from .schemas import (
     ChatMessageResponse,
     Citation,
 )
+from .services import ChatService
 
 logger = get_logger(__name__)
-
-DOCUMENT_CHAT_SYSTEM_PROMPT = """You are a document analysis assistant. You MUST answer based ONLY on the extracted data and document context provided below.
-
-EXTRACTED FIELDS:
-{fields_text}
-
-INSTRUCTIONS:
-- Answer questions about the document using ONLY the extracted fields above
-- If a field has low confidence (<0.5), mention that the value might be uncertain
-- If asked about something not in the extracted fields, say you don't have that information
-- Be precise and cite specific field values
-- For Indonesian documents (KTP, KK, etc.), use the correct Indonesian field names"""
-
 
 class ChatUseCase:
     """Orchestrates per-document chat with VLM streaming."""
 
-    def __init__(self, repo: ChatRepository | None = None) -> None:
+    def __init__(
+        self,
+        repo: ChatRepository | None = None,
+        service: ChatService | None = None,
+    ) -> None:
         self.repo = repo or ChatRepository()
+        self.service = service or ChatService()
 
     def send_message(
         self, document_id: str, user_id: str, message: str
@@ -75,19 +68,8 @@ class ChatUseCase:
         return extracted_fields, conversation_history
 
     def _format_fields(self, fields: list[dict]) -> str:
-        """Format extracted fields as text for the system prompt."""
-        if not fields:
-            return "No fields have been extracted yet. The document has not been processed."
-
-        lines = []
-        for f in fields:
-            conf = f.get("confidence", 0)
-            conf_label = "HIGH" if conf >= 0.8 else "MEDIUM" if conf >= 0.5 else "LOW"
-            value = f.get("field_value", "N/A") or "N/A"
-            key = f.get("field_key", "unknown")
-            lines.append(f"- {key}: {value} (confidence: {conf_label}, {conf:.0%})")
-
-        return "\n".join(lines)
+        """Delegate to service for field formatting."""
+        return self.service.format_extracted_fields(fields)
 
     async def _chat_stream(
         self, document_id: str, user_id: str, message: str
@@ -114,7 +96,7 @@ class ChatUseCase:
 
         # Build system prompt with extracted fields
         fields_text = self._format_fields(extracted_fields)
-        system_prompt = DOCUMENT_CHAT_SYSTEM_PROMPT.format(fields_text=fields_text)
+        system_prompt = self.service.build_system_prompt(fields_text)
 
         yield _sse("status", {"message": "Generating response..."})
 

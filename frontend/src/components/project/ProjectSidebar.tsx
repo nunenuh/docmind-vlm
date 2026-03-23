@@ -1,8 +1,9 @@
 import { useState, useCallback, useRef } from "react";
 import {
   FileText, Plus, MessageSquare, Trash2, ChevronDown,
-  Upload, Loader2, AlertCircle, Clock, CheckCircle,
+  Upload, Loader2, AlertCircle, Clock, CheckCircle, RefreshCw,
 } from "lucide-react";
+import { toast } from "sonner";
 import { useProjectDocuments, useAddProjectDocument, useRemoveProjectDocument } from "@/hooks/useProjects";
 import { useProjectConversations, useDeleteConversation } from "@/hooks/useProjects";
 import type { ProjectDocumentResponse, ConversationResponse } from "@/types/api";
@@ -243,6 +244,29 @@ export function ProjectSidebar({ projectId, activeConvId, onSelectConversation, 
                       <span className={`inline-flex items-center gap-0.5 text-[9px] font-medium px-1.5 py-0.5 rounded-full ${status.className}`}>
                         {status.icon}
                       </span>
+                      <button
+                        onClick={async () => {
+                          try {
+                            toast.loading("Re-indexing...", { id: `reindex-${doc.id}` });
+                            const { data: { session } } = await (await import("@/lib/supabase")).supabase.auth.getSession();
+                            const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
+                            const resp = await fetch(
+                              `${BASE_URL}/api/v1/projects/${projectId}/documents/${doc.id}/reindex`,
+                              { method: "POST", headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} },
+                            );
+                            if (!resp.ok) throw new Error("Reindex failed");
+                            const result = await resp.json();
+                            toast.success(`Re-indexed: ${result.chunks_created} chunks`, { id: `reindex-${doc.id}` });
+                          } catch (e) {
+                            toast.error(`Reindex failed`, { id: `reindex-${doc.id}` });
+                          }
+                        }}
+                        className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-indigo-500/10 text-gray-600 hover:text-indigo-400 transition-all"
+                        aria-label="Re-index document"
+                        title="Re-index RAG chunks"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                      </button>
                       <button
                         onClick={() => handleRemoveDoc(doc.id, doc.filename)}
                         className="opacity-0 group-hover:opacity-100 p-0.5 rounded hover:bg-red-500/10 text-gray-600 hover:text-red-400 transition-all"

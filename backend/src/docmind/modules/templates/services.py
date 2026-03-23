@@ -1,68 +1,97 @@
 """
 docmind/modules/templates/services.py
 
-Template service — loads and serves predefined document extraction templates
-from JSON files in data/templates/.
+Template service — field normalization, prompt building, category detection.
 """
-
-import json
-from pathlib import Path
 
 from docmind.core.logging import get_logger
 
-from .schemas import TemplateResponse
-
 logger = get_logger(__name__)
-
-_DEFAULT_TEMPLATES_DIR = Path(__file__).resolve().parents[4] / "data" / "templates"
 
 
 class TemplateService:
-    """Service for loading and querying extraction templates."""
+    """Business logic for templates: normalization, formatting, detection."""
 
-    def __init__(self, templates_dir: Path | None = None) -> None:
-        self._templates_dir = templates_dir or _DEFAULT_TEMPLATES_DIR
-        self._templates: list[TemplateResponse] = []
-        self._loaded = False
+    @staticmethod
+    def normalize_fields(fields: list) -> list[dict]:
+        """Normalize field definitions to a consistent format.
 
-    def _load(self) -> None:
-        """Load templates from JSON files on first access."""
-        if self._loaded:
-            return
-        self._loaded = True
-
-        if not self._templates_dir.is_dir():
-            logger.warning("templates_dir_not_found", path=str(self._templates_dir))
-            return
-
-        for path in sorted(self._templates_dir.glob("*.json")):
-            try:
-                data = json.loads(path.read_text(encoding="utf-8"))
-                template = TemplateResponse(**data)
-                self._templates.append(template)
-            except (json.JSONDecodeError, TypeError, Exception) as e:
-                logger.warning(
-                    "template_load_failed",
-                    file=path.name,
-                    error=str(e),
-                )
-
-    def list_templates(self) -> list[TemplateResponse]:
-        """Return all available templates."""
-        self._load()
-        return list(self._templates)
-
-    def get_template(self, template_type: str) -> TemplateResponse | None:
-        """Get a template by type name.
+        Handles both old format (list of strings) and new format (list of dicts).
 
         Args:
-            template_type: The template type (e.g. "invoice").
+            fields: Raw field definitions from JSON or DB.
 
         Returns:
-            TemplateResponse or None if not found.
+            List of normalized field dicts with key, label, type, required.
         """
-        self._load()
-        for t in self._templates:
-            if t.type == template_type:
-                return t
-        return None
+        normalized = []
+        for f in fields:
+            if isinstance(f, dict):
+                normalized.append({
+                    "key": f.get("key", ""),
+                    "label": f.get("label", f.get("key", "")),
+                    "label_en": f.get("label_en", ""),
+                    "type": f.get("type", "string"),
+                    "validation": f.get("validation"),
+                    "values": f.get("values"),
+                    "required": f.get("required", True),
+                })
+            elif isinstance(f, str):
+                normalized.append({
+                    "key": f,
+                    "label": f,
+                    "label_en": "",
+                    "type": "string",
+                    "validation": None,
+                    "values": None,
+                    "required": True,
+                })
+        return normalized
+
+    @staticmethod
+    def get_required_field_keys(fields: list) -> list[str]:
+        """Extract required field keys from field definitions.
+
+        Args:
+            fields: Normalized field definitions.
+
+        Returns:
+            List of field key strings that are required.
+        """
+        return [
+            f["key"] if isinstance(f, dict) else f
+            for f in fields
+            if (isinstance(f, dict) and f.get("required", True)) or isinstance(f, str)
+        ]
+
+    @staticmethod
+    def get_optional_field_keys(fields: list) -> list[str]:
+        """Extract optional field keys from field definitions."""
+        return [
+            f["key"]
+            for f in fields
+            if isinstance(f, dict) and not f.get("required", True)
+        ]
+
+    @staticmethod
+    def guess_category(doc_type: str) -> str:
+        """Guess template category from document type string.
+
+        Args:
+            doc_type: Document type identifier.
+
+        Returns:
+            Category string.
+        """
+        mapping = {
+            "identity": {"ktp", "kk", "sim", "passport", "id_document"},
+            "vehicle": {"stnk", "bpkb"},
+            "tax": {"npwp", "faktur_pajak", "spt"},
+            "finance": {"invoice", "receipt", "slip_gaji", "kuitansi"},
+            "legal": {"contract", "surat_kuasa", "bast", "agreement"},
+        }
+        dt = doc_type.lower()
+        for category, types in mapping.items():
+            if dt in types:
+                return category
+        return "general"

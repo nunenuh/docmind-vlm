@@ -1,5 +1,7 @@
 import { useState } from "react";
-import { Code, Table2, Loader2, FileSearch } from "lucide-react";
+import { Code, Table2, Loader2, FileSearch, Download } from "lucide-react";
+import { toast } from "sonner";
+import { supabase } from "@/lib/supabase";
 import { useExtraction } from "@/hooks/useExtraction";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -39,14 +41,17 @@ export function ExtractionPanel({ documentId }: ExtractionPanelProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-800">
-        <span className="text-sm text-gray-400">{fields.length} fields extracted</span>
-        <button
-          onClick={() => setShowJson(!showJson)}
-          className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
-          aria-label={showJson ? "Table view" : "JSON view"}
-        >
-          {showJson ? <Table2 className="w-4 h-4" /> : <Code className="w-4 h-4" />}
-        </button>
+        <span className="text-sm text-gray-400">{fields.length} fields</span>
+        <div className="flex items-center gap-1">
+          <ExportDropdown documentId={documentId} />
+          <button
+            onClick={() => setShowJson(!showJson)}
+            className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+            aria-label={showJson ? "Table view" : "JSON view"}
+          >
+            {showJson ? <Table2 className="w-4 h-4" /> : <Code className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
@@ -83,6 +88,66 @@ export function ExtractionPanel({ documentId }: ExtractionPanelProps) {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function ExportDropdown({ documentId }: { documentId: string }) {
+  const [open, setOpen] = useState(false);
+
+  const handleExport = async (format: "json" | "csv") => {
+    setOpen(false);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
+      const resp = await fetch(
+        `${BASE_URL}/api/v1/extractions/${documentId}/export?format=${format}`,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+      );
+      if (!resp.ok) throw new Error("Export failed");
+
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${documentId}_extraction.${format}`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`Exported as ${format.toUpperCase()}`);
+    } catch (e) {
+      toast.error(`Export failed: ${(e as Error).message}`);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen(!open)}
+        className="p-1.5 rounded hover:bg-gray-800 text-gray-400 hover:text-white transition-colors"
+        title="Export"
+      >
+        <Download className="w-4 h-4" />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full mt-1 z-50 bg-[#12121a] border border-[#2a2a3a] rounded-lg shadow-xl py-1 w-32">
+            <button
+              onClick={() => handleExport("json")}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 transition-colors"
+            >
+              Export JSON
+            </button>
+            <button
+              onClick={() => handleExport("csv")}
+              className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:bg-white/5 transition-colors"
+            >
+              Export CSV
+            </button>
+          </div>
+        </>
+      )}
     </div>
   );
 }
