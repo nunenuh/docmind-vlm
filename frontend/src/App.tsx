@@ -1,11 +1,14 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
+import { Toaster } from "sonner";
 import { queryClient } from "@/lib/query-client";
 import { supabase } from "@/lib/supabase";
 import { useAuthStore } from "@/stores/auth-store";
 import { AuthGuard } from "@/components/workspace/AuthGuard";
 import { AppShell } from "@/components/layout/AppShell";
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary";
+import { CommandPalette } from "@/components/ui/CommandPalette";
 import { LandingPage } from "@/pages/LandingPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { Dashboard } from "@/pages/Dashboard";
@@ -39,21 +42,35 @@ export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="/login" element={<LoginPage />} />
-            <Route element={<AuthGuard />}>
-              <Route element={<AppShell />}>
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/projects" element={<ProjectDashboard />} />
-                <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
-                <Route path="/workspace/:documentId" element={<Workspace />} />
-                <Route path="/settings" element={<Settings />} />
+        <ErrorBoundary>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="/login" element={<LoginPage />} />
+              <Route element={<AuthGuard />}>
+                <Route element={<AppShell />}>
+                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/projects" element={<ProjectDashboard />} />
+                  <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
+                  <Route path="/workspace/:documentId" element={<Workspace />} />
+                  <Route path="/settings" element={<Settings />} />
+                </Route>
               </Route>
-            </Route>
-          </Routes>
-        </BrowserRouter>
+            </Routes>
+            <CommandPalette />
+          </BrowserRouter>
+          <Toaster
+            theme="dark"
+            position="bottom-right"
+            toastOptions={{
+              style: {
+                background: "#12121a",
+                border: "1px solid #1e1e2e",
+                color: "#e5e5e5",
+              },
+            }}
+          />
+        </ErrorBoundary>
       </AuthProvider>
     </QueryClientProvider>
   );
