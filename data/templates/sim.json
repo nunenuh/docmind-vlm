@@ -1,0 +1,24 @@
+{
+  "type": "sim",
+  "name": "SIM (Surat Izin Mengemudi)",
+  "name_en": "Driver's License",
+  "description": "Surat izin mengemudi kendaraan bermotor",
+  "description_en": "Indonesian driving license",
+  "category": "identity",
+  "required_fields": [
+    {"key": "no_sim", "label": "No. SIM", "label_en": "License Number", "type": "string"},
+    {"key": "nama", "label": "Nama", "label_en": "Full Name", "type": "string"},
+    {"key": "tempat_lahir", "label": "Tempat Lahir", "label_en": "Place of Birth", "type": "string"},
+    {"key": "tanggal_lahir", "label": "Tanggal Lahir", "label_en": "Date of Birth", "type": "date"},
+    {"key": "golongan", "label": "Golongan", "label_en": "License Class", "type": "enum", "values": ["A", "B1", "B2", "C", "D"]},
+    {"key": "berlaku_hingga", "label": "Berlaku Hingga", "label_en": "Valid Until", "type": "date"}
+  ],
+  "optional_fields": [
+    {"key": "alamat", "label": "Alamat", "label_en": "Address", "type": "string"},
+    {"key": "pekerjaan", "label": "Pekerjaan", "label_en": "Occupation", "type": "string"},
+    {"key": "tinggi_badan", "label": "Tinggi Badan", "label_en": "Height", "type": "string"},
+    {"key": "gol_darah", "label": "Gol. Darah", "label_en": "Blood Type", "type": "string"},
+    {"key": "jenis_kelamin", "label": "Jenis Kelamin", "label_en": "Gender", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian SIM (Surat Izin Mengemudi / Driving License). Extract the license number, holder's name, date of birth, license class (A/B1/B2/C/D), and validity period. The card has a photo on the left side."
+}

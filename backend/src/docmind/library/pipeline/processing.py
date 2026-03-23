@@ -221,36 +221,18 @@ DOCUMENT_CATEGORIES = [
 def _get_template_config(template_type: str) -> dict | None:
     """Get template configuration for a given template type.
 
+    Loads from data/templates/*.json files via the template loader.
+
     Args:
-        template_type: Template name (e.g. "invoice", "receipt").
+        template_type: Template name (e.g. "ktp", "invoice", "receipt").
 
     Returns:
         Dict with required_fields and optional_fields lists,
         or None if template_type is unknown.
     """
-    templates = {
-        "invoice": {
-            "required_fields": ["invoice_number", "date", "total_amount", "vendor_name"],
-            "optional_fields": ["due_date", "tax_amount", "line_items", "purchase_order"],
-        },
-        "receipt": {
-            "required_fields": ["date", "total_amount", "merchant_name"],
-            "optional_fields": ["tax_amount", "payment_method", "line_items"],
-        },
-        "medical_report": {
-            "required_fields": ["patient_name", "report_date", "report_type"],
-            "optional_fields": ["doctor_name", "diagnosis", "test_results", "facility"],
-        },
-        "contract": {
-            "required_fields": ["parties", "effective_date", "contract_type"],
-            "optional_fields": ["expiry_date", "terms", "signatures", "governing_law"],
-        },
-        "id_document": {
-            "required_fields": ["full_name", "document_number", "date_of_birth"],
-            "optional_fields": ["expiry_date", "nationality", "address", "issuing_authority"],
-        },
-    }
-    return templates.get(template_type)
+    from docmind.library.templates.loader import get_template_fields
+
+    return get_template_fields(template_type)
 
 
 def extract_node(state: dict) -> dict:

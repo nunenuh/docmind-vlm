@@ -1,0 +1,23 @@
+{
+  "type": "kk",
+  "name": "KK (Kartu Keluarga)",
+  "name_en": "Family Card",
+  "description": "Kartu identitas keluarga Indonesia",
+  "description_en": "Indonesian family registration card",
+  "category": "identity",
+  "required_fields": [
+    {"key": "no_kk", "label": "No. KK", "label_en": "Family Card Number", "type": "string", "validation": "^\\d{16}$"},
+    {"key": "kepala_keluarga", "label": "Kepala Keluarga", "label_en": "Head of Family", "type": "string"},
+    {"key": "alamat", "label": "Alamat", "label_en": "Address", "type": "string"},
+    {"key": "rt_rw", "label": "RT/RW", "label_en": "RT/RW", "type": "string"},
+    {"key": "kel_desa", "label": "Kel/Desa", "label_en": "Village/Sub-district", "type": "string"},
+    {"key": "kecamatan", "label": "Kecamatan", "label_en": "District", "type": "string"},
+    {"key": "kabupaten_kota", "label": "Kabupaten/Kota", "label_en": "City/Regency", "type": "string"},
+    {"key": "provinsi", "label": "Provinsi", "label_en": "Province", "type": "string"}
+  ],
+  "optional_fields": [
+    {"key": "kode_pos", "label": "Kode Pos", "label_en": "Postal Code", "type": "string"},
+    {"key": "anggota_keluarga", "label": "Anggota Keluarga", "label_en": "Family Members", "type": "table", "columns": ["no", "nama", "nik", "jenis_kelamin", "tempat_lahir", "tanggal_lahir", "agama", "pendidikan", "pekerjaan", "hubungan"]}
+  ],
+  "extraction_prompt": "This is an Indonesian KK (Kartu Keluarga / Family Card). It contains family registration data. The header has the KK number (16 digits), address, and head of family. Below is a table listing all family members with their NIK, name, gender, birth details, religion, education, occupation, and relationship to head of family. Extract both the header fields and the family member table."
+}

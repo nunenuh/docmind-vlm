@@ -1,0 +1,25 @@
+{
+  "type": "stnk",
+  "name": "STNK (Surat Tanda Nomor Kendaraan)",
+  "name_en": "Vehicle Registration Certificate",
+  "description": "Surat tanda nomor kendaraan bermotor",
+  "description_en": "Indonesian vehicle registration certificate",
+  "category": "vehicle",
+  "required_fields": [
+    {"key": "no_polisi", "label": "No. Polisi", "label_en": "License Plate", "type": "string"},
+    {"key": "nama_pemilik", "label": "Nama Pemilik", "label_en": "Owner Name", "type": "string"},
+    {"key": "alamat", "label": "Alamat", "label_en": "Address", "type": "string"},
+    {"key": "merk_type", "label": "Merk/Type", "label_en": "Brand/Model", "type": "string"},
+    {"key": "tahun_pembuatan", "label": "Tahun Pembuatan", "label_en": "Year of Manufacture", "type": "string"},
+    {"key": "no_rangka", "label": "No. Rangka", "label_en": "Chassis Number", "type": "string"},
+    {"key": "no_mesin", "label": "No. Mesin", "label_en": "Engine Number", "type": "string"}
+  ],
+  "optional_fields": [
+    {"key": "warna", "label": "Warna", "label_en": "Color", "type": "string"},
+    {"key": "bahan_bakar", "label": "Bahan Bakar", "label_en": "Fuel Type", "type": "string"},
+    {"key": "masa_berlaku", "label": "Masa Berlaku", "label_en": "Validity Period", "type": "date"},
+    {"key": "isi_silinder", "label": "Isi Silinder", "label_en": "Engine Displacement", "type": "string"},
+    {"key": "jenis", "label": "Jenis", "label_en": "Vehicle Type", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian STNK (Vehicle Registration Certificate). Extract the license plate number (No. Polisi), owner name, vehicle brand/model, year, chassis number (No. Rangka), and engine number (No. Mesin)."
+}

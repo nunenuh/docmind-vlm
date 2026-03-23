@@ -1,0 +1,30 @@
+{
+  "type": "ktp",
+  "name": "KTP (Kartu Tanda Penduduk)",
+  "name_en": "National ID Card",
+  "description": "Kartu identitas resmi warga negara Indonesia",
+  "description_en": "Official Indonesian national identity card",
+  "category": "identity",
+  "required_fields": [
+    {"key": "nik", "label": "NIK", "label_en": "National ID Number", "type": "string", "validation": "^\\d{16}$"},
+    {"key": "nama", "label": "Nama", "label_en": "Full Name", "type": "string"},
+    {"key": "tempat_lahir", "label": "Tempat Lahir", "label_en": "Place of Birth", "type": "string"},
+    {"key": "tanggal_lahir", "label": "Tanggal Lahir", "label_en": "Date of Birth", "type": "date"},
+    {"key": "jenis_kelamin", "label": "Jenis Kelamin", "label_en": "Gender", "type": "enum", "values": ["LAKI-LAKI", "PEREMPUAN"]},
+    {"key": "alamat", "label": "Alamat", "label_en": "Address", "type": "string"},
+    {"key": "rt_rw", "label": "RT/RW", "label_en": "RT/RW", "type": "string", "validation": "^\\d{3}/\\d{3}$"},
+    {"key": "kel_desa", "label": "Kel/Desa", "label_en": "Village/Sub-district", "type": "string"},
+    {"key": "kecamatan", "label": "Kecamatan", "label_en": "District", "type": "string"}
+  ],
+  "optional_fields": [
+    {"key": "agama", "label": "Agama", "label_en": "Religion", "type": "enum", "values": ["ISLAM", "KRISTEN", "KATOLIK", "HINDU", "BUDDHA", "KONGHUCU"]},
+    {"key": "status_perkawinan", "label": "Status Perkawinan", "label_en": "Marital Status", "type": "enum", "values": ["BELUM KAWIN", "KAWIN", "CERAI HIDUP", "CERAI MATI"]},
+    {"key": "pekerjaan", "label": "Pekerjaan", "label_en": "Occupation", "type": "string"},
+    {"key": "kewarganegaraan", "label": "Kewarganegaraan", "label_en": "Nationality", "type": "string"},
+    {"key": "berlaku_hingga", "label": "Berlaku Hingga", "label_en": "Valid Until", "type": "string"},
+    {"key": "gol_darah", "label": "Gol. Darah", "label_en": "Blood Type", "type": "enum", "values": ["A", "B", "AB", "O", "-"]},
+    {"key": "provinsi", "label": "Provinsi", "label_en": "Province", "type": "string"},
+    {"key": "kabupaten_kota", "label": "Kabupaten/Kota", "label_en": "City/Regency", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian KTP (Kartu Tanda Penduduk / National Identity Card). Extract all fields visible on the card. The NIK is a 16-digit number. Pay attention to the pink/blue card color and the Indonesian government seal. Fields are labeled in Bahasa Indonesia."
+}

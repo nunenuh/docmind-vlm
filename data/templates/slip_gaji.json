@@ -1,0 +1,28 @@
+{
+  "type": "slip_gaji",
+  "name": "Slip Gaji",
+  "name_en": "Salary Slip",
+  "description": "Bukti pembayaran gaji karyawan",
+  "description_en": "Employee salary payment slip",
+  "category": "finance",
+  "required_fields": [
+    {"key": "nama_karyawan", "label": "Nama Karyawan", "label_en": "Employee Name", "type": "string"},
+    {"key": "periode", "label": "Periode", "label_en": "Period", "type": "string"},
+    {"key": "gaji_pokok", "label": "Gaji Pokok", "label_en": "Base Salary", "type": "currency"},
+    {"key": "total_pendapatan", "label": "Total Pendapatan", "label_en": "Total Income", "type": "currency"},
+    {"key": "total_potongan", "label": "Total Potongan", "label_en": "Total Deductions", "type": "currency"},
+    {"key": "gaji_bersih", "label": "Gaji Bersih / Take Home Pay", "label_en": "Net Salary", "type": "currency"}
+  ],
+  "optional_fields": [
+    {"key": "nik_karyawan", "label": "NIK Karyawan", "label_en": "Employee ID", "type": "string"},
+    {"key": "jabatan", "label": "Jabatan", "label_en": "Position", "type": "string"},
+    {"key": "departemen", "label": "Departemen", "label_en": "Department", "type": "string"},
+    {"key": "perusahaan", "label": "Perusahaan", "label_en": "Company", "type": "string"},
+    {"key": "tunjangan", "label": "Tunjangan", "label_en": "Allowances", "type": "table", "columns": ["jenis", "jumlah"]},
+    {"key": "potongan", "label": "Potongan", "label_en": "Deductions", "type": "table", "columns": ["jenis", "jumlah"]},
+    {"key": "pph21", "label": "PPh 21", "label_en": "Income Tax", "type": "currency"},
+    {"key": "bpjs_kesehatan", "label": "BPJS Kesehatan", "label_en": "Health Insurance", "type": "currency"},
+    {"key": "bpjs_ketenagakerjaan", "label": "BPJS Ketenagakerjaan", "label_en": "Employment Insurance", "type": "currency"}
+  ],
+  "extraction_prompt": "This is an Indonesian Slip Gaji (Salary Slip). Extract the employee name, salary period, base salary (Gaji Pokok), allowances (Tunjangan), deductions (Potongan), and net salary (Gaji Bersih/Take Home Pay). Also extract any tax deductions (PPh 21) and BPJS contributions if visible."
+}

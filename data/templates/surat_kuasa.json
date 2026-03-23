@@ -1,0 +1,23 @@
+{
+  "type": "surat_kuasa",
+  "name": "Surat Kuasa",
+  "name_en": "Power of Attorney",
+  "description": "Surat pemberian kuasa dari satu pihak ke pihak lain",
+  "description_en": "Legal document granting authority from one party to another",
+  "category": "legal",
+  "required_fields": [
+    {"key": "pemberi_kuasa", "label": "Pemberi Kuasa", "label_en": "Grantor", "type": "string"},
+    {"key": "penerima_kuasa", "label": "Penerima Kuasa", "label_en": "Grantee", "type": "string"},
+    {"key": "perihal", "label": "Perihal/Untuk", "label_en": "Purpose", "type": "string"},
+    {"key": "tanggal", "label": "Tanggal", "label_en": "Date", "type": "date"}
+  ],
+  "optional_fields": [
+    {"key": "nik_pemberi", "label": "NIK Pemberi Kuasa", "label_en": "Grantor NIK", "type": "string"},
+    {"key": "nik_penerima", "label": "NIK Penerima Kuasa", "label_en": "Grantee NIK", "type": "string"},
+    {"key": "alamat_pemberi", "label": "Alamat Pemberi", "label_en": "Grantor Address", "type": "string"},
+    {"key": "alamat_penerima", "label": "Alamat Penerima", "label_en": "Grantee Address", "type": "string"},
+    {"key": "tempat", "label": "Tempat", "label_en": "Location", "type": "string"},
+    {"key": "saksi", "label": "Saksi", "label_en": "Witnesses", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian Surat Kuasa (Power of Attorney). Extract the grantor (Pemberi Kuasa), grantee (Penerima Kuasa), the purpose/authority granted, and the date. Also extract any NIK numbers, addresses, and witness names if present."
+}
