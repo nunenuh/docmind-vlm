@@ -8,13 +8,14 @@ from fastapi import APIRouter, Depends
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 
+from ..schemas import AnalyticsSummaryResponse
 from ..usecase import AnalyticsUseCase
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
-@router.get("/summary")
+@router.get("/summary", response_model=AnalyticsSummaryResponse)
 async def get_analytics_summary(
     current_user: dict = Depends(get_current_user),
 ):
