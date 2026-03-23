@@ -87,6 +87,9 @@ RAG_RETRIEVAL_K: int = 20              # NEW: initial retrieval pool before fusi
 RAG_SIMILARITY_THRESHOLD: float = 0.1  # minimum cosine similarity
 RAG_BM25_WEIGHT: float = 0.4          # NEW: weight for BM25 in RRF fusion
 RAG_VECTOR_WEIGHT: float = 0.6        # NEW: weight for vector in RRF fusion
+RAG_BM25_LANGUAGE: str = "simple"      # NEW: ts_vector config (multi-language)
+RAG_ENABLE_QUERY_REWRITE: bool = True  # NEW: conversation-aware query rewriting
+RAG_MAX_EMBEDDING_TOKENS: int = 7500   # NEW: guard against embedding truncation
 ```
 
 ---
@@ -711,6 +714,244 @@ UPDATE page_chunks SET raw_content = content WHERE raw_content IS NULL;
 
 ---
 
+## Production-Level Additions
+
+### P1: Multi-Language BM25 Support
+
+Documents may contain mixed English, Indonesian, or other languages. Using `'english'` ts_vector config fails for non-English text.
+
+**Solution:** Use `'simple'` configuration (language-agnostic tokenization) as the default, with an optional language detection step.
+
+```sql
+-- Use 'simple' instead of 'english' for multi-language support
+CREATE OR REPLACE FUNCTION page_chunks_search_vector_update() RETURNS trigger AS $$
+BEGIN
+    NEW.search_vector := to_tsvector('simple', COALESCE(NEW.raw_content, ''));
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+`'simple'` tokenizes by whitespace and lowercases — works for any language. The trade-off: no English stemming (e.g., "running" won't match "run"). For a demo with mixed-language documents, this trade-off is worth it.
+
+**Settings:**
+```python
+RAG_BM25_LANGUAGE: str = "simple"  # or "english", "indonesian"
+```
+
+---
+
+### P2: Conversation-Aware Retrieval (Query Rewriting)
+
+When the user asks "what about his education?", the RAG must understand "his" refers to the resume owner from the previous conversation turn.
+
+**Solution:** Before embedding the query, rewrite it using conversation context via the LLM.
+
+```python
+async def rewrite_query_with_context(
+    query: str,
+    conversation_history: list[dict],
+) -> str:
+    """
+    Rewrite an ambiguous query using conversation context.
+
+    Example:
+        history: [{"role": "user", "content": "tell me about the resume"}]
+        query: "what about his education?"
+        rewritten: "What is the education background in the resume of Lalu Erfandi?"
+
+    Uses a lightweight LLM call to resolve pronouns and references.
+    Only rewrites if the query contains pronouns or is clearly context-dependent.
+    """
+    if not conversation_history:
+        return query
+
+    # Quick heuristic: skip rewrite if query is self-contained
+    ambiguous_markers = ["his", "her", "their", "its", "that", "this", "it", "they", "the same"]
+    query_lower = query.lower()
+    if not any(marker in query_lower for marker in ambiguous_markers):
+        return query
+
+    # Build rewrite prompt
+    recent_history = conversation_history[-4:]  # Last 2 turns
+    history_text = "\n".join(
+        f"{msg['role'].upper()}: {msg['content'][:200]}"
+        for msg in recent_history
+    )
+
+    rewrite_prompt = f"""Given this conversation:
+{history_text}
+
+Rewrite this follow-up question to be self-contained (resolve all pronouns and references):
+"{query}"
+
+Return ONLY the rewritten question, nothing else."""
+
+    provider = get_vlm_provider()
+    response = await provider.chat(
+        images=[], message=rewrite_prompt,
+        history=[], system_prompt="You rewrite questions to be self-contained.",
+    )
+    rewritten = response.get("content", query).strip().strip('"')
+    return rewritten if rewritten else query
+```
+
+**Integration point:** In `project_chat_stream()`, before embedding the query:
+```python
+# Rewrite query if context-dependent
+rewritten_query = await rewrite_query_with_context(message, history)
+query_embedding = await embed_texts([rewritten_query])
+# Use rewritten_query for BM25 too
+chunks = await retrieve_hybrid(project_id, query_embedding[0], rewritten_query)
+```
+
+**Settings:**
+```python
+RAG_ENABLE_QUERY_REWRITE: bool = True
+```
+
+---
+
+### P3: Duplicate Content Detection
+
+Prevent indexing the same content twice when a user re-uploads a document.
+
+**Solution:** Hash each chunk's raw content and skip duplicates at indexing time.
+
+```python
+import hashlib
+
+def _content_hash(text: str) -> str:
+    """SHA-256 hash of normalized text content."""
+    normalized = " ".join(text.lower().split())
+    return hashlib.sha256(normalized.encode()).hexdigest()
+```
+
+At indexing time:
+```python
+# Before inserting chunks, check for existing hashes in the project
+existing_hashes = await _get_existing_chunk_hashes(project_id, session)
+new_chunks = [c for c in chunks if _content_hash(c["raw_content"]) not in existing_hashes]
+```
+
+**Data model:** Add `content_hash` column to `page_chunks`:
+```sql
+ALTER TABLE page_chunks ADD COLUMN IF NOT EXISTS content_hash VARCHAR(64);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_page_chunks_content_hash
+    ON page_chunks (project_id, content_hash);
+```
+
+---
+
+### P4: Adaptive Chunk Size by Document Type
+
+Different document types need different chunk sizes for optimal retrieval.
+
+**Solution:** Detect document type at indexing time and adjust chunk parameters.
+
+```python
+CHUNK_PROFILES = {
+    "resume": {"chunk_size": 1500, "threshold": 2000, "overlap": 200},
+    "contract": {"chunk_size": 2000, "threshold": 2500, "overlap": 300},
+    "report": {"chunk_size": 1200, "threshold": 1500, "overlap": 200},
+    "spreadsheet": {"chunk_size": 800, "threshold": 1000, "overlap": 100},
+    "default": {"chunk_size": 1200, "threshold": 1500, "overlap": 200},
+}
+
+
+def _detect_document_profile(pages: list[dict], filename: str) -> str:
+    """
+    Detect document type for adaptive chunking.
+
+    Uses filename heuristics + content analysis.
+    """
+    name_lower = filename.lower()
+    if any(kw in name_lower for kw in ["resume", "cv", "curriculum"]):
+        return "resume"
+    if any(kw in name_lower for kw in ["contract", "agreement", "nda", "terms"]):
+        return "contract"
+    if any(kw in name_lower for kw in ["report", "analysis", "summary"]):
+        return "report"
+
+    # Content-based detection: check first page
+    if pages:
+        first_page = pages[0].get("text", "").lower()
+        if any(kw in first_page for kw in ["experience", "education", "skills", "objective"]):
+            return "resume"
+        if any(kw in first_page for kw in ["whereas", "hereby", "parties", "clause"]):
+            return "contract"
+
+    return "default"
+```
+
+**Integration:** In `chunk_pages()`, use the detected profile to set chunk_size/overlap:
+```python
+profile_name = _detect_document_profile(pages, filename)
+profile = CHUNK_PROFILES[profile_name]
+chunk_size = profile["chunk_size"]
+threshold = profile["threshold"]
+overlap = profile["overlap"]
+```
+
+---
+
+### P5: Embedding Truncation Guard
+
+DashScope text-embedding-v4 has a token limit (~8K tokens). Long pages with contextual headers might exceed this.
+
+**Solution:** Measure token count before embedding and split if needed.
+
+```python
+def _estimate_tokens(text: str) -> int:
+    """Rough token estimate: 1 token ≈ 4 characters for English, 2 for CJK."""
+    return len(text) // 3  # Conservative estimate
+
+MAX_EMBEDDING_TOKENS = 7500  # Leave buffer below 8K limit
+
+# In indexer, before embedding:
+for chunk in chunks:
+    if _estimate_tokens(chunk["content"]) > MAX_EMBEDDING_TOKENS:
+        # Split into sub-chunks and embed separately
+        # This should be rare with page-level chunking
+        logger.warning("Chunk exceeds embedding token limit, splitting",
+                       document_id=document_id, page=chunk["page_number"])
+```
+
+---
+
+### P6: Re-Index Endpoint
+
+Allow users to re-index a document (e.g., after chunking strategy changes).
+
+**API:**
+```
+POST /api/v1/projects/{project_id}/documents/{document_id}/reindex
+```
+
+**Logic:**
+1. Delete existing chunks for the document
+2. Download file from Supabase Storage
+3. Re-run the indexing pipeline with current settings
+
+---
+
+## Updated Implementation Priority
+
+| Phase | Change | Impact | Effort | Status |
+|-------|--------|--------|--------|--------|
+| **Phase 1a** | Contextual headers + page-level chunking | High | Medium | Spec ready |
+| **Phase 1a** | pymupdf4llm for text extraction | High | Low | Spec ready |
+| **Phase 1b** | Multi-language BM25 (`'simple'` config) | High | Low | Spec ready |
+| **Phase 1b** | Conversation-aware query rewriting | High | Medium | Spec ready |
+| **Phase 2a** | BM25 hybrid search (ts_vector + RRF) | High | Medium | Spec ready |
+| **Phase 2a** | Duplicate content detection (SHA-256 hash) | Medium | Low | Spec ready |
+| **Phase 2b** | Adaptive chunk size by document type | Medium | Low | Spec ready |
+| **Phase 2b** | Embedding truncation guard | Low | Low | Spec ready |
+| **Phase 3** | Re-index endpoint | Medium | Low | Spec ready |
+| **Phase 3** | Cross-encoder reranking | Medium | Medium | Future |
+
+---
+
 ## Rules
 
 - All settings come from `get_settings()`. No hardcoded values.
@@ -719,3 +960,6 @@ UPDATE page_chunks SET raw_content = content WHERE raw_content IS NULL;
 - `content` column always has the contextual header prepended (used for embedding).
 - `raw_content` column has the original text without header (used for BM25 and display).
 - The BM25 `search_vector` is auto-maintained by the PostgreSQL trigger — no application code needed.
+- Query rewriting is opt-in via `RAG_ENABLE_QUERY_REWRITE` setting.
+- Document type detection is heuristic-based — can be overridden by user in project settings (future).
+- Content hashes use SHA-256 on normalized (lowercased, whitespace-collapsed) text.
