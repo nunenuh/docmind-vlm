@@ -70,7 +70,8 @@ RAG Chat Pipeline (project-level):
 | `specs/backend/pipeline-processing.md` | LangGraph document processing pipeline |
 | `specs/backend/pipeline-chat.md` | LangGraph chat agent pipeline + RAG chat pipeline |
 | `specs/backend/projects.md` | Project + Persona data model, CRUD, API |
-| `specs/backend/rag.md` | RAG pipeline: chunking, embedding, pgvector retrieval |
+| `specs/backend/rag.md` | RAG pipeline v1: basic chunking, embedding, pgvector retrieval |
+| `specs/backend/rag-v2.md` | RAG pipeline v2: contextual chunking, hybrid search (BM25+vector), RRF |
 | `specs/backend/streaming-thinking.md` | DashScope SSE streaming with thinking/reasoning |
 | `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
 | `specs/frontend/state.md` | State management: React Query + Zustand |
