@@ -166,6 +166,20 @@ class DocumentUseCase:
             yield _sse("error", 0, "Failed to load document file")
             return
 
+        # Auto-classify if no template specified
+        if not template_type:
+            yield _sse("classify", 5, "Auto-detecting document type...")
+            try:
+                detected_type = await self._auto_classify(file_bytes, getattr(doc, "file_type", "pdf"))
+                if detected_type and detected_type != "unknown":
+                    template_type = detected_type
+                    yield _sse("classify", 10, f"Detected: {detected_type}")
+                else:
+                    yield _sse("classify", 10, "Using general extraction")
+            except Exception as e:
+                logger.warning("Auto-classify failed: %s", e)
+                yield _sse("classify", 10, "Using general extraction")
+
         # Build initial pipeline state
         queue: asyncio.Queue[dict | None] = asyncio.Queue()
 
@@ -228,3 +242,58 @@ class DocumentUseCase:
             logger.error("processing_stream_error: %s", e, exc_info=True)
             await self.repo.update_status(document_id, "error")
             yield _sse("error", 0, "Processing failed unexpectedly")
+
+    async def _auto_classify(self, file_bytes: bytes, file_type: str) -> str | None:
+        """Auto-classify document type using VLM.
+
+        Args:
+            file_bytes: Raw file bytes.
+            file_type: File extension.
+
+        Returns:
+            Detected template type string, or None.
+        """
+        import cv2
+        import numpy as np
+        from docmind.library.providers.factory import get_vlm_provider
+        from docmind.modules.templates.repositories import TemplateRepository
+
+        # Convert to image
+        if file_type == "pdf":
+            try:
+                import fitz
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                page = doc[0]
+                pix = page.get_pixmap(dpi=150)
+                arr = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, pix.n)
+                image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else arr
+                doc.close()
+            except Exception:
+                return None
+        else:
+            nparr = np.frombuffer(file_bytes, np.uint8)
+            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            if image is None:
+                return None
+
+        # Get available template types
+        repo = TemplateRepository()
+        templates = await repo.list_all()
+        template_types = [t.type for t in templates]
+        types_str = ", ".join(template_types)
+
+        provider = get_vlm_provider()
+        prompt = (
+            f"What type of document is this? Choose from: {types_str}, or 'unknown' if none match. "
+            "Return ONLY the type name, nothing else."
+        )
+
+        response = await provider.extract(images=[image], prompt=prompt)
+        content = response.get("content", "").strip().lower().replace('"', "").replace("'", "")
+
+        # Match against known types
+        for t_type in template_types:
+            if t_type in content:
+                return t_type
+
+        return content if content in template_types else None

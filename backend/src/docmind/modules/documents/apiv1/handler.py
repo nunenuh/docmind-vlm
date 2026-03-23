@@ -174,3 +174,28 @@ async def process_document(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@router.post("/batch", response_model=list[DocumentResponse])
+async def batch_upload(
+    files: list[UploadFile] = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Upload multiple documents at once.
+
+    Returns list of created document records.
+    Processing is NOT started automatically — use /process for each.
+    """
+    usecase = DocumentUseCase()
+    results = []
+    for file in files:
+        try:
+            doc = await usecase.create_document(
+                user_id=current_user["id"],
+                file=file,
+            )
+            results.append(doc)
+        except Exception as e:
+            logger.error("batch_upload_failed for %s: %s", file.filename, e)
+            # Continue with remaining files
+    return results
