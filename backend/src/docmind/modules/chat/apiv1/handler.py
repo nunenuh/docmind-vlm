@@ -21,7 +21,7 @@ async def send_message(
     current_user: dict = Depends(get_current_user),
 ):
     doc_usecase = DocumentUseCase()
-    document = doc_usecase.get_document(
+    document = await doc_usecase.get_document(
         user_id=current_user["id"], document_id=document_id
     )
     if document is None:

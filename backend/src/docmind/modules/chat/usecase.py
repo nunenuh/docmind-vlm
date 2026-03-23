@@ -1,16 +1,16 @@
 """
 docmind/modules/chat/usecase.py
 
-Chat use case — orchestrates chat pipeline, message persistence, and SSE streaming.
+Chat use case — orchestrates per-document chat with VLM streaming + thinking.
+Uses extracted fields as context for grounded answers.
 """
 
-import asyncio
 import json
-from typing import Any, AsyncGenerator
+from typing import AsyncGenerator
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.library.pipeline.chat import run_chat_pipeline
+from docmind.library.providers.factory import get_vlm_provider
 
 from .repositories import ChatRepository
 from .schemas import (
@@ -21,9 +21,21 @@ from .schemas import (
 
 logger = get_logger(__name__)
 
+DOCUMENT_CHAT_SYSTEM_PROMPT = """You are a document analysis assistant. You MUST answer based ONLY on the extracted data and document context provided below.
+
+EXTRACTED FIELDS:
+{fields_text}
+
+INSTRUCTIONS:
+- Answer questions about the document using ONLY the extracted fields above
+- If a field has low confidence (<0.5), mention that the value might be uncertain
+- If asked about something not in the extracted fields, say you don't have that information
+- Be precise and cite specific field values
+- For Indonesian documents (KTP, KK, etc.), use the correct Indonesian field names"""
+
 
 class ChatUseCase:
-    """Orchestrates chat operations across pipeline, repository, and service."""
+    """Orchestrates per-document chat with VLM streaming."""
 
     def __init__(self, repo: ChatRepository | None = None) -> None:
         self.repo = repo or ChatRepository()
@@ -35,11 +47,11 @@ class ChatUseCase:
 
     async def _load_context(
         self, document_id: str, user_id: str
-    ) -> tuple[list[Any], list[dict], list[dict]]:
-        """Load context for the chat pipeline.
+    ) -> tuple[list[dict], list[dict]]:
+        """Load extracted fields and conversation history.
 
         Returns:
-            Tuple of (page_images, extracted_fields, conversation_history).
+            Tuple of (extracted_fields, conversation_history).
         """
         extracted_fields_orm = await self.repo.get_extracted_fields(document_id)
         extracted_fields = [
@@ -60,106 +72,91 @@ class ChatUseCase:
             for m in recent
         ]
 
-        # Page images would be loaded from storage in production
-        page_images: list[Any] = []
+        return extracted_fields, conversation_history
 
-        return page_images, extracted_fields, conversation_history
+    def _format_fields(self, fields: list[dict]) -> str:
+        """Format extracted fields as text for the system prompt."""
+        if not fields:
+            return "No fields have been extracted yet. The document has not been processed."
+
+        lines = []
+        for f in fields:
+            conf = f.get("confidence", 0)
+            conf_label = "HIGH" if conf >= 0.8 else "MEDIUM" if conf >= 0.5 else "LOW"
+            value = f.get("field_value", "N/A") or "N/A"
+            key = f.get("field_key", "unknown")
+            lines.append(f"- {key}: {value} (confidence: {conf_label}, {conf:.0%})")
+
+        return "\n".join(lines)
 
     async def _chat_stream(
         self, document_id: str, user_id: str, message: str
     ) -> AsyncGenerator[str, None]:
-        def _sse(data: dict) -> str:
-            return f"data: {json.dumps(data)}\n\n"
+        settings = get_settings()
+
+        def _sse(event: str, data: dict) -> str:
+            return f"data: {json.dumps({'event': event, **data})}\n\n"
 
         # Persist user message
         await self.repo.save_message(document_id, user_id, "user", message)
 
         # Load context
         try:
-            page_images, extracted_fields, conversation_history = await self._load_context(
+            extracted_fields, conversation_history = await self._load_context(
                 document_id, user_id
             )
         except Exception as e:
             logger.error("chat_context_load_failed: %s", e, exc_info=True)
-            yield _sse({"type": "error", "message": "Failed to load document context"})
+            yield _sse("error", {"message": "Failed to load document context"})
             return
 
-        # Set up streaming queue
-        queue: asyncio.Queue[dict | None] = asyncio.Queue()
+        yield _sse("status", {"message": "Loading document context..."})
 
-        def on_event(event_type: str, **kwargs: Any) -> None:
-            queue.put_nowait({"type": event_type, **kwargs})
+        # Build system prompt with extracted fields
+        fields_text = self._format_fields(extracted_fields)
+        system_prompt = DOCUMENT_CHAT_SYSTEM_PROMPT.format(fields_text=fields_text)
 
-        initial_state: dict = {
-            "document_id": document_id,
-            "user_id": user_id,
-            "message": message,
-            "page_images": page_images,
-            "extracted_fields": extracted_fields,
-            "conversation_history": conversation_history,
-            "intent": "",
-            "intent_confidence": 0.0,
-            "relevant_fields": [],
-            "re_queried_regions": [],
-            "raw_answer": "",
-            "answer": "",
-            "citations": [],
-            "error_message": None,
-            "stream_callback": on_event,
-        }
+        yield _sse("status", {"message": "Generating response..."})
 
-        # Run pipeline in background thread
-        pipeline_task = asyncio.create_task(
-            asyncio.to_thread(run_chat_pipeline, initial_state)
-        )
+        # Stream with thinking
+        provider = get_vlm_provider()
+        full_answer = ""
+        full_thinking = ""
 
-        # Yield SSE events
         try:
-            while not pipeline_task.done():
-                try:
-                    event = await asyncio.wait_for(queue.get(), timeout=get_settings().CHAT_HEARTBEAT_TIMEOUT)
-                    if event is None:
-                        break
-                    yield _sse(event)
-                except asyncio.TimeoutError:
-                    yield _sse({"type": "heartbeat"})
-
-            # Drain remaining events
-            while not queue.empty():
-                event = queue.get_nowait()
-                if event is not None:
-                    yield _sse(event)
-
-            # Get pipeline result
-            result = await pipeline_task
-            answer = result.get("answer", "")
-            citations = result.get("citations", [])
-
-            # Persist assistant message
-            msg_id = await self.repo.save_message(
-                document_id, user_id, "assistant", answer, citations=citations
-            )
-
-            yield _sse({"type": "done", "message_id": msg_id})
+            async for event in provider.chat_stream(
+                images=[],
+                message=message,
+                history=conversation_history[-6:],
+                system_prompt=system_prompt,
+                enable_thinking=settings.ENABLE_THINKING,
+            ):
+                if event["type"] == "thinking":
+                    full_thinking += event["content"]
+                    yield _sse("thinking", {"content": event["content"]})
+                elif event["type"] == "answer":
+                    full_answer += event["content"]
+                    yield _sse("token", {"content": event["content"]})
+                elif event["type"] == "done":
+                    pass
 
         except Exception as e:
             logger.error("chat_stream_error: %s", e, exc_info=True)
-            yield _sse({"type": "error", "message": "Chat processing failed"})
+            full_answer = "I encountered an error while processing your question. Please try again."
+            yield _sse("token", {"content": full_answer})
+
+        # Persist assistant message
+        msg_id = await self.repo.save_message(
+            document_id, user_id, "assistant", full_answer
+        )
+
+        yield _sse("answer", {"content": full_answer})
+        yield _sse("done", {"message_id": msg_id})
 
     async def get_history(
         self, document_id: str, user_id: str, page: int, limit: int
     ) -> ChatHistoryResponse:
-        """Get paginated chat history.
-
-        Args:
-            document_id: The document ID.
-            user_id: The user ID.
-            page: Page number (1-based).
-            limit: Items per page.
-
-        Returns:
-            ChatHistoryResponse with mapped messages and citations.
-        """
+        """Get paginated chat history."""
         items_orm, total = await self.repo.get_history(
             document_id, user_id, page, limit
         )
