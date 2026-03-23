@@ -88,7 +88,7 @@ logs-frontend: ## Tail frontend log
 # ── Supabase Local ────────────────────────────────────
 
 supabase-start: ## Start local Supabase (Postgres + Auth + Storage)
-	npx supabase start
+	@set -a && . backend/.env && set +a && npx supabase start
 
 supabase-stop: ## Stop local Supabase
 	npx supabase stop

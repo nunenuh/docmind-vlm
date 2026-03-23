@@ -36,12 +36,12 @@ def extract_text_from_pdf(file_bytes: bytes) -> list[dict]:
 
         doc = fitz.open(stream=file_bytes, filetype="pdf")
         page_count = len(doc)
-        doc.close()
 
-        # Extract per-page using pymupdf4llm page_chunks
+        # pymupdf4llm.to_markdown expects a fitz.Document, not raw bytes
         page_chunks = pymupdf4llm.to_markdown(
-            file_bytes, page_chunks=True, show_progress=False
+            doc, page_chunks=True, show_progress=False
         )
+        doc.close()
 
         pages: list[dict] = []
         for i, chunk in enumerate(page_chunks):

@@ -1,9 +1,19 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, User, Bot } from "lucide-react";
+import { Send, Loader2, User, Bot, FileText, Sparkles } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { sendProjectChat } from "@/lib/api";
 import { fetchConversation } from "@/lib/api";
 import { useProjectConversations } from "@/hooks/useProjects";
 import type { MessageResponse } from "@/types/api";
+
+interface Citation {
+  source_index: number;
+  document_id: string;
+  page_number: number;
+  content_preview: string;
+  similarity: number;
+}
 
 interface ProjectChatPanelProps {
   projectId: string;
@@ -18,13 +28,14 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
   const [input, setInput] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState("");
+  const [isThinking, setIsThinking] = useState(false);
   const [isLoadingMessages, setIsLoadingMessages] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const prevConvIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length, streamingContent]);
+  }, [messages.length, streamingContent, isThinking]);
 
   // Load messages when active conversation changes
   useEffect(() => {
@@ -59,6 +70,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     const message = input.trim();
     setInput("");
     setIsStreaming(true);
+    setIsThinking(true);
     setStreamingContent("");
 
     const userMsg: MessageResponse = {
@@ -71,6 +83,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     setMessages((prev) => [...prev, userMsg]);
 
     let answer = "";
+    let citations: Citation[] = [];
 
     sendProjectChat(
       projectId,
@@ -78,19 +91,46 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
       activeConversationId,
       (data: unknown) => {
         const event = data as Record<string, unknown>;
-        if (event.event === "answer" || event.type === "answer") {
-          answer = (event.content as string) ?? "";
-          setStreamingContent(answer);
-        } else if (event.event === "token" || event.type === "token") {
-          answer += (event.content as string) ?? "";
-          setStreamingContent(answer);
-        }
+
+        // Capture conversation ID
         if (event.conversation_id) {
           onConversationCreated(event.conversation_id as string);
+        }
+
+        if (event.event === "answer" || event.type === "answer") {
+          setIsThinking(false);
+          answer = (event.content as string) ?? "";
+          setStreamingContent(answer);
+
+          // Parse citations if present
+          if (event.citations) {
+            try {
+              citations = typeof event.citations === "string"
+                ? JSON.parse(event.citations)
+                : (event.citations as Citation[]);
+            } catch {
+              // Ignore parse errors
+            }
+          }
+        } else if (event.event === "token" || event.type === "token") {
+          setIsThinking(false);
+          answer += (event.content as string) ?? "";
+          setStreamingContent(answer);
+        } else if (event.event === "citations" || event.type === "citations") {
+          if (event.citations) {
+            try {
+              citations = typeof event.citations === "string"
+                ? JSON.parse(event.citations)
+                : (event.citations as Citation[]);
+            } catch {
+              // Ignore parse errors
+            }
+          }
         }
       },
       (error: Error) => {
         setIsStreaming(false);
+        setIsThinking(false);
         setStreamingContent("");
         setMessages((prev) => [
           ...prev,
@@ -104,7 +144,9 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
         ]);
       },
       () => {
+        // Stream complete — add final message (replace streaming bubble)
         setIsStreaming(false);
+        setIsThinking(false);
         if (answer) {
           setMessages((prev) => [
             ...prev,
@@ -112,7 +154,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               id: `assistant-${Date.now()}`,
               role: "assistant",
               content: answer,
-              citations: null,
+              citations: citations.length > 0 ? JSON.stringify(citations) : null,
               created_at: new Date().toISOString(),
             },
           ]);
@@ -159,14 +201,35 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
           </>
         )}
 
+        {/* Thinking indicator */}
+        {isThinking && (
+          <div className="flex gap-3">
+            <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+              <Bot className="w-4 h-4 text-indigo-400" />
+            </div>
+            <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3">
+              <div className="flex items-center gap-2 text-sm text-gray-400">
+                <Sparkles className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                <span>Searching documents & thinking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Streaming response */}
         {isStreaming && streamingContent && (
           <div className="flex gap-3">
             <div className="w-8 h-8 rounded-full bg-indigo-500/20 flex items-center justify-center flex-shrink-0 mt-0.5">
               <Bot className="w-4 h-4 text-indigo-400" />
             </div>
             <div className="bg-[#12121a] border border-[#1e1e2e] rounded-xl px-4 py-3 max-w-[80%]">
-              <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{streamingContent}</p>
-              <Loader2 className="w-3 h-3 text-indigo-400 animate-spin mt-2" />
+              <div className="text-sm text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{streamingContent}</ReactMarkdown>
+              </div>
+              <div className="flex items-center gap-1.5 mt-2">
+                <Loader2 className="w-3 h-3 text-indigo-400 animate-spin" />
+                <span className="text-xs text-gray-500">Generating...</span>
+              </div>
             </div>
           </div>
         )}
@@ -202,6 +265,18 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
 function MessageBubble({ message }: { message: MessageResponse }) {
   const isUser = message.role === "user";
 
+  // Parse citations from JSON string
+  const parsedCitations: Citation[] = (() => {
+    if (!message.citations) return [];
+    try {
+      return typeof message.citations === "string"
+        ? JSON.parse(message.citations)
+        : (message.citations as unknown as Citation[]);
+    } catch {
+      return [];
+    }
+  })();
+
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
@@ -211,11 +286,29 @@ function MessageBubble({ message }: { message: MessageResponse }) {
       </div>
       <div className={`max-w-[80%] ${isUser ? "text-right" : ""}`}>
         <div className={`rounded-xl px-4 py-3 ${isUser ? "bg-indigo-600/20 border border-indigo-500/20" : "bg-[#12121a] border border-[#1e1e2e]"}`}>
-          <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          {isUser ? (
+            <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{message.content}</p>
+          ) : (
+            <div className="text-sm text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-white prose-code:text-indigo-300 prose-code:bg-[#1a1a2a] prose-code:px-1 prose-code:rounded">
+              <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+            </div>
+          )}
         </div>
-        {message.citations && (
-          <div className="mt-1.5 text-xs text-gray-500 italic">
-            {message.citations}
+
+        {/* Rendered citations */}
+        {parsedCitations.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {parsedCitations.map((cite) => (
+              <div
+                key={cite.source_index}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#12121a] border border-[#2a2a3a] rounded text-xs text-gray-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors cursor-default"
+                title={cite.content_preview}
+              >
+                <FileText className="w-3 h-3" />
+                <span>Source {cite.source_index}</span>
+                <span className="text-gray-600">p.{cite.page_number}</span>
+              </div>
+            ))}
           </div>
         )}
       </div>

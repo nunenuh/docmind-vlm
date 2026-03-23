@@ -1,14 +1,53 @@
+import { useState } from "react";
 import { FileText } from "lucide-react";
 import { Navigate } from "react-router-dom";
-import { signInWithGoogle, signInWithGitHub } from "@/lib/supabase";
+import {
+  signInWithGoogle,
+  signInWithGitHub,
+  signInWithEmail,
+  signUpWithEmail,
+} from "@/lib/supabase";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function LoginPage() {
   const { session, isLoading } = useAuthStore();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSignUp, setIsSignUp] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   if (!isLoading && session) {
     return <Navigate to="/dashboard" replace />;
   }
+
+  const handleEmailAuth = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setMessage("");
+    setSubmitting(true);
+
+    try {
+      if (isSignUp) {
+        const { error: signUpError } = await signUpWithEmail(email, password);
+        if (signUpError) {
+          setError(signUpError.message);
+        } else {
+          setMessage("Account created! Check your email to confirm, or sign in directly.");
+        }
+      } else {
+        const { error: signInError } = await signInWithEmail(email, password);
+        if (signInError) {
+          setError(signInError.message);
+        }
+      }
+    } catch {
+      setError("An unexpected error occurred");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4">
@@ -18,7 +57,69 @@ export function LoginPage() {
             <FileText className="w-8 h-8 text-blue-400" />
             <span className="text-2xl font-bold text-white">DocMind-VLM</span>
           </div>
-          <p className="text-gray-400">Sign in to get started</p>
+          <p className="text-gray-400">
+            {isSignUp ? "Create an account" : "Sign in to get started"}
+          </p>
+        </div>
+
+        {/* Email/Password Form */}
+        <form onSubmit={handleEmailAuth} className="space-y-3 mb-4">
+          <input
+            type="email"
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+          />
+          <input
+            type="password"
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            minLength={6}
+            className="w-full bg-gray-900 border border-gray-700 text-white rounded-lg py-3 px-4 focus:outline-none focus:border-blue-500 placeholder-gray-500"
+          />
+          {error && (
+            <p className="text-red-400 text-sm">{error}</p>
+          )}
+          {message && (
+            <p className="text-green-400 text-sm">{message}</p>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-800 disabled:cursor-not-allowed text-white font-medium py-3 px-4 rounded-lg transition-colors"
+          >
+            {submitting
+              ? "..."
+              : isSignUp
+                ? "Create Account"
+                : "Sign In"}
+          </button>
+        </form>
+
+        <button
+          onClick={() => {
+            setIsSignUp(!isSignUp);
+            setError("");
+            setMessage("");
+          }}
+          className="w-full text-sm text-gray-400 hover:text-white transition-colors mb-6"
+        >
+          {isSignUp
+            ? "Already have an account? Sign in"
+            : "Don't have an account? Create one"}
+        </button>
+
+        <div className="relative mb-4">
+          <div className="absolute inset-0 flex items-center">
+            <div className="w-full border-t border-gray-800" />
+          </div>
+          <div className="relative flex justify-center text-xs">
+            <span className="bg-gray-950 px-2 text-gray-500">or continue with</span>
+          </div>
         </div>
 
         <div className="space-y-3">
