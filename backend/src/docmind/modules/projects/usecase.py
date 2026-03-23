@@ -235,6 +235,47 @@ class ProjectUseCase:
             return False
         return await self.repo.remove_document(project_id, document_id)
 
+    async def reindex_document(
+        self, user_id: str, project_id: str, document_id: str
+    ) -> int | None:
+        """Re-index a document: delete old RAG chunks and re-index.
+
+        Args:
+            user_id: Authenticated user.
+            project_id: Project the document belongs to.
+            document_id: Document to re-index.
+
+        Returns:
+            Number of new chunks created, or None if not found.
+        """
+        from docmind.library.rag.indexer import reindex_document
+        from docmind.modules.documents.services import DocumentService
+
+        project = await self.repo.get_by_id(project_id, user_id)
+        if project is None:
+            return None
+
+        docs = await self.repo.list_documents(project_id, user_id)
+        doc = next((d for d in docs if str(d.id) == document_id), None)
+        if doc is None:
+            return None
+
+        # Download file from storage
+        service = DocumentService()
+        file_bytes = service.load_file_bytes(doc.storage_path)
+
+        # Re-index
+        count = await reindex_document(
+            document_id=document_id,
+            project_id=project_id,
+            file_bytes=file_bytes,
+            file_type=doc.file_type,
+            filename=doc.filename,
+        )
+
+        logger.info("Reindexed document %s: %d chunks", document_id, count)
+        return count
+
     async def list_conversations(
         self, user_id: str, project_id: str
     ) -> list[ConversationResponse]:

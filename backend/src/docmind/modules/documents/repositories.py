@@ -19,6 +19,7 @@ from docmind.dbase.psql.models import (
     Document,
     ExtractedField,
     Extraction,
+    PageChunk,
 )
 
 logger = get_logger(__name__)
@@ -66,22 +67,35 @@ class DocumentRepository:
         user_id: str,
         page: int,
         limit: int,
+        standalone_only: bool = False,
     ) -> tuple[list[Document], int]:
-        """Get paginated documents for a user. Returns (items, total_count)."""
+        """Get paginated documents for a user.
+
+        Args:
+            user_id: Owner user ID.
+            page: Page number (1-based).
+            limit: Items per page.
+            standalone_only: If True, only return docs NOT linked to a project.
+
+        Returns:
+            Tuple of (items, total_count).
+        """
         if page < 1:
             raise ValueError(f"page must be >= 1, got {page}")
 
         offset = (page - 1) * limit
 
         async with AsyncSessionLocal() as session:
-            count_stmt = select(func.count()).select_from(Document).where(
-                Document.user_id == user_id
-            )
+            base_filter = [Document.user_id == user_id]
+            if standalone_only:
+                base_filter.append(Document.project_id.is_(None))
+
+            count_stmt = select(func.count()).select_from(Document).where(*base_filter)
             total = (await session.execute(count_stmt)).scalar() or 0
 
             stmt = (
                 select(Document)
-                .where(Document.user_id == user_id)
+                .where(*base_filter)
                 .order_by(Document.created_at.desc())
                 .offset(offset)
                 .limit(limit)
@@ -153,6 +167,14 @@ class DocumentRepository:
                         Extraction.document_id == document_id
                     )
                 )
+
+                # Delete RAG chunks
+                await session.execute(
+                    sa_delete(PageChunk).where(
+                        PageChunk.document_id == document_id
+                    )
+                )
+
                 await session.delete(doc)
                 await session.commit()
 

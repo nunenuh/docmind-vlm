@@ -104,10 +104,13 @@ async def create_document(
 async def list_documents(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
+    standalone: bool = Query(default=False, description="If true, only return documents not linked to a project"),
     current_user: dict = Depends(get_current_user),
 ):
     usecase = DocumentUseCase()
-    return await usecase.get_documents(user_id=current_user["id"], page=page, limit=limit)
+    return await usecase.get_documents(
+        user_id=current_user["id"], page=page, limit=limit, standalone_only=standalone
+    )
 
 
 @router.get("/{document_id}", response_model=DocumentResponse)

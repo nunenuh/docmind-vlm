@@ -63,8 +63,10 @@ export async function uploadDocument(file: File): Promise<DocumentResponse> {
   return response.json() as Promise<DocumentResponse>;
 }
 
-export async function fetchDocuments(page: number, limit: number): Promise<DocumentListResponse> {
-  return apiFetch<DocumentListResponse>(`/api/v1/documents?page=${page}&limit=${limit}`);
+export async function fetchDocuments(page: number, limit: number, standalone = false): Promise<DocumentListResponse> {
+  const params = new URLSearchParams({ page: String(page), limit: String(limit) });
+  if (standalone) params.set("standalone", "true");
+  return apiFetch<DocumentListResponse>(`/api/v1/documents?${params}`);
 }
 
 export async function fetchDocument(id: string): Promise<DocumentResponse> {

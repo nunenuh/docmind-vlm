@@ -173,6 +173,24 @@ async def remove_document_from_project(
         )
 
 
+@router.post("/{project_id}/documents/{document_id}/reindex")
+async def reindex_document(
+    project_id: str,
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Re-index a document's RAG chunks (delete old + re-extract + re-embed)."""
+    usecase = ProjectUseCase()
+    result = await usecase.reindex_document(
+        user_id=current_user["id"],
+        project_id=project_id,
+        document_id=document_id,
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Project or document not found")
+    return {"chunks_created": result}
+
+
 @router.post("/{project_id}/chat")
 async def project_chat(
     project_id: str,

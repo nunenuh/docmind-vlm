@@ -100,9 +100,9 @@ class DocumentUseCase:
         )
 
     async def get_documents(
-        self, user_id: str, page: int, limit: int
+        self, user_id: str, page: int, limit: int, standalone_only: bool = False
     ) -> DocumentListResponse:
-        items, total = await self.repo.list_for_user(user_id, page, limit)
+        items, total = await self.repo.list_for_user(user_id, page, limit, standalone_only=standalone_only)
         return DocumentListResponse(
             items=[
                 DocumentResponse(
