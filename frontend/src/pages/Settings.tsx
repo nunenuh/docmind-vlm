@@ -5,7 +5,7 @@ import {
   Loader2, X, Bot, ChevronDown, ChevronUp, Code, FormInput,
 } from "lucide-react";
 import { toast } from "sonner";
-import { useTemplates, useDeleteTemplate, useDuplicateTemplate, useCreateTemplate } from "@/hooks/useTemplates";
+import { useTemplates, useDeleteTemplate, useDuplicateTemplate, useCreateTemplate, useUpdateTemplate, useTemplateDetail } from "@/hooks/useTemplates";
 import { usePersonas } from "@/hooks/usePersonas";
 import type { TemplateSummary, PersonaResponse } from "@/types/api";
 
@@ -75,6 +75,7 @@ function TemplatesTab() {
   const deleteTemplate = useDeleteTemplate();
   const duplicateTemplate = useDuplicateTemplate();
   const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const templates = data?.items ?? [];
   const presets = templates.filter((t) => t.is_preset);
@@ -108,7 +109,7 @@ function TemplatesTab() {
           </h3>
           <div className="grid sm:grid-cols-2 gap-2">
             {presets.map((t) => (
-              <TemplateCard key={t.id} template={t} onDuplicate={() => duplicateTemplate.mutate(t.id)} />
+              <TemplateCard key={t.id} template={t} onDuplicate={() => duplicateTemplate.mutate(t.id)} onEdit={() => setEditingId(t.id)} />
             ))}
           </div>
         </div>
@@ -140,6 +141,7 @@ function TemplatesTab() {
                 template={t}
                 onDelete={() => { if (window.confirm(`Delete "${t.name}"?`)) deleteTemplate.mutate(t.id); }}
                 onDuplicate={() => duplicateTemplate.mutate(t.id)}
+                onEdit={() => setEditingId(t.id)}
               />
             ))}
           </div>
@@ -147,6 +149,7 @@ function TemplatesTab() {
       </div>
 
       {showCreate && <CreateTemplateModal onClose={() => setShowCreate(false)} />}
+      {editingId && <EditTemplateModal templateId={editingId} onClose={() => setEditingId(null)} />}
     </div>
   );
 }
@@ -327,9 +330,12 @@ function CreateTemplateModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TemplateCard({ template, onDelete, onDuplicate }: { template: TemplateSummary; onDelete?: () => void; onDuplicate?: () => void }) {
+function TemplateCard({ template, onDelete, onDuplicate, onEdit }: { template: TemplateSummary; onDelete?: () => void; onDuplicate?: () => void; onEdit?: () => void }) {
   return (
-    <div className="group bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4 hover:border-[#2a2a3a] transition-colors">
+    <div
+      onClick={onEdit}
+      className="group bg-[#12121a] border border-[#1e1e2e] rounded-xl p-4 hover:border-[#2a2a3a] transition-colors cursor-pointer"
+    >
       <div className="flex items-start justify-between mb-2">
         <div className="min-w-0">
           <h4 className="text-sm text-white font-medium truncate">{template.name}</h4>
@@ -337,12 +343,12 @@ function TemplateCard({ template, onDelete, onDuplicate }: { template: TemplateS
         </div>
         <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity ml-2">
           {onDuplicate && (
-            <button onClick={onDuplicate} className="p-1.5 text-gray-500 hover:text-indigo-400 rounded-md hover:bg-indigo-500/10" title="Duplicate">
+            <button onClick={(e) => { e.stopPropagation(); onDuplicate(); }} className="p-1.5 text-gray-500 hover:text-indigo-400 rounded-md hover:bg-indigo-500/10" title="Duplicate">
               <Copy className="w-3.5 h-3.5" />
             </button>
           )}
           {onDelete && (
-            <button onClick={onDelete} className="p-1.5 text-gray-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10" title="Delete">
+            <button onClick={(e) => { e.stopPropagation(); onDelete(); }} className="p-1.5 text-gray-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10" title="Delete">
               <Trash2 className="w-3.5 h-3.5" />
             </button>
           )}
@@ -354,6 +360,121 @@ function TemplateCard({ template, onDelete, onDuplicate }: { template: TemplateS
         </span>
         <span className="text-xs text-gray-600">{template.total_field_count} fields</span>
         {template.is_preset && <Tag className="w-3 h-3 text-gray-600 ml-auto" />}
+      </div>
+    </div>
+  );
+}
+
+function EditTemplateModal({ templateId, onClose }: { templateId: string; onClose: () => void }) {
+  const { data: template, isLoading } = useTemplateDetail(templateId);
+  const updateMutation = useUpdateTemplate();
+  const [jsonText, setJsonText] = useState("");
+  const [jsonError, setJsonError] = useState<string | null>(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Initialize JSON text when template loads
+  if (template && !initialized) {
+    setJsonText(JSON.stringify({
+      type: template.type,
+      name: template.name,
+      name_en: template.name_en || "",
+      description: template.description || "",
+      description_en: template.description_en || "",
+      category: template.category,
+      fields: template.fields || [],
+      extraction_prompt: template.extraction_prompt || "",
+    }, null, 2));
+    setInitialized(true);
+  }
+
+  const handleSave = () => {
+    try {
+      const parsed = JSON.parse(jsonText);
+      setJsonError(null);
+      updateMutation.mutate(
+        {
+          id: templateId,
+          data: {
+            name: parsed.name,
+            name_en: parsed.name_en,
+            description: parsed.description,
+            description_en: parsed.description_en,
+            category: parsed.category,
+            fields: parsed.fields || [],
+            extraction_prompt: parsed.extraction_prompt || "",
+          },
+        },
+        { onSuccess: () => onClose() },
+      );
+    } catch (e) {
+      setJsonError(`Invalid JSON: ${(e as Error).message}`);
+    }
+  };
+
+  const isPreset = template?.is_preset ?? false;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-[#12121a] border border-[#1e1e2e] rounded-2xl w-full max-w-2xl mx-4 shadow-2xl max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e2e]">
+          <div>
+            <h2 className="text-lg font-semibold text-white">
+              {isPreset ? "View Template" : "Edit Template"}
+            </h2>
+            {isPreset && (
+              <p className="text-xs text-amber-400 mt-0.5">Preset templates are read-only. Duplicate to edit.</p>
+            )}
+          </div>
+          <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-white rounded-lg hover:bg-white/5">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <p className="text-xs text-gray-500">
+                {isPreset
+                  ? "This is a preset template. You can view its definition but cannot edit it directly. Use 'Duplicate' to create an editable copy."
+                  : "Edit the template JSON. Changes will be saved when you click Save."}
+              </p>
+              <textarea
+                value={jsonText}
+                onChange={(e) => { setJsonText(e.target.value); setJsonError(null); }}
+                className="w-full bg-[#0a0a0f] border border-[#2a2a3a] rounded-lg px-4 py-3 text-sm text-gray-200 font-mono resize-none focus:outline-none focus:border-indigo-500 leading-relaxed"
+                rows={20}
+                spellCheck={false}
+                readOnly={isPreset}
+              />
+              {jsonError && (
+                <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-lg px-3 py-2">
+                  {jsonError}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-end gap-3 px-6 py-4 border-t border-[#1e1e2e]">
+          <button onClick={onClose} className="px-4 py-2.5 text-sm text-gray-400 hover:text-white rounded-lg hover:bg-white/5">
+            {isPreset ? "Close" : "Cancel"}
+          </button>
+          {!isPreset && (
+            <button
+              onClick={handleSave}
+              disabled={updateMutation.isPending}
+              className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              {updateMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+              Save Changes
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
