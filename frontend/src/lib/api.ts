@@ -281,3 +281,7 @@ export async function updatePersona(id: string, data: Partial<{ name: string; de
 export async function deletePersona(id: string): Promise<void> {
   await apiFetch<void>(`/api/v1/personas/${id}`, { method: "DELETE" });
 }
+
+export async function duplicatePersona(id: string): Promise<PersonaResponse> {
+  return apiFetch<PersonaResponse>(`/api/v1/personas/${id}/duplicate`, { method: "POST" });
+}

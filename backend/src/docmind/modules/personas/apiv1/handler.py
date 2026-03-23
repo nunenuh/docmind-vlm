@@ -1,23 +1,21 @@
-"""docmind/modules/personas/apiv1/handler.py"""
+"""docmind/modules/personas/apiv1/handler.py
+
+Persona CRUD + duplicate. All logic through PersonaUseCase.
+"""
 
 from fastapi import APIRouter, Depends, HTTPException
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 
-from ..repositories import PersonaRepository
-from ..schemas import (
-    PersonaCreate,
-    PersonaResponse,
-    PersonaUpdate,
-)
+from ..usecase import PersonaUseCase
+from ..schemas import PersonaCreate, PersonaResponse, PersonaUpdate
 
 logger = get_logger(__name__)
 router = APIRouter()
 
 
 def _to_response(persona: object) -> PersonaResponse:
-    """Convert a Persona ORM instance to a response schema."""
     return PersonaResponse(
         id=str(persona.id),  # type: ignore[attr-defined]
         name=persona.name,  # type: ignore[attr-defined]
@@ -32,11 +30,9 @@ def _to_response(persona: object) -> PersonaResponse:
 
 
 @router.get("", response_model=list[PersonaResponse])
-async def list_personas(
-    current_user: dict = Depends(get_current_user),
-):
-    repo = PersonaRepository()
-    personas = await repo.list_for_user(user_id=current_user["id"])
+async def list_personas(current_user: dict = Depends(get_current_user)):
+    usecase = PersonaUseCase()
+    personas = await usecase.list_personas(user_id=current_user["id"])
     return [_to_response(p) for p in personas]
 
 
@@ -45,16 +41,11 @@ async def create_persona(
     body: PersonaCreate,
     current_user: dict = Depends(get_current_user),
 ):
-    repo = PersonaRepository()
+    usecase = PersonaUseCase()
     try:
-        persona = await repo.create(
+        persona = await usecase.create_persona(
             user_id=current_user["id"],
-            name=body.name,
-            description=body.description,
-            system_prompt=body.system_prompt,
-            tone=body.tone,
-            rules=body.rules,
-            boundaries=body.boundaries,
+            data=body.model_dump(),
         )
         return _to_response(persona)
     except Exception as e:
@@ -68,21 +59,17 @@ async def update_persona(
     body: PersonaUpdate,
     current_user: dict = Depends(get_current_user),
 ):
-    repo = PersonaRepository()
+    usecase = PersonaUseCase()
     update_fields = body.model_dump(exclude_unset=True)
     if not update_fields:
-        # No fields to update — return existing
-        persona = await repo.get_by_id(persona_id)
+        persona = await usecase.get_persona(persona_id)
         if persona is None:
             raise HTTPException(status_code=404, detail="Persona not found")
         return _to_response(persona)
 
-    persona = await repo.update(persona_id, current_user["id"], **update_fields)
+    persona = await usecase.update_persona(persona_id, current_user["id"], update_fields)
     if persona is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Persona not found or cannot be modified",
-        )
+        raise HTTPException(status_code=404, detail="Persona not found or cannot be modified")
     return _to_response(persona)
 
 
@@ -91,10 +78,20 @@ async def delete_persona(
     persona_id: str,
     current_user: dict = Depends(get_current_user),
 ):
-    repo = PersonaRepository()
-    deleted = await repo.delete(persona_id, current_user["id"])
+    usecase = PersonaUseCase()
+    deleted = await usecase.delete_persona(persona_id, current_user["id"])
     if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail="Persona not found or cannot be deleted",
-        )
+        raise HTTPException(status_code=404, detail="Persona not found or cannot be deleted")
+
+
+@router.post("/{persona_id}/duplicate", response_model=PersonaResponse)
+async def duplicate_persona(
+    persona_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """Duplicate a persona (preset or custom) as user's custom persona."""
+    usecase = PersonaUseCase()
+    persona = await usecase.duplicate_persona(persona_id, current_user["id"])
+    if persona is None:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    return _to_response(persona)
