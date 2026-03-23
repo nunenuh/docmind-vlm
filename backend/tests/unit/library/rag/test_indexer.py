@@ -12,6 +12,7 @@ class TestIndexDocument:
     """Tests for index_document."""
 
     @pytest.mark.asyncio
+    @patch("docmind.library.rag.indexer._get_existing_hashes", new_callable=AsyncMock, return_value=set())
     @patch("docmind.library.rag.indexer.AsyncSessionLocal")
     @patch("docmind.library.rag.indexer.embed_texts")
     @patch("docmind.library.rag.indexer.extract_text")
@@ -22,10 +23,12 @@ class TestIndexDocument:
         mock_extract_text,
         mock_embed_texts,
         mock_session_cls,
+        mock_get_hashes,
     ):
         settings = MagicMock()
         settings.RAG_CHUNK_SIZE = 512
         settings.RAG_CHUNK_OVERLAP = 64
+        settings.RAG_MAX_EMBEDDING_TOKENS = 7500
         mock_get_settings.return_value = settings
 
         mock_extract_text.return_value = [

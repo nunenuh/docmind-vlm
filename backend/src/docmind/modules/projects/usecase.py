@@ -362,16 +362,30 @@ class ProjectUseCase:
         # Save user message
         await self.conv_repo.add_message(conversation_id, "user", message)
 
-        # --- RAG Retrieval ---
-        yield _sse("status", {"message": "Searching documents..."})
+        # --- Query Rewriting (resolve pronouns) ---
+        from docmind.library.rag.query_rewriter import rewrite_query_with_context
 
+        search_query = message
         try:
-            query_embedding = await embed_texts([message])
+            rewritten = await rewrite_query_with_context(message, history)
+            if rewritten != message:
+                search_query = rewritten
+                yield _sse("status", {"message": f"Searching: {rewritten[:60]}..."})
+            else:
+                yield _sse("status", {"message": "Searching documents..."})
+        except Exception as e:
+            logger.warning("Query rewrite failed: %s", e)
+            yield _sse("status", {"message": "Searching documents..."})
+
+        # --- RAG Retrieval (hybrid: vector + BM25) ---
+        try:
+            query_embedding = await embed_texts([search_query])
             chunks = await retrieve_similar_chunks(
                 query_embedding=query_embedding[0],
                 project_id=project_id,
                 top_k=settings.RAG_TOP_K,
                 threshold=settings.RAG_SIMILARITY_THRESHOLD,
+                query_text=search_query,
             )
         except Exception as e:
             logger.error("RAG retrieval failed: %s", e)

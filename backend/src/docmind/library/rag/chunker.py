@@ -1,53 +1,116 @@
-"""Header-aware contextual text chunking for RAG.
+"""Page-level contextual chunking for RAG v2.
 
-Two-stage chunking strategy (2026 best practice):
-1. Split by document structure (Markdown headers) first
-2. Then recursive split within sections by sentence boundaries
+Strategy (production-level):
+1. Keep full pages together when under threshold (preserves context)
+2. Split only pages that exceed threshold by headers then sentences
+3. Prepend contextual header: [Document: X] [Page: N/M] [Section: Y]
+4. Adaptive chunk size by document type (resume/contract/report)
+5. Store both contextualized content (for embedding) and raw content (for BM25)
 
-Each chunk is enriched with its section context (header path)
-so it's self-contained for retrieval.
+This solves the "Bima Jaya" problem — full page context prevents
+hallucination from isolated fragments.
 """
 
 from __future__ import annotations
 
+import hashlib
 import re
+from typing import Any
+
+from docmind.core.config import get_settings
 
 
-def chunk_text(text: str, chunk_size: int = 512, overlap: int = 64) -> list[str]:
-    """Split text into chunks using sentence boundaries with overlap.
+# --- Adaptive chunk profiles by document type ---
+
+CHUNK_PROFILES: dict[str, dict[str, int]] = {
+    "resume": {"chunk_size": 1500, "threshold": 2000, "overlap": 200},
+    "contract": {"chunk_size": 2000, "threshold": 2500, "overlap": 300},
+    "report": {"chunk_size": 1200, "threshold": 1500, "overlap": 200},
+    "spreadsheet": {"chunk_size": 800, "threshold": 1000, "overlap": 100},
+    "default": {"chunk_size": 1200, "threshold": 1500, "overlap": 200},
+}
+
+
+def detect_document_profile(pages: list[dict], filename: str) -> str:
+    """Detect document type for adaptive chunk sizing.
+
+    Uses filename heuristics + first-page content analysis.
 
     Args:
-        text: The input text to chunk.
-        chunk_size: Target chunk size in characters.
-        overlap: Number of characters to overlap between chunks.
+        pages: Extracted page dicts.
+        filename: Original filename.
 
     Returns:
-        List of chunk strings. Empty list if text is empty/whitespace.
+        Profile name: "resume", "contract", "report", "spreadsheet", or "default".
+    """
+    name_lower = filename.lower()
+
+    if any(kw in name_lower for kw in ["resume", "cv", "curriculum", "vitae"]):
+        return "resume"
+    if any(kw in name_lower for kw in ["contract", "agreement", "nda", "terms", "lease"]):
+        return "contract"
+    if any(kw in name_lower for kw in ["report", "analysis", "summary", "review"]):
+        return "report"
+    if any(kw in name_lower for kw in ["sheet", "spreadsheet", "data", "table"]):
+        return "spreadsheet"
+
+    # Content-based detection from first page
+    if pages:
+        first_page = pages[0].get("text", "").lower()
+        if any(kw in first_page for kw in ["experience", "education", "skills", "objective", "employment"]):
+            return "resume"
+        if any(kw in first_page for kw in ["whereas", "hereby", "parties", "clause", "agreement"]):
+            return "contract"
+
+    return "default"
+
+
+def _content_hash(text: str) -> str:
+    """SHA-256 hash of normalized text for duplicate detection.
+
+    Args:
+        text: Raw text content.
+
+    Returns:
+        64-character hex hash string.
+    """
+    normalized = " ".join(text.lower().split())
+    return hashlib.sha256(normalized.encode()).hexdigest()
+
+
+def _split_by_sentences(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """Split text by sentence boundaries with overlap.
+
+    Args:
+        text: Text to split.
+        chunk_size: Target chunk size in characters.
+        overlap: Overlap between consecutive chunks.
+
+    Returns:
+        List of chunk strings.
     """
     text = text.strip()
     if not text:
         return []
-
     if len(text) <= chunk_size:
         return [text]
 
     sentences = re.split(r"(?<=[.!?])\s+", text)
-
     chunks: list[str] = []
-    current_chunk = ""
+    current = ""
 
     for sentence in sentences:
-        if current_chunk and len(current_chunk) + len(sentence) + 1 > chunk_size:
-            chunks.append(current_chunk.strip())
-            if overlap > 0 and len(current_chunk) > overlap:
-                current_chunk = current_chunk[-overlap:] + " " + sentence
+        if current and len(current) + len(sentence) + 1 > chunk_size:
+            chunks.append(current.strip())
+            if overlap > 0 and len(current) > overlap:
+                current = current[-overlap:] + " " + sentence
             else:
-                current_chunk = sentence
+                current = sentence
         else:
-            current_chunk = (current_chunk + " " + sentence).strip() if current_chunk else sentence
+            current = (current + " " + sentence).strip() if current else sentence
 
-    if current_chunk.strip():
-        chunks.append(current_chunk.strip())
+    if current.strip():
+        chunks.append(current.strip())
 
     return chunks
 
@@ -60,7 +123,6 @@ def _split_by_headers(text: str) -> list[dict]:
 
     Returns:
         List of {"header": str, "level": int, "content": str} dicts.
-        Content between headers is grouped under the preceding header.
     """
     lines = text.split("\n")
     sections: list[dict] = []
@@ -71,7 +133,6 @@ def _split_by_headers(text: str) -> list[dict]:
     for line in lines:
         header_match = re.match(r"^(#{1,6})\s+(.+)", line.strip())
         if header_match:
-            # Save previous section
             if current_lines:
                 content = "\n".join(current_lines).strip()
                 if content:
@@ -86,7 +147,6 @@ def _split_by_headers(text: str) -> list[dict]:
         else:
             current_lines.append(line)
 
-    # Last section
     if current_lines:
         content = "\n".join(current_lines).strip()
         if content:
@@ -96,66 +156,73 @@ def _split_by_headers(text: str) -> list[dict]:
                 "content": content,
             })
 
-    # If no headers found, return entire text as one section
     if not sections and text.strip():
-        sections.append({
-            "header": "",
-            "level": 0,
-            "content": text.strip(),
-        })
+        sections.append({"header": "", "level": 0, "content": text.strip()})
 
     return sections
 
 
-def _contextualize_chunk(chunk_text: str, section_header: str, doc_context: str = "") -> str:
-    """Prepend section context to a chunk for self-contained retrieval.
+def _build_contextual_header(
+    filename: str,
+    page_number: int,
+    total_pages: int,
+    section_header: str = "",
+) -> str:
+    """Build contextual header for a chunk.
 
     Args:
-        chunk_text: The raw chunk text.
-        section_header: The header of the section this chunk belongs to.
-        doc_context: Optional document-level context (e.g. filename).
+        filename: Document filename.
+        page_number: Current page number.
+        total_pages: Total pages in document.
+        section_header: Section header (if any).
 
     Returns:
-        Contextualized chunk string.
+        Contextual header string.
     """
-    parts: list[str] = []
-    if doc_context:
-        parts.append(f"[Document: {doc_context}]")
+    parts = [f"[Document: {filename}]"]
+    parts.append(f"[Page: {page_number}/{total_pages}]")
     if section_header:
         parts.append(f"[Section: {section_header}]")
-    parts.append(chunk_text)
     return "\n".join(parts)
 
 
 def chunk_pages(
     pages: list[dict],
-    chunk_size: int = 512,
-    overlap: int = 64,
+    chunk_size: int | None = None,
+    overlap: int | None = None,
     doc_context: str = "",
+    page_chunk_threshold: int | None = None,
 ) -> list[dict]:
-    """Chunk all pages with header-aware splitting and contextual enrichment.
+    """Chunk pages with page-level preservation and contextual headers.
 
     Strategy:
-    1. For each page, split by Markdown headers into sections
-    2. Within each section, recursive split by sentences
-    3. Prepend section header to each chunk for context
+    1. Detect document type for adaptive chunk sizing
+    2. For each page: keep whole if under threshold, split if over
+    3. Prepend contextual header with document name, page, section
+    4. Generate content hash for duplicate detection
 
     Args:
         pages: List of {"page_number": int, "text": str, "headers": list} dicts.
-        chunk_size: Target chunk size in characters.
-        overlap: Number of characters to overlap between chunks.
-        doc_context: Optional document name for context prefix.
+        chunk_size: Override chunk size (uses config default if None).
+        overlap: Override overlap (uses config default if None).
+        doc_context: Document filename for context headers.
+        page_chunk_threshold: Override threshold for page-level chunking.
 
     Returns:
-        List of dicts:
-        {
-            "page_number": int,
-            "chunk_index": int,
-            "content": str (contextualized),
-            "section_header": str,
-            "raw_content": str (without context prefix),
-        }
+        List of chunk dicts with content, raw_content, page_number,
+        chunk_index, section_header, and content_hash.
     """
+    settings = get_settings()
+
+    # Adaptive sizing
+    profile_name = detect_document_profile(pages, doc_context)
+    profile = CHUNK_PROFILES[profile_name]
+
+    effective_chunk_size = chunk_size or profile["chunk_size"]
+    effective_overlap = overlap or profile["overlap"]
+    effective_threshold = page_chunk_threshold or profile["threshold"]
+
+    total_pages = len(pages)
     result: list[dict] = []
     global_index = 0
 
@@ -166,29 +233,57 @@ def chunk_pages(
 
         page_number = page["page_number"]
 
-        # Stage 1: Split by headers
-        sections = _split_by_headers(text)
+        if len(text) <= effective_threshold:
+            # Page-level chunk — keep whole page together
+            section_headers = page.get("headers", [])
+            primary_header = section_headers[0] if section_headers else ""
 
-        for section in sections:
-            header = section["header"]
-            content = section["content"]
+            header = _build_contextual_header(
+                doc_context, page_number, total_pages, primary_header
+            )
+            contextualized = f"{header}\n{text}"
 
-            # Stage 2: Recursive split within section
-            chunks = chunk_text(content, chunk_size=chunk_size, overlap=overlap)
+            result.append({
+                "page_number": page_number,
+                "chunk_index": global_index,
+                "content": contextualized,
+                "raw_content": text,
+                "section_header": primary_header,
+                "content_hash": _content_hash(text),
+            })
+            global_index += 1
+        else:
+            # Page too large — split by headers then sentences
+            sections = _split_by_headers(text)
 
-            for raw_chunk in chunks:
-                # Stage 3: Contextualize
-                contextualized = _contextualize_chunk(
-                    raw_chunk, header, doc_context
+            for section in sections:
+                section_header = section["header"]
+                section_content = section["content"]
+
+                sub_chunks = _split_by_sentences(
+                    section_content, effective_chunk_size, effective_overlap
                 )
 
-                result.append({
-                    "page_number": page_number,
-                    "chunk_index": global_index,
-                    "content": contextualized,
-                    "section_header": header,
-                    "raw_content": raw_chunk,
-                })
-                global_index += 1
+                for raw_chunk in sub_chunks:
+                    header = _build_contextual_header(
+                        doc_context, page_number, total_pages, section_header
+                    )
+                    contextualized = f"{header}\n{raw_chunk}"
+
+                    result.append({
+                        "page_number": page_number,
+                        "chunk_index": global_index,
+                        "content": contextualized,
+                        "raw_content": raw_chunk,
+                        "section_header": section_header,
+                        "content_hash": _content_hash(raw_chunk),
+                    })
+                    global_index += 1
 
     return result
+
+
+# Keep old function for backward compatibility
+def chunk_text(text: str, chunk_size: int = 512, overlap: int = 64) -> list[str]:
+    """Legacy function — split text by sentences with overlap."""
+    return _split_by_sentences(text, chunk_size, overlap)

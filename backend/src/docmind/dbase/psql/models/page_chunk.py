@@ -34,6 +34,12 @@ class PageChunk(Base):
     page_number: Mapped[int] = mapped_column(Integer, nullable=False)
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_content: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Original text without contextual header (for BM25)
+    content_hash: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )  # SHA-256 hash for duplicate detection
     embedding: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # JSON-serialized vector; will be Vector(1024) when pgvector is set up
