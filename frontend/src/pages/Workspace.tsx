@@ -1,5 +1,6 @@
 import { useParams, Link } from "react-router-dom";
 import { FileText, ChevronRight, Eye, EyeOff } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { useDocument, useDocumentUrl } from "@/hooks/useDocuments";
 import { DocumentViewer } from "@/components/workspace/DocumentViewer";
@@ -20,6 +21,7 @@ const tabs: { id: TabId; label: string }[] = [
 
 export function Workspace() {
   const { documentId } = useParams<{ documentId: string }>();
+  const queryClient = useQueryClient();
   const { activeTab, setActiveTab, overlayMode, setOverlayMode } = useWorkspaceStore();
   const { data: doc } = useDocument(documentId ?? "");
   const { data: urlData } = useDocumentUrl(documentId ?? "");
@@ -99,7 +101,13 @@ export function Workspace() {
           {/* Processing progress inline (inside extraction panel area) */}
           {activeTab === "extraction" && (
             <div className="px-4 py-3 border-b border-[#1e1e2e]">
-              <ProcessingProgress documentId={documentId} />
+              <ProcessingProgress
+                documentId={documentId}
+                onComplete={() => {
+                  queryClient.invalidateQueries({ queryKey: ["extraction"] });
+                  queryClient.invalidateQueries({ queryKey: ["document", documentId] });
+                }}
+              />
             </div>
           )}
 
