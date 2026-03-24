@@ -15,13 +15,9 @@ logger = get_logger(__name__)
 class AnalyticsUseCase:
     """Orchestrates analytics aggregation."""
 
-    def __init__(
-        self,
-        repo: AnalyticsRepository | None = None,
-        service: AnalyticsService | None = None,
-    ) -> None:
-        self.repo = repo or AnalyticsRepository()
-        self.service = service or AnalyticsService()
+    def __init__(self) -> None:
+        self.repo = AnalyticsRepository()
+        self.service = AnalyticsService()
 
     async def get_summary(self, user_id: str) -> dict:
         """Get analytics summary for dashboard.

@@ -9,6 +9,7 @@ import uuid
 from docmind.core.logging import get_logger
 
 from .repositories import PersonaRepository
+from .services import PersonaService
 from .seed import seed_preset_personas
 
 logger = get_logger(__name__)
@@ -17,8 +18,9 @@ logger = get_logger(__name__)
 class PersonaUseCase:
     """Orchestrates persona operations."""
 
-    def __init__(self, repo: PersonaRepository | None = None) -> None:
-        self.repo = repo or PersonaRepository()
+    def __init__(self) -> None:
+        self.repo = PersonaRepository()
+        self.service = PersonaService()
 
     async def list_personas(self, user_id: str) -> list:
         """List all personas (presets + user custom). Seeds on first call."""

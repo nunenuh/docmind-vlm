@@ -7,6 +7,7 @@ Extraction use case — orchestrates repository calls and maps to response schem
 from docmind.core.logging import get_logger
 
 from .repositories import ExtractionRepository
+from .services import ExtractionService
 from .schemas import (
     AuditEntryResponse,
     ComparisonResponse,
@@ -25,20 +26,14 @@ _COLOR_MEDIUM = "#f59e0b"    # amber
 _COLOR_LOW = "#ef4444"       # red
 
 
-def _confidence_color(confidence: float) -> str:
-    """Map confidence score to a color hex code."""
-    if confidence >= _HIGH_CONFIDENCE:
-        return _COLOR_HIGH
-    if confidence >= _MEDIUM_CONFIDENCE:
-        return _COLOR_MEDIUM
-    return _COLOR_LOW
 
 
 class ExtractionUseCase:
-    """Orchestrates extraction operations across repository layer."""
+    """Orchestrates extraction operations."""
 
-    def __init__(self, repo: ExtractionRepository | None = None) -> None:
-        self.repo = repo or ExtractionRepository()
+    def __init__(self) -> None:
+        self.repo = ExtractionRepository()
+        self.service = ExtractionService()
 
     async def get_extraction(self, document_id: str) -> ExtractionResponse | None:
         """Get the latest extraction with fields for a document.
@@ -136,7 +131,7 @@ class ExtractionUseCase:
                 width=bbox.get("width", 0.0),
                 height=bbox.get("height", 0.0),
                 confidence=f.confidence,
-                color=_confidence_color(f.confidence),
+                color=self.service.confidence_color(f.confidence),
                 tooltip=f"{f.field_key}: {f.field_value}" if f.field_key else None,
             ))
         return regions
