@@ -10,30 +10,17 @@ COLOR_LOW = "#ef4444"
 
 
 class ExtractionService:
-    @staticmethod
-    def confidence_color(confidence: float) -> str:
+    def confidence_color(self, confidence: float) -> str:
         if confidence >= 0.8:
             return COLOR_HIGH
         if confidence >= 0.5:
             return COLOR_MEDIUM
         return COLOR_LOW
 
-    @staticmethod
     def diff_fields(
-        enhanced: list[dict], raw: list[dict]
+        self, enhanced: list[dict], raw: list[dict]
     ) -> dict[str, list[str]]:
-        """Compare enhanced vs raw fields and categorize differences.
-
-        A field is 'corrected' if field_value or confidence differs.
-        A field is 'added' if it exists in enhanced but not in raw.
-
-        Args:
-            enhanced: Post-processed field dicts (must have 'id').
-            raw: Original VLM output field dicts.
-
-        Returns:
-            Dict with 'corrected' and 'added' lists of field IDs.
-        """
+        """Compare enhanced vs raw fields and categorize differences."""
         raw_lookup: dict[tuple[str, int], dict] = {}
         for f in raw:
             key = (f.get("field_key", ""), f.get("page_number", 0))
@@ -58,8 +45,7 @@ class ExtractionService:
 
         return {"corrected": corrected, "added": added}
 
-    @staticmethod
-    def build_overlay_region(field: dict) -> dict | None:
+    def build_overlay_region(self, field: dict) -> dict | None:
         bbox = field.get("bounding_box", {})
         if not bbox or not bbox.get("x"):
             return None
@@ -73,6 +59,6 @@ class ExtractionService:
             "width": bbox["width"],
             "height": bbox["height"],
             "confidence": confidence,
-            "color": ExtractionService.confidence_color(confidence),
+            "color": self.confidence_color(confidence),
             "tooltip": tooltip[:200],
         }

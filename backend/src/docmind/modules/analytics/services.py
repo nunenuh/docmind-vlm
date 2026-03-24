@@ -8,8 +8,8 @@ Analytics service — formats raw repository data into response shapes.
 class AnalyticsService:
     """Formats analytics data. No business logic — pure transformation."""
 
-    @staticmethod
     def format_summary(
+        self,
         doc_count: int,
         status_counts: dict[str, int],
         type_counts: dict[str, int],

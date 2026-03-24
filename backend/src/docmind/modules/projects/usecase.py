@@ -20,23 +20,26 @@ from .schemas import (
     ProjectResponse,
     ProjectUpdate,
 )
-from .services import ProjectService
+from .services import (
+    ProjectPromptService,
+    ProjectRAGService,
+    ProjectIndexingService,
+    ProjectVLMService,
+)
 
 logger = get_logger(__name__)
 
 
 class ProjectUseCase:
-    """Orchestrates project operations across service and repository layers."""
+    """Orchestrates project operations. NEVER calls library directly."""
 
-    def __init__(
-        self,
-        service: ProjectService | None = None,
-        repo: ProjectRepository | None = None,
-        conv_repo: ConversationRepository | None = None,
-    ) -> None:
-        self.service = service or ProjectService()
-        self.repo = repo or ProjectRepository()
-        self.conv_repo = conv_repo or ConversationRepository()
+    def __init__(self) -> None:
+        self.repo = ProjectRepository()
+        self.conv_repo = ConversationRepository()
+        self.prompt_service = ProjectPromptService()
+        self.rag_service = ProjectRAGService()
+        self.indexing_service = ProjectIndexingService()
+        self.vlm_service = ProjectVLMService()
 
     async def create_project(
         self,
@@ -46,8 +49,8 @@ class ProjectUseCase:
         persona_id: str | None = None,
     ) -> ProjectResponse:
         """Create a new project."""
-        sanitized_name = self.service.validate_project_name(name)
-        self.service.validate_persona_assignment(persona_id)
+        sanitized_name = self.prompt_service.validate_project_name(name)
+        self.prompt_service.validate_persona_assignment(persona_id)
 
         project = await self.repo.create(
             user_id=user_id,
@@ -123,12 +126,12 @@ class ProjectUseCase:
             return await self.get_project(user_id, project_id)
 
         if "name" in update_fields and update_fields["name"] is not None:
-            update_fields["name"] = self.service.validate_project_name(
+            update_fields["name"] = self.prompt_service.validate_project_name(
                 update_fields["name"]
             )
 
         if "persona_id" in update_fields:
-            self.service.validate_persona_assignment(update_fields["persona_id"])
+            self.prompt_service.validate_persona_assignment(update_fields["persona_id"])
 
         project = await self.repo.update(project_id, user_id, **update_fields)
         if project is None:
@@ -182,22 +185,20 @@ class ProjectUseCase:
         self, project_id: str, document_id: str, user_id: str
     ) -> None:
         """Download file and run RAG indexing pipeline."""
-        from docmind.dbase.supabase.storage import get_file_bytes
-        from docmind.library.rag.indexer import index_document
         from docmind.modules.documents.repositories import DocumentRepository
+        from docmind.modules.documents.services import DocumentStorageService
 
         doc_repo = DocumentRepository()
+        storage_service = DocumentStorageService()
+
         doc = await doc_repo.get_by_id(document_id, user_id)
         if doc is None:
             logger.warning("Document %s not found for RAG indexing", document_id)
             return
 
-        # Download file bytes from storage
-        import asyncio
-        file_bytes = await asyncio.to_thread(get_file_bytes, doc.storage_path)
+        file_bytes = await asyncio.to_thread(storage_service.load_file_bytes, doc.storage_path)
 
-        # Run indexing
-        chunk_count = await index_document(
+        chunk_count = await self.indexing_service.index(
             document_id=document_id,
             project_id=project_id,
             file_bytes=file_bytes,
@@ -248,8 +249,7 @@ class ProjectUseCase:
         Returns:
             Number of new chunks created, or None if not found.
         """
-        from docmind.library.rag.indexer import reindex_document
-        from docmind.modules.documents.services import DocumentService
+        from docmind.modules.documents.services import DocumentStorageService
 
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
@@ -260,12 +260,10 @@ class ProjectUseCase:
         if doc is None:
             return None
 
-        # Download file from storage
-        service = DocumentService()
-        file_bytes = service.load_file_bytes(doc.storage_path)
+        storage_service = DocumentStorageService()
+        file_bytes = storage_service.load_file_bytes(doc.storage_path)
 
-        # Re-index
-        count = await reindex_document(
+        count = await self.indexing_service.reindex(
             document_id=document_id,
             project_id=project_id,
             file_bytes=file_bytes,
@@ -275,6 +273,33 @@ class ProjectUseCase:
 
         logger.info("Reindexed document %s: %d chunks", document_id, count)
         return count
+
+    async def list_chunks(
+        self, user_id: str, project_id: str, document_id: str | None = None
+    ) -> dict:
+        """List RAG chunks for a project."""
+        project = await self.repo.get_by_id(project_id, user_id)
+        if project is None:
+            return {"total": 0, "items": []}
+
+        chunks, total = await self.repo.list_chunks(project_id, document_id)
+        return {
+            "total": total,
+            "items": [
+                {
+                    "id": c.id,
+                    "document_id": c.document_id,
+                    "page_number": c.page_number,
+                    "chunk_index": c.chunk_index,
+                    "content": c.content[:200] + "..." if len(c.content or "") > 200 else c.content,
+                    "raw_content": (c.raw_content or "")[:200] + "..." if len(c.raw_content or "") > 200 else c.raw_content,
+                    "content_hash": c.content_hash,
+                    "metadata": c.metadata_json,
+                    "created_at": str(c.created_at) if c.created_at else None,
+                }
+                for c in chunks
+            ],
+        }
 
     async def list_conversations(
         self, user_id: str, project_id: str
@@ -350,13 +375,7 @@ class ProjectUseCase:
         Yields:
             SSE-formatted data strings.
         """
-        from docmind.core.config import get_settings
-        from docmind.library.providers.factory import get_vlm_provider
-        from docmind.library.rag.embedder import embed_texts
-        from docmind.library.rag.retriever import retrieve_similar_chunks
         from docmind.modules.personas.repositories import PersonaRepository
-
-        settings = get_settings()
 
         def _sse(event: str, data: dict) -> str:
             return f"data: {json.dumps({'event': event, **data})}\n\n"
@@ -403,12 +422,10 @@ class ProjectUseCase:
         # Save user message
         await self.conv_repo.add_message(conversation_id, "user", message)
 
-        # --- Query Rewriting (resolve pronouns) ---
-        from docmind.library.rag.query_rewriter import rewrite_query_with_context
-
+        # --- Query Rewriting (via service) ---
         search_query = message
         try:
-            rewritten = await rewrite_query_with_context(message, history)
+            rewritten = await self.rag_service.rewrite_query(message, history)
             if rewritten != message:
                 search_query = rewritten
                 yield _sse("status", {"message": f"Searching: {rewritten[:60]}..."})
@@ -418,14 +435,12 @@ class ProjectUseCase:
             logger.warning("Query rewrite failed: %s", e)
             yield _sse("status", {"message": "Searching documents..."})
 
-        # --- RAG Retrieval (hybrid: vector + BM25) ---
+        # --- RAG Retrieval (via service) ---
         try:
-            query_embedding = await embed_texts([search_query])
-            chunks = await retrieve_similar_chunks(
-                query_embedding=query_embedding[0],
+            query_embedding = await self.rag_service.embed_query(search_query)
+            chunks = await self.rag_service.retrieve_chunks(
                 project_id=project_id,
-                top_k=settings.RAG_TOP_K,
-                threshold=settings.RAG_SIMILARITY_THRESHOLD,
+                query_embedding=query_embedding,
                 query_text=search_query,
             )
         except Exception as e:
@@ -433,14 +448,14 @@ class ProjectUseCase:
             chunks = []
 
         # Build context from retrieved chunks (via service)
-        context_text, citations = self.service.build_rag_context(chunks)
+        context_text, citations = self.prompt_service.build_rag_context(chunks)
 
         # Load document metadata for the system prompt (via service)
         doc_list = await self.repo.list_documents(project_id, user_id)
-        doc_metadata = self.service.format_document_metadata(doc_list)
+        doc_metadata = self.prompt_service.format_document_metadata(doc_list)
 
         # Build system prompt (via service)
-        system_prompt = self.service.build_system_prompt(
+        system_prompt = self.prompt_service.build_system_prompt(
             persona=persona,
             doc_metadata=doc_metadata,
             doc_count=len(doc_list) if doc_list else 0,
@@ -449,32 +464,27 @@ class ProjectUseCase:
         # Build full message with context
         full_message = f"CONTEXT:\n{context_text}\n\nQUESTION: {message}"
 
-        # --- Stream LLM Response ---
+        # --- Stream LLM Response (via service) ---
         yield _sse("status", {"message": "Generating response..."})
 
-        provider = get_vlm_provider()
         full_answer = ""
-        full_thinking = ""
 
         try:
-            async for event in provider.chat_stream(
-                images=[],
+            async for event in self.vlm_service.stream_chat(
                 message=full_message,
-                history=history[-6:],  # Last 3 turns
                 system_prompt=system_prompt,
-                enable_thinking=settings.ENABLE_THINKING,
+                history=history,
             ):
                 if event["type"] == "thinking":
-                    full_thinking += event["content"]
                     yield _sse("thinking", {"content": event["content"]})
                 elif event["type"] == "answer":
                     full_answer += event["content"]
                     yield _sse("token", {"content": event["content"]})
                 elif event["type"] == "done":
-                    pass  # handled below
+                    pass
         except Exception as e:
             logger.error("Streaming chat failed: %s", e)
-            full_answer = f"I encountered an error while processing your question. Please try again."
+            full_answer = "I encountered an error while processing your question. Please try again."
             yield _sse("token", {"content": full_answer})
 
         # Yield complete answer + citations

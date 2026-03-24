@@ -1,11 +1,15 @@
 """
 docmind/modules/chat/services.py
 
-Chat service — prompt building, context formatting, field summarization.
+Chat service — VLM interaction, prompt building, context formatting.
+Usecase delegates all VLM/library calls here.
 """
+
+from typing import AsyncGenerator
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
+from docmind.library.providers.factory import get_vlm_provider
 
 logger = get_logger(__name__)
 
@@ -23,18 +27,13 @@ INSTRUCTIONS:
 
 
 class ChatService:
-    """Service for chat prompt building and context formatting."""
+    """VLM interaction + prompt building for per-document chat."""
 
-    @staticmethod
-    def format_extracted_fields(fields: list[dict]) -> str:
-        """Format extracted fields as text for the system prompt.
+    def __init__(self) -> None:
+        self._settings = get_settings()
 
-        Args:
-            fields: List of field dicts with field_key, field_value, confidence.
-
-        Returns:
-            Formatted string of fields with confidence labels.
-        """
+    def format_extracted_fields(self, fields: list[dict]) -> str:
+        """Format extracted fields as text for the system prompt."""
         if not fields:
             return "No fields have been extracted yet. The document has not been processed."
 
@@ -48,29 +47,32 @@ class ChatService:
 
         return "\n".join(lines)
 
-    @staticmethod
-    def build_system_prompt(fields_text: str) -> str:
-        """Build the system prompt with extracted fields.
-
-        Args:
-            fields_text: Formatted field text from format_extracted_fields.
-
-        Returns:
-            Complete system prompt string.
-        """
+    def build_system_prompt(self, fields_text: str) -> str:
+        """Build the system prompt with extracted fields."""
         return DOCUMENT_CHAT_SYSTEM_PROMPT.format(fields_text=fields_text)
 
-    @staticmethod
-    def get_recent_history_slice(history: list[dict], max_turns: int | None = None) -> list[dict]:
-        """Get the most recent conversation turns.
-
-        Args:
-            history: Full conversation history.
-            max_turns: Maximum number of messages to include.
-
-        Returns:
-            Sliced history list.
-        """
-        settings = get_settings()
-        limit = max_turns or settings.CHAT_MAX_HISTORY
+    def get_history_slice(self, history: list[dict]) -> list[dict]:
+        """Get the most recent conversation turns."""
+        limit = self._settings.CHAT_MAX_HISTORY
         return history[-limit:] if len(history) > limit else history
+
+    async def stream_chat(
+        self,
+        message: str,
+        system_prompt: str,
+        history: list[dict],
+    ) -> AsyncGenerator[dict, None]:
+        """Stream VLM chat response with thinking.
+
+        Yields dicts: {"type": "thinking"|"answer"|"done", "content": "..."}
+        """
+        provider = get_vlm_provider()
+
+        async for event in provider.chat_stream(
+            images=[],
+            message=message,
+            history=history,
+            system_prompt=system_prompt,
+            enable_thinking=self._settings.ENABLE_THINKING,
+        ):
+            yield event

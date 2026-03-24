@@ -2,6 +2,7 @@
 docmind/modules/documents/usecase.py
 
 Document use case — orchestrates service + repository calls.
+High-level business logic. NEVER calls library directly.
 """
 
 import asyncio
@@ -10,25 +11,22 @@ from typing import AsyncGenerator
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.library.pipeline.processing import run_processing_pipeline
 
 from .repositories import DocumentRepository
 from .schemas import DocumentListResponse, DocumentResponse
-from .services import DocumentService
+from .services import DocumentStorageService, DocumentExtractionService, DocumentClassificationService
 
 logger = get_logger(__name__)
 
 
 class DocumentUseCase:
-    """Orchestrates document operations across service and repository layers."""
+    """Orchestrates document operations. NEVER calls library directly."""
 
-    def __init__(
-        self,
-        service: DocumentService | None = None,
-        repo: DocumentRepository | None = None,
-    ) -> None:
-        self.service = service or DocumentService()
-        self.repo = repo or DocumentRepository()
+    def __init__(self) -> None:
+        self.repo = DocumentRepository()
+        self.storage_service = DocumentStorageService()
+        self.extraction_service = DocumentExtractionService()
+        self.classification_service = DocumentClassificationService()
 
     async def create_document(
         self,
@@ -46,7 +44,7 @@ class DocumentUseCase:
         doc_id = str(uuid.uuid4())
 
         storage_path = await asyncio.to_thread(
-            self.service.upload_file,
+            self.storage_service.upload_file,
             user_id=user_id,
             document_id=doc_id,
             filename=filename,
@@ -65,7 +63,7 @@ class DocumentUseCase:
         except Exception:
             try:
                 await asyncio.to_thread(
-                    self.service.delete_storage_file, storage_path
+                    self.storage_service.delete_storage_file, storage_path
                 )
             except Exception:
                 logger.error("storage_cleanup_failed", storage_path=storage_path)
@@ -123,12 +121,24 @@ class DocumentUseCase:
             limit=limit,
         )
 
+    async def get_document_url(self, user_id: str, document_id: str) -> dict | None:
+        """Get a signed URL for a document file."""
+        doc = await self.repo.get_by_id(document_id, user_id)
+        if doc is None:
+            return None
+        try:
+            url = self.storage_service.get_signed_url(doc.storage_path)
+            return {"url": url}
+        except Exception as e:
+            logger.error("Failed to generate signed URL: %s", e)
+            return None
+
     async def delete_document(self, user_id: str, document_id: str) -> bool:
         storage_path = await self.repo.delete(document_id, user_id)
         if storage_path is None:
             return False
         try:
-            await asyncio.to_thread(self.service.delete_storage_file, storage_path)
+            await asyncio.to_thread(self.storage_service.delete_storage_file, storage_path)
         except Exception:
             logger.warning("storage_cleanup_failed", storage_path=storage_path)
         return True
@@ -158,7 +168,7 @@ class DocumentUseCase:
         # Load file bytes
         try:
             file_bytes = await asyncio.to_thread(
-                self.service.load_file_bytes, doc.storage_path
+                self.storage_service.load_file_bytes, doc.storage_path
             )
         except Exception as e:
             logger.error("file_load_failed: %s", e)
@@ -170,7 +180,13 @@ class DocumentUseCase:
         if not template_type:
             yield _sse("classify", 5, "Auto-detecting document type...")
             try:
-                detected_type = await self._auto_classify(file_bytes, getattr(doc, "file_type", "pdf"))
+                from docmind.modules.templates.repositories import TemplateRepository
+                template_repo = TemplateRepository()
+                templates = await template_repo.list_all()
+                template_types = [t.type for t in templates]
+                detected_type = await self.classification_service.classify(
+                    file_bytes, getattr(doc, "file_type", "pdf"), template_types
+                )
                 if detected_type and detected_type != "unknown":
                     template_type = detected_type
                     yield _sse("classify", 10, f"Detected: {detected_type}")
@@ -210,7 +226,7 @@ class DocumentUseCase:
 
         # Run pipeline in background thread
         pipeline_task = asyncio.create_task(
-            asyncio.to_thread(run_processing_pipeline, initial_state)
+            asyncio.to_thread(self.extraction_service.run_pipeline, initial_state)
         )
 
         # Yield SSE events from the queue
@@ -243,57 +259,3 @@ class DocumentUseCase:
             await self.repo.update_status(document_id, "error")
             yield _sse("error", 0, "Processing failed unexpectedly")
 
-    async def _auto_classify(self, file_bytes: bytes, file_type: str) -> str | None:
-        """Auto-classify document type using VLM.
-
-        Args:
-            file_bytes: Raw file bytes.
-            file_type: File extension.
-
-        Returns:
-            Detected template type string, or None.
-        """
-        import cv2
-        import numpy as np
-        from docmind.library.providers.factory import get_vlm_provider
-        from docmind.modules.templates.repositories import TemplateRepository
-
-        # Convert to image
-        if file_type == "pdf":
-            try:
-                import fitz
-                doc = fitz.open(stream=file_bytes, filetype="pdf")
-                page = doc[0]
-                pix = page.get_pixmap(dpi=150)
-                arr = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, pix.n)
-                image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else arr
-                doc.close()
-            except Exception:
-                return None
-        else:
-            nparr = np.frombuffer(file_bytes, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            if image is None:
-                return None
-
-        # Get available template types
-        repo = TemplateRepository()
-        templates = await repo.list_all()
-        template_types = [t.type for t in templates]
-        types_str = ", ".join(template_types)
-
-        provider = get_vlm_provider()
-        prompt = (
-            f"What type of document is this? Choose from: {types_str}, or 'unknown' if none match. "
-            "Return ONLY the type name, nothing else."
-        )
-
-        response = await provider.extract(images=[image], prompt=prompt)
-        content = response.get("content", "").strip().lower().replace('"', "").replace("'", "")
-
-        # Match against known types
-        for t_type in template_types:
-            if t_type in content:
-                return t_type
-
-        return content if content in template_types else None

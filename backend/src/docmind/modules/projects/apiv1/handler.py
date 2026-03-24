@@ -271,47 +271,9 @@ async def list_chunks(
     current_user: dict = Depends(get_current_user),
 ):
     """List RAG chunks for a project, optionally filtered by document."""
-    from sqlalchemy import select, func
-    from docmind.dbase.psql.core.session import AsyncSessionLocal
-    from docmind.dbase.psql.models import PageChunk
-
-    # Verify project access
     usecase = ProjectUseCase()
-    project = await usecase.repo.get_by_id(project_id, current_user["id"])
-    if project is None:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    async with AsyncSessionLocal() as session:
-        filters = [PageChunk.project_id == project_id]
-        if document_id:
-            filters.append(PageChunk.document_id == document_id)
-
-        count_stmt = select(func.count()).select_from(PageChunk).where(*filters)
-        total = (await session.execute(count_stmt)).scalar() or 0
-
-        stmt = (
-            select(PageChunk)
-            .where(*filters)
-            .order_by(PageChunk.page_number, PageChunk.chunk_index)
-            .limit(100)
-        )
-        result = await session.execute(stmt)
-        chunks = result.scalars().all()
-
-    return {
-        "total": total,
-        "items": [
-            {
-                "id": c.id,
-                "document_id": c.document_id,
-                "page_number": c.page_number,
-                "chunk_index": c.chunk_index,
-                "content": c.content[:200] + "..." if len(c.content or "") > 200 else c.content,
-                "raw_content": (c.raw_content or "")[:200] + "..." if len(c.raw_content or "") > 200 else c.raw_content,
-                "content_hash": c.content_hash,
-                "metadata": c.metadata_json,
-                "created_at": str(c.created_at) if c.created_at else None,
-            }
-            for c in chunks
-        ],
-    }
+    return await usecase.list_chunks(
+        user_id=current_user["id"],
+        project_id=project_id,
+        document_id=document_id,
+    )

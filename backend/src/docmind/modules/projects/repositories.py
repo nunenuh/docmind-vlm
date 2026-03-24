@@ -15,6 +15,7 @@ from docmind.core.logging import get_logger
 from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.dbase.psql.models import (
     Document,
+    PageChunk,
     Project,
     ProjectConversation,
     ProjectMessage,
@@ -235,6 +236,33 @@ class ProjectRepository:
             )
             result = await session.execute(stmt)
             return result.scalar() or 0
+
+    async def list_chunks(
+        self, project_id: str, document_id: str | None = None, limit: int = 100
+    ) -> tuple[list, int]:
+        """List RAG chunks for a project, optionally filtered by document.
+
+        Returns:
+            Tuple of (chunk_list, total_count).
+        """
+        async with AsyncSessionLocal() as session:
+            filters = [PageChunk.project_id == project_id]
+            if document_id:
+                filters.append(PageChunk.document_id == document_id)
+
+            count_stmt = select(func.count()).select_from(PageChunk).where(*filters)
+            total = (await session.execute(count_stmt)).scalar() or 0
+
+            stmt = (
+                select(PageChunk)
+                .where(*filters)
+                .order_by(PageChunk.page_number, PageChunk.chunk_index)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            chunks = list(result.scalars().all())
+
+            return chunks, total
 
 
 class ConversationRepository:
