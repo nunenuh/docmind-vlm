@@ -1,14 +1,16 @@
 import { useState } from "react";
 import { useParams, Link } from "react-router-dom";
-import { FolderOpen, Bot, Settings, Loader2, ChevronRight, X, Database } from "lucide-react";
+import { FolderOpen, Bot, Settings, Loader2, ChevronRight, X, FileText, MessageSquare, Database } from "lucide-react";
 import { useProject, useUpdateProject } from "@/hooks/useProjects";
 import { usePersonas } from "@/hooks/usePersonas";
-import { ProjectSidebar } from "@/components/project/ProjectSidebar";
-import { ProjectChatPanel } from "@/components/project/ProjectChatPanel";
+import { ProjectDocumentsTab } from "@/components/project/ProjectDocumentsTab";
+import { ProjectChatTab } from "@/components/project/ProjectChatTab";
 import { PersonaSelector } from "@/components/project/PersonaSelector";
 import { PersonaEditor } from "@/components/project/PersonaEditor";
 import { ChunkBrowser } from "@/components/project/ChunkBrowser";
 import type { PersonaResponse } from "@/types/api";
+
+type TabId = "documents" | "chat";
 
 export function ProjectWorkspace() {
   const { projectId } = useParams<{ projectId: string }>();
@@ -16,9 +18,9 @@ export function ProjectWorkspace() {
   const { data: personas } = usePersonas();
   const updateProject = useUpdateProject();
 
+  const [activeTab, setActiveTab] = useState<TabId>("chat");
   const [showSettings, setShowSettings] = useState(false);
   const [showPersonaEditor, setShowPersonaEditor] = useState(false);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
 
   if (!projectId) {
     return (
@@ -41,7 +43,6 @@ export function ProjectWorkspace() {
       <div className="h-full flex flex-col items-center justify-center gap-4 text-gray-400 bg-[#0a0a0f]">
         <FolderOpen className="w-12 h-12 text-gray-600" />
         <p className="text-lg font-medium">Project not found</p>
-        <p className="text-sm text-gray-500">It may have been deleted or you don&apos;t have access.</p>
         <Link to="/projects" className="text-indigo-400 hover:text-indigo-300 text-sm">
           Back to Projects
         </Link>
@@ -55,6 +56,11 @@ export function ProjectWorkspace() {
     if (!projectId) return;
     updateProject.mutate({ id: projectId, data: { persona_id: personaId ?? undefined } });
   };
+
+  const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
+    { id: "documents", label: "Documents", icon: <FileText className="w-4 h-4" /> },
+    { id: "chat", label: "Chat", icon: <MessageSquare className="w-4 h-4" /> },
+  ];
 
   return (
     <div className="h-screen flex flex-col bg-[#0a0a0f]">
@@ -76,6 +82,25 @@ export function ProjectWorkspace() {
             </span>
           )}
         </div>
+
+        {/* Tabs in header */}
+        <div className="flex items-center gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                activeTab === tab.id
+                  ? "bg-white/10 text-white"
+                  : "text-gray-500 hover:text-gray-300 hover:bg-white/5"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
         <button
           onClick={() => setShowSettings(!showSettings)}
           className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg transition-colors ${
@@ -89,24 +114,14 @@ export function ProjectWorkspace() {
         </button>
       </header>
 
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden relative">
-        {/* Left sidebar */}
-        <ProjectSidebar
-          projectId={projectId}
-          activeConvId={activeConvId}
-          onSelectConversation={setActiveConvId}
-          onNewChat={() => setActiveConvId(null)}
-        />
-
-        {/* Chat area */}
-        <main className="flex-1 min-w-0">
-          <ProjectChatPanel
-            projectId={projectId}
-            activeConversationId={activeConvId}
-            onConversationCreated={setActiveConvId}
-          />
-        </main>
+      {/* Tab content */}
+      <div className="flex-1 overflow-hidden relative">
+        {activeTab === "documents" && (
+          <ProjectDocumentsTab projectId={projectId} />
+        )}
+        {activeTab === "chat" && (
+          <ProjectChatTab projectId={projectId} />
+        )}
 
         {/* Settings slide-over */}
         {showSettings && (

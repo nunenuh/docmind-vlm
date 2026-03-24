@@ -197,6 +197,8 @@ export interface ProjectDocumentResponse {
   id: string;
   filename: string;
   file_type: string;
+  file_size: number;
+  page_count: number;
   status: string;
   created_at: string;
 }
