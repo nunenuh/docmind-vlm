@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException, ValidationException
 
 from ..schemas import (
     DocumentListResponse,
@@ -118,10 +119,15 @@ async def get_document(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = DocumentUseCase()
-    document = await usecase.get_document(user_id=current_user["id"], document_id=document_id)
-    if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return document
+    try:
+        return await usecase.get_document(user_id=current_user["id"], document_id=document_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("get_document error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{document_id}/url")
@@ -130,10 +136,15 @@ async def get_document_url(
 ):
     """Get a signed URL for downloading the document file."""
     usecase = DocumentUseCase()
-    result = await usecase.get_document_url(user_id=current_user["id"], document_id=document_id)
-    if result is None:
-        raise HTTPException(status_code=404, detail="Document not found")
-    return result
+    try:
+        return await usecase.get_document_url(user_id=current_user["id"], document_id=document_id)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("get_document_url error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{document_id}", status_code=204)
@@ -141,11 +152,17 @@ async def delete_document(
     document_id: str, current_user: dict = Depends(get_current_user)
 ):
     usecase = DocumentUseCase()
-    deleted = await usecase.delete_document(
-        user_id=current_user["id"], document_id=document_id
-    )
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Document not found")
+    try:
+        await usecase.delete_document(
+            user_id=current_user["id"], document_id=document_id
+        )
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("delete_document error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{document_id}/process")

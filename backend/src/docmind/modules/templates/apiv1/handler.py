@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException, ValidationException
 
 from ..usecase import TemplateUseCase
 from ..schemas import (
@@ -60,8 +61,12 @@ def _to_detail(t) -> TemplateDetail:
 async def list_templates(current_user: dict = Depends(get_current_user)):
     """List all templates: presets + user's custom."""
     usecase = TemplateUseCase()
-    templates = await usecase.list_templates(user_id=current_user["id"])
-    return TemplateListResponse(items=[_to_summary(t) for t in templates])
+    try:
+        templates = await usecase.list_templates(user_id=current_user["id"])
+        return TemplateListResponse(items=[_to_summary(t) for t in templates])
+    except Exception as e:
+        logger.error("list_templates error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("", response_model=TemplateDetail)
@@ -71,20 +76,26 @@ async def create_template(
 ):
     """Create a custom template."""
     usecase = TemplateUseCase()
-    template = await usecase.create_template(
-        user_id=current_user["id"],
-        data={
-            "type": body.type,
-            "name": body.name,
-            "name_en": body.name_en,
-            "description": body.description,
-            "description_en": body.description_en,
-            "category": body.category or "custom",
-            "fields": [f.model_dump() for f in body.fields] if body.fields else [],
-            "extraction_prompt": body.extraction_prompt,
-        },
-    )
-    return _to_detail(template)
+    try:
+        template = await usecase.create_template(
+            user_id=current_user["id"],
+            data={
+                "type": body.type,
+                "name": body.name,
+                "name_en": body.name_en,
+                "description": body.description,
+                "description_en": body.description_en,
+                "category": body.category or "custom",
+                "fields": [f.model_dump() for f in body.fields] if body.fields else [],
+                "extraction_prompt": body.extraction_prompt,
+            },
+        )
+        return _to_detail(template)
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("create_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.get("/{template_id}", response_model=TemplateDetail)
@@ -94,10 +105,16 @@ async def get_template(
 ):
     """Get template detail."""
     usecase = TemplateUseCase()
-    template = await usecase.get_template(template_id)
-    if template is None:
-        raise HTTPException(status_code=404, detail="Template not found")
-    return _to_detail(template)
+    try:
+        template = await usecase.get_template(template_id)
+        if template is None:
+            raise NotFoundException("Template not found")
+        return _to_detail(template)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("get_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/{template_id}", response_model=TemplateDetail)
@@ -108,14 +125,19 @@ async def update_template(
 ):
     """Update a custom template (presets can't be edited)."""
     usecase = TemplateUseCase()
-    data = body.model_dump(exclude_unset=True)
-    template = await usecase.update_template(template_id, current_user["id"], data)
-    if template is None:
-        raise HTTPException(
-            status_code=404,
-            detail="Template not found or you don't have permission to edit it",
-        )
-    return _to_detail(template)
+    try:
+        data = body.model_dump(exclude_unset=True)
+        template = await usecase.update_template(template_id, current_user["id"], data)
+        if template is None:
+            raise NotFoundException("Template not found or you don't have permission to edit it")
+        return _to_detail(template)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("update_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{template_id}", status_code=204)
@@ -125,12 +147,15 @@ async def delete_template(
 ):
     """Delete a custom template (presets can't be deleted)."""
     usecase = TemplateUseCase()
-    deleted = await usecase.delete_template(template_id, current_user["id"])
-    if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail="Template not found or it's a preset template",
-        )
+    try:
+        deleted = await usecase.delete_template(template_id, current_user["id"])
+        if not deleted:
+            raise NotFoundException("Template not found or it's a preset template")
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("delete_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{template_id}/duplicate", response_model=TemplateDetail)
@@ -140,10 +165,16 @@ async def duplicate_template(
 ):
     """Duplicate a template as a custom template."""
     usecase = TemplateUseCase()
-    template = await usecase.duplicate_template(template_id, current_user["id"])
-    if template is None:
-        raise HTTPException(status_code=404, detail="Template not found")
-    return _to_detail(template)
+    try:
+        template = await usecase.duplicate_template(template_id, current_user["id"])
+        if template is None:
+            raise NotFoundException("Template not found")
+        return _to_detail(template)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("duplicate_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/detect", response_model=AutoDetectResponse)
@@ -153,6 +184,12 @@ async def auto_detect_template(
 ):
     """Auto-detect document type and fields from an image using VLM."""
     usecase = TemplateUseCase()
-    file_bytes = await file.read()
-    result = await usecase.auto_detect(file_bytes)
-    return AutoDetectResponse(**result)
+    try:
+        file_bytes = await file.read()
+        result = await usecase.auto_detect(file_bytes)
+        return AutoDetectResponse(**result)
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("auto_detect_template error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

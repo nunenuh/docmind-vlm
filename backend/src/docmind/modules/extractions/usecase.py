@@ -5,6 +5,7 @@ Extraction use case — orchestrates repository calls and maps to response schem
 """
 
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException
 
 from .repositories import ExtractionRepository
 from .services import ExtractionService
@@ -39,18 +40,21 @@ class ExtractionUseCase:
         self.repo = repo or ExtractionRepository()
         self.service = service or ExtractionService()
 
-    async def get_extraction(self, document_id: str) -> ExtractionResponse | None:
+    async def get_extraction(self, document_id: str) -> ExtractionResponse:
         """Get the latest extraction with fields for a document.
 
         Args:
             document_id: The document ID.
 
         Returns:
-            ExtractionResponse with nested fields, or None.
+            ExtractionResponse with nested fields.
+
+        Raises:
+            NotFoundException: If no extraction exists for this document.
         """
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
-            return None
+            raise NotFoundException("Extraction not found")
 
         fields = await self.repo.get_fields(str(extraction.id))
 
@@ -140,18 +144,21 @@ class ExtractionUseCase:
             ))
         return regions
 
-    async def get_comparison(self, document_id: str) -> ComparisonResponse | None:
+    async def get_comparison(self, document_id: str) -> ComparisonResponse:
         """Get comparison data for the latest extraction.
 
         Args:
             document_id: The document ID.
 
         Returns:
-            ComparisonResponse or None if no extraction exists.
+            ComparisonResponse.
+
+        Raises:
+            NotFoundException: If no extraction exists for this document.
         """
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
-            return None
+            raise NotFoundException("Comparison not available")
 
         fields = await self.repo.get_fields(str(extraction.id))
 

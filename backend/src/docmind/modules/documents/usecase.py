@@ -11,6 +11,7 @@ from typing import AsyncGenerator
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException
 
 from .repositories import DocumentRepository
 from .schemas import DocumentListResponse, DocumentResponse
@@ -88,10 +89,10 @@ class DocumentUseCase:
             updated_at=doc.updated_at,
         )
 
-    async def get_document(self, user_id: str, document_id: str) -> DocumentResponse | None:
+    async def get_document(self, user_id: str, document_id: str) -> DocumentResponse:
         doc = await self.repo.get_by_id(document_id, user_id)
         if doc is None:
-            return None
+            raise NotFoundException("Document not found")
         return DocumentResponse(
             id=str(doc.id),
             filename=doc.filename,
@@ -128,27 +129,22 @@ class DocumentUseCase:
             limit=limit,
         )
 
-    async def get_document_url(self, user_id: str, document_id: str) -> dict | None:
+    async def get_document_url(self, user_id: str, document_id: str) -> dict:
         """Get a signed URL for a document file."""
         doc = await self.repo.get_by_id(document_id, user_id)
         if doc is None:
-            return None
-        try:
-            url = self.storage_service.get_signed_url(doc.storage_path)
-            return {"url": url}
-        except Exception as e:
-            logger.error("Failed to generate signed URL: %s", e)
-            return None
+            raise NotFoundException("Document not found")
+        url = self.storage_service.get_signed_url(doc.storage_path)
+        return {"url": url}
 
-    async def delete_document(self, user_id: str, document_id: str) -> bool:
+    async def delete_document(self, user_id: str, document_id: str) -> None:
         storage_path = await self.repo.delete(document_id, user_id)
         if storage_path is None:
-            return False
+            raise NotFoundException("Document not found")
         try:
             await asyncio.to_thread(self.storage_service.delete_storage_file, storage_path)
         except Exception as e:
             logger.warning("storage_cleanup_failed: %s", e, storage_path=storage_path)
-        return True
 
     def trigger_processing(
         self, document_id: str, user_id: str, template_type: str | None = None

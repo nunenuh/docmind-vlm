@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 from docmind.modules.documents.usecase import DocumentUseCase
+from docmind.shared.exceptions import NotFoundException, ValidationException
 
 from ..schemas import ChatHistoryResponse, ChatMessageRequest
 from ..usecase import ChatUseCase
@@ -50,6 +51,14 @@ async def get_chat_history(
     current_user: dict = Depends(get_current_user),
 ):
     chat_usecase = ChatUseCase()
-    return await chat_usecase.get_history(
-        document_id=document_id, user_id=current_user["id"], page=page, limit=limit
-    )
+    try:
+        return await chat_usecase.get_history(
+            document_id=document_id, user_id=current_user["id"], page=page, limit=limit
+        )
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("get_chat_history error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

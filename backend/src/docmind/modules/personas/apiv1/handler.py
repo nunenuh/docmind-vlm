@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException, ValidationException
 
 from ..usecase import PersonaUseCase
 from ..schemas import PersonaCreate, PersonaResponse, PersonaUpdate
@@ -32,8 +33,12 @@ def _to_response(persona: object) -> PersonaResponse:
 @router.get("", response_model=list[PersonaResponse])
 async def list_personas(current_user: dict = Depends(get_current_user)):
     usecase = PersonaUseCase()
-    personas = await usecase.list_personas(user_id=current_user["id"])
-    return [_to_response(p) for p in personas]
+    try:
+        personas = await usecase.list_personas(user_id=current_user["id"])
+        return [_to_response(p) for p in personas]
+    except Exception as e:
+        logger.error("list_personas error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("", response_model=PersonaResponse, status_code=201)
@@ -48,9 +53,11 @@ async def create_persona(
             data=body.model_dump(),
         )
         return _to_response(persona)
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
-        logger.error("Persona creation failed: %s", e)
-        raise HTTPException(status_code=500, detail="Persona creation failed")
+        logger.error("create_persona error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.put("/{persona_id}", response_model=PersonaResponse)
@@ -60,17 +67,25 @@ async def update_persona(
     current_user: dict = Depends(get_current_user),
 ):
     usecase = PersonaUseCase()
-    update_fields = body.model_dump(exclude_unset=True)
-    if not update_fields:
-        persona = await usecase.get_persona(persona_id)
-        if persona is None:
-            raise HTTPException(status_code=404, detail="Persona not found")
-        return _to_response(persona)
+    try:
+        update_fields = body.model_dump(exclude_unset=True)
+        if not update_fields:
+            persona = await usecase.get_persona(persona_id)
+            if persona is None:
+                raise NotFoundException("Persona not found")
+            return _to_response(persona)
 
-    persona = await usecase.update_persona(persona_id, current_user["id"], update_fields)
-    if persona is None:
-        raise HTTPException(status_code=404, detail="Persona not found or cannot be modified")
-    return _to_response(persona)
+        persona = await usecase.update_persona(persona_id, current_user["id"], update_fields)
+        if persona is None:
+            raise NotFoundException("Persona not found or cannot be modified")
+        return _to_response(persona)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except ValidationException as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except Exception as e:
+        logger.error("update_persona error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.delete("/{persona_id}", status_code=204)
@@ -79,9 +94,15 @@ async def delete_persona(
     current_user: dict = Depends(get_current_user),
 ):
     usecase = PersonaUseCase()
-    deleted = await usecase.delete_persona(persona_id, current_user["id"])
-    if not deleted:
-        raise HTTPException(status_code=404, detail="Persona not found or cannot be deleted")
+    try:
+        deleted = await usecase.delete_persona(persona_id, current_user["id"])
+        if not deleted:
+            raise NotFoundException("Persona not found or cannot be deleted")
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("delete_persona error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @router.post("/{persona_id}/duplicate", response_model=PersonaResponse)
@@ -91,7 +112,13 @@ async def duplicate_persona(
 ):
     """Duplicate a persona (preset or custom) as user's custom persona."""
     usecase = PersonaUseCase()
-    persona = await usecase.duplicate_persona(persona_id, current_user["id"])
-    if persona is None:
-        raise HTTPException(status_code=404, detail="Persona not found")
-    return _to_response(persona)
+    try:
+        persona = await usecase.duplicate_persona(persona_id, current_user["id"])
+        if persona is None:
+            raise NotFoundException("Persona not found")
+        return _to_response(persona)
+    except NotFoundException as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error("duplicate_persona error: %s", e, exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal server error")

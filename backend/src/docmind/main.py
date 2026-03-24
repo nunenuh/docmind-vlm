@@ -58,9 +58,20 @@ def create_app() -> FastAPI:
 
     application.include_router(api_router, prefix="/api")
 
+    from .shared.exceptions import BaseAppException
+
+    @application.exception_handler(BaseAppException)
+    async def app_exception_handler(request: Request, exc: BaseAppException):
+        """Catch any custom exception not handled by the endpoint."""
+        logger.error("%s [%s]: %s", exc.__class__.__name__, exc.code, exc.message)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.message},
+        )
+
     @application.exception_handler(Exception)
     async def global_exception_handler(request: Request, exc: Exception):
-        """Catch unhandled exceptions and return proper JSON with CORS headers."""
+        """Last resort — unhandled exceptions."""
         logger.error("Unhandled exception: %s", exc, exc_info=True)
         return JSONResponse(
             status_code=500,

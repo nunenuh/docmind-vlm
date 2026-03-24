@@ -9,6 +9,7 @@ import json
 from collections.abc import AsyncGenerator
 
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException
 
 from .repositories import ConversationRepository, ProjectRepository
 from .schemas import (
@@ -79,11 +80,11 @@ class ProjectUseCase:
 
     async def get_project(
         self, user_id: str, project_id: str
-    ) -> ProjectResponse | None:
+    ) -> ProjectResponse:
         """Get a single project by ID."""
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
-            return None
+            raise NotFoundException("Project not found")
 
         doc_count = await self.repo.get_document_count(project_id)
 
@@ -127,7 +128,7 @@ class ProjectUseCase:
 
     async def update_project(
         self, user_id: str, project_id: str, data: ProjectUpdate
-    ) -> ProjectResponse | None:
+    ) -> ProjectResponse:
         """Update a project."""
         update_fields = data.model_dump(exclude_unset=True)
         if not update_fields:
@@ -143,7 +144,7 @@ class ProjectUseCase:
 
         project = await self.repo.update(project_id, user_id, **update_fields)
         if project is None:
-            return None
+            raise NotFoundException("Project not found")
 
         doc_count = await self.repo.get_document_count(project_id)
 
@@ -241,12 +242,15 @@ class ProjectUseCase:
         # Verify project ownership
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
-            return False
-        return await self.repo.remove_document(project_id, document_id)
+            raise NotFoundException("Project not found")
+        removed = await self.repo.remove_document(project_id, document_id)
+        if not removed:
+            raise NotFoundException("Document not found in project")
+        return True
 
     async def reindex_document(
         self, user_id: str, project_id: str, document_id: str
-    ) -> int | None:
+    ) -> int:
         """Re-index a document: delete old RAG chunks and re-index.
 
         Args:
@@ -255,18 +259,21 @@ class ProjectUseCase:
             document_id: Document to re-index.
 
         Returns:
-            Number of new chunks created, or None if not found.
+            Number of new chunks created.
+
+        Raises:
+            NotFoundException: If project or document not found.
         """
         from docmind.modules.documents.services import DocumentStorageService
 
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
-            return None
+            raise NotFoundException("Project not found")
 
         docs = await self.repo.list_documents(project_id, user_id)
         doc = next((d for d in docs if str(d.id) == document_id), None)
         if doc is None:
-            return None
+            raise NotFoundException("Document not found in project")
 
         storage_service = DocumentStorageService()
         file_bytes = storage_service.load_file_bytes(doc.storage_path)
