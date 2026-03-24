@@ -61,15 +61,23 @@ class ChatService:
         message: str,
         system_prompt: str,
         history: list[dict],
+        document_image=None,
     ) -> AsyncGenerator[dict, None]:
         """Stream VLM chat response with thinking.
+
+        Args:
+            message: User message.
+            system_prompt: System prompt with extracted fields.
+            history: Conversation history.
+            document_image: Optional OpenCV image for visual grounding.
 
         Yields dicts: {"type": "thinking"|"answer"|"done", "content": "..."}
         """
         provider = get_vlm_provider()
+        images = [document_image] if document_image is not None else []
 
         async for event in provider.chat_stream(
-            images=[],
+            images=images,
             message=message,
             history=history,
             system_prompt=system_prompt,

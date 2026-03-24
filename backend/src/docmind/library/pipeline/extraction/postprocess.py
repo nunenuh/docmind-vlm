@@ -76,6 +76,40 @@ def _validate_template_fields(fields: list[dict], template_type: str | None) -> 
     return validated
 
 
+CAPTION_PROMPT = """Describe this image in detail. Include:
+- People (appearance, clothing, pose, expression)
+- Objects (logos, text, items, accessories)
+- Setting (indoor/outdoor, background, lighting)
+- Text visible in the image
+- Overall context and purpose of the image
+
+Be thorough and specific. Return only the description, no JSON."""
+
+
+def _generate_image_caption(image) -> str | None:
+    """Generate a detailed caption for an image using VLM.
+
+    Args:
+        image: OpenCV image array.
+
+    Returns:
+        Caption string, or None if generation fails.
+    """
+    import asyncio
+    from docmind.library.providers import get_vlm_provider
+
+    provider = get_vlm_provider()
+
+    loop = asyncio.new_event_loop()
+    try:
+        response = loop.run_until_complete(
+            provider.extract(images=[image], prompt=CAPTION_PROMPT)
+        )
+        return response.get("content", "").strip() or None
+    finally:
+        loop.close()
+
+
 def postprocess_node(state: dict) -> dict:
     """Postprocess: merge confidence, validate template, generate explanations.
 
@@ -138,6 +172,30 @@ def postprocess_node(state: dict) -> dict:
             if explanation:
                 field = {**field, "low_confidence_reason": explanation}
             final_fields.append(field)
+
+        # Generate image caption for image documents (single page, non-PDF)
+        file_type = state.get("file_type", "")
+        page_images = state.get("page_images", [])
+        if file_type in ("png", "jpg", "jpeg", "webp", "tiff") and page_images:
+            _notify(0.90, "Generating image caption")
+            try:
+                caption = _generate_image_caption(page_images[0])
+                if caption:
+                    final_fields.append({
+                        "id": str(uuid.uuid4()),
+                        "field_type": "image_caption",
+                        "field_key": "image_description",
+                        "field_value": caption,
+                        "page_number": 1,
+                        "bounding_box": {},
+                        "confidence": 0.95,
+                        "vlm_confidence": 0.95,
+                        "cv_quality_score": 0.0,
+                        "is_required": False,
+                        "is_missing": False,
+                    })
+            except Exception as e:
+                logger.warning("Caption generation failed: %s", e)
 
         duration_ms = int((time.time() - start_time) * 1000)
         audit_entry: AuditEntry = {

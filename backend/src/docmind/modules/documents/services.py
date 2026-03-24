@@ -68,6 +68,34 @@ class DocumentStorageService:
         """Get a signed URL for a stored file."""
         return get_signed_url(storage_path, expires_in)
 
+    def load_document_image(self, storage_path: str, file_type: str) -> np.ndarray | None:
+        """Download file and convert to OpenCV image for VLM.
+
+        Args:
+            storage_path: Supabase storage path.
+            file_type: File extension (png, jpg, pdf, etc.).
+
+        Returns:
+            OpenCV image array, or None if conversion fails.
+        """
+        try:
+            file_bytes = self.load_file_bytes(storage_path)
+            if file_type == "pdf":
+                import fitz
+                doc = fitz.open(stream=file_bytes, filetype="pdf")
+                page = doc[0]
+                pix = page.get_pixmap(dpi=150)
+                arr = np.frombuffer(pix.samples, np.uint8).reshape(pix.h, pix.w, pix.n)
+                image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else arr
+                doc.close()
+                return image
+            else:
+                nparr = np.frombuffer(file_bytes, np.uint8)
+                return cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        except Exception as e:
+            logger.warning("Failed to load document image: %s", e)
+            return None
+
 
 class DocumentExtractionService:
     """Runs the document extraction pipeline via library."""

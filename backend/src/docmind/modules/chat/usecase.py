@@ -11,6 +11,9 @@ from typing import AsyncGenerator
 
 from docmind.core.logging import get_logger
 
+from docmind.modules.documents.repositories import DocumentRepository
+from docmind.modules.documents.services import DocumentStorageService
+
 from .repositories import ChatRepository
 from .schemas import (
     ChatHistoryResponse,
@@ -21,6 +24,8 @@ from .services import ChatService
 
 logger = get_logger(__name__)
 
+IMAGE_FILE_TYPES = frozenset({"png", "jpg", "jpeg", "webp", "tiff"})
+
 
 class ChatUseCase:
     """Orchestrates per-document chat."""
@@ -29,8 +34,12 @@ class ChatUseCase:
         self,
         repo: ChatRepository | None = None,
         service: ChatService | None = None,
+        doc_repo: DocumentRepository | None = None,
+        storage_service: DocumentStorageService | None = None,
     ) -> None:
         self.repo = repo or ChatRepository()
+        self.doc_repo = doc_repo or DocumentRepository()
+        self.storage_service = storage_service or DocumentStorageService()
         self.service = service or ChatService()
 
     def send_message(
@@ -74,20 +83,42 @@ class ChatUseCase:
 
         yield _sse("status", {"message": "Loading document context..."})
 
+        # Load document image for visual grounding (if image type)
+        import asyncio
+        document_image = None
+        try:
+            doc = await self.doc_repo.get_by_id(document_id, user_id)
+            if doc and doc.file_type in IMAGE_FILE_TYPES:
+                document_image = await asyncio.to_thread(
+                    self.storage_service.load_document_image,
+                    doc.storage_path, doc.file_type,
+                )
+                if document_image is not None:
+                    logger.info("Loaded document image for visual chat", document_id=document_id)
+        except Exception as e:
+            logger.warning("Failed to load document image: %s", e)
+
         # Delegate prompt building to service
         fields_text = self.service.format_extracted_fields(extracted_fields)
         system_prompt = self.service.build_system_prompt(fields_text)
+        if document_image is not None:
+            system_prompt += (
+                "\n\nYou can see the actual document image. Use both the extracted fields "
+                "AND the image to answer questions. If asked about visual details not in "
+                "the extracted fields, describe what you see in the image."
+            )
         history_slice = self.service.get_history_slice(conversation_history)
 
         yield _sse("status", {"message": "Generating response..."})
 
-        # Delegate VLM streaming to service
+        # Delegate VLM streaming to service (with image if available)
         full_answer = ""
         try:
             async for event in self.service.stream_chat(
                 message=message,
                 system_prompt=system_prompt,
                 history=history_slice,
+                document_image=document_image,
             ):
                 if event["type"] == "thinking":
                     yield _sse("thinking", {"content": event["content"]})
