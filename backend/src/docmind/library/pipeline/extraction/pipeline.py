@@ -4,11 +4,15 @@ Thin orchestrator — nodes are in separate modules.
 Graph: preprocess → extract → postprocess → store
 """
 
+import logging
+
 from .types import ExtractionState
 from .preprocess import preprocess_node
 from .extract import extract_node
 from .postprocess import postprocess_node
 from .store import store_node
+
+logger = logging.getLogger(__name__)
 
 
 def _should_continue(state: dict) -> str:

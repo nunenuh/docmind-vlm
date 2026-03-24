@@ -6,10 +6,14 @@ Document skew detection and correction using Hough line transform.
 All functions are pure: take ndarray, return ndarray. Never mutate the input.
 """
 
+import logging
+
 import cv2
 import numpy as np
 
 from docmind.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 def detect_skew(image: np.ndarray) -> float:

@@ -5,9 +5,12 @@ VLM provider protocol and shared response types.
 """
 
 import base64
+import logging
 from typing import Protocol, TypedDict
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 class VLMResponse(TypedDict):

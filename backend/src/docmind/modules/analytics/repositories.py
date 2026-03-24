@@ -13,6 +13,9 @@ from docmind.dbase.psql.models import (
     Persona,
     Project,
 )
+from docmind.core.logging import get_logger
+
+logger = get_logger(__name__)
 
 
 class AnalyticsRepository:

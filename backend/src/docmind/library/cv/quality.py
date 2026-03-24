@@ -7,10 +7,13 @@ Measures blur, noise, and contrast at a grid level so the pipeline
 can weight VLM confidence by local image quality.
 """
 
+import logging
 from dataclasses import dataclass
 
 import cv2
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)

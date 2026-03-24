@@ -14,10 +14,13 @@ hallucination from isolated fragments.
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from typing import Any
 
 from docmind.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 # --- Adaptive chunk profiles by document type ---

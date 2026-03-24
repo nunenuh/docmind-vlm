@@ -4,6 +4,10 @@ docmind/modules/analytics/services.py
 Analytics service — formats raw repository data into response shapes.
 """
 
+from docmind.core.logging import get_logger
+
+logger = get_logger(__name__)
+
 
 class AnalyticsService:
     """Formats analytics data. No business logic — pure transformation."""
