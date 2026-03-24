@@ -49,32 +49,6 @@ Every exception carries:
 
 ---
 
-## Standard Error Response
-
-All errors return the same JSON shape:
-
-```json
-{
-    "success": false,
-    "error": {
-        "code": "NOT_FOUND",
-        "message": "Document not found",
-        "layer": "usecase"
-    }
-}
-```
-
-Success responses:
-
-```json
-{
-    "success": true,
-    "data": { ... }
-}
-```
-
----
-
 ## Which Layer Raises What
 
 ### Repository Layer
@@ -109,96 +83,42 @@ class DocumentUseCase:
 async def get_document(document_id: str, current_user = Depends(get_current_user)):
     try:
         usecase = DocumentUseCase()
-        document = await usecase.get_document(
+        return await usecase.get_document(
             user_id=current_user["id"],
             document_id=document_id,
         )
-        return {"success": True, "data": document}
     except NotFoundException as e:
-        raise AppException(status_code=404, message=str(e), code="NOT_FOUND")
+        raise HTTPException(status_code=404, detail=str(e))
     except ValidationException as e:
-        raise AppException(status_code=422, message=str(e), code="VALIDATION_ERROR")
+        raise HTTPException(status_code=422, detail=str(e))
     except Exception as e:
         logger.error("Unexpected error: %s", e, exc_info=True)
-        raise AppException(status_code=500, message="Internal server error")
+        raise HTTPException(status_code=500, detail="Internal server error")
 ```
 
 ---
 
 ## Global Exception Handler
 
-In `main.py`, register handlers for each exception type:
+In `main.py`, catch any custom exception that leaks past the handler:
 
 ```python
-@app.exception_handler(AppException)
-async def app_exception_handler(request: Request, exc: AppException):
+@app.exception_handler(BaseAppException)
+async def app_exception_handler(request: Request, exc: BaseAppException):
+    """Catches any custom exception not handled by the endpoint."""
+    logger.error("%s: %s", exc.__class__.__name__, exc.message, exc_info=True)
     return JSONResponse(
         status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-            },
-        },
-    )
-
-@app.exception_handler(UseCaseException)
-async def usecase_exception_handler(request: Request, exc: UseCaseException):
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "layer": "usecase",
-            },
-        },
-    )
-
-@app.exception_handler(ServiceException)
-async def service_exception_handler(request: Request, exc: ServiceException):
-    logger.error("Service error: %s", exc, exc_info=True)
-    return JSONResponse(
-        status_code=exc.status_code,
-        content={
-            "success": False,
-            "error": {
-                "code": exc.code,
-                "message": exc.message,
-                "layer": "service",
-            },
-        },
-    )
-
-@app.exception_handler(RepositoryException)
-async def repository_exception_handler(request: Request, exc: RepositoryException):
-    logger.error("Repository error: %s", exc, exc_info=True)
-    return JSONResponse(
-        status_code=500,
-        content={
-            "success": False,
-            "error": {
-                "code": exc.code,
-                "message": "Database error. See server logs.",
-                "layer": "repository",
-            },
-        },
+        content={"detail": exc.message},
     )
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    """Last resort — unhandled exceptions."""
     logger.error("Unhandled: %s", exc, exc_info=True)
     return JSONResponse(
         status_code=500,
-        content={
-            "success": False,
-            "error": {
-                "code": "INTERNAL_ERROR",
-                "message": "Internal server error",
-            },
-        },
+        content={"detail": "Internal server error"},
     )
 ```
 
