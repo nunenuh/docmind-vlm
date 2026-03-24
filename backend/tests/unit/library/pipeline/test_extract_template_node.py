@@ -114,7 +114,7 @@ class TestGetTemplateConfig:
     """Tests for the _get_template_config helper."""
 
     def test_returns_config_for_invoice(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("invoice")
         assert config is not None
@@ -125,7 +125,7 @@ class TestGetTemplateConfig:
         assert "due_date" in config["optional_fields"]
 
     def test_returns_config_for_receipt(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("receipt")
         assert config is not None
@@ -134,28 +134,28 @@ class TestGetTemplateConfig:
         assert "merchant_name" in config["required_fields"]
 
     def test_returns_config_for_medical_report(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("medical_report")
         assert config is not None
         assert "patient_name" in config["required_fields"]
 
     def test_returns_config_for_contract(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("contract")
         assert config is not None
         assert "parties" in config["required_fields"]
 
     def test_returns_config_for_id_document(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("id_document")
         assert config is not None
         assert "full_name" in config["required_fields"]
 
     def test_returns_none_for_unknown_type(self):
-        from docmind.library.pipeline.processing import _get_template_config
+        from docmind.library.pipeline.extraction.extract import _get_template_config
 
         config = _get_template_config("unknown_type")
         assert config is None
@@ -164,10 +164,10 @@ class TestGetTemplateConfig:
 class TestExtractNodeTemplateMode:
     """Tests for template-based extraction."""
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_uses_template_prompt_with_required_fields(self, mock_get_provider):
         """In template mode, prompt includes required and optional fields."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -181,10 +181,10 @@ class TestExtractNodeTemplateMode:
         assert "total_amount" in prompt
         assert "vendor_name" in prompt
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_returns_error_for_unknown_template(self, mock_get_provider):
         """Unknown template_type returns status='error' without calling VLM."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -197,10 +197,10 @@ class TestExtractNodeTemplateMode:
         assert "nonexistent_type" not in result["error_message"]
         provider.extract.assert_not_called()
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_extracts_fields_in_template_mode(self, mock_get_provider):
         """Template mode returns raw_fields from VLM response."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -213,10 +213,10 @@ class TestExtractNodeTemplateMode:
         assert "invoice_number" in field_keys
         assert "total_amount" in field_keys
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_sets_document_type_to_template_type(self, mock_get_provider):
         """In template mode, document_type defaults to template_type."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -226,10 +226,10 @@ class TestExtractNodeTemplateMode:
 
         assert result["document_type"] == "invoice"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_does_not_call_classify_in_template_mode(self, mock_get_provider):
         """Template mode skips classify() since type is known."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -239,10 +239,10 @@ class TestExtractNodeTemplateMode:
 
         provider.classify.assert_not_called()
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_audit_entry_shows_template_mode(self, mock_get_provider):
         """Audit entry input_summary includes mode='template' and template_type."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -254,10 +254,10 @@ class TestExtractNodeTemplateMode:
         assert entry["input_summary"]["mode"] == "template"
         assert entry["input_summary"]["template_type"] == "invoice"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_handles_missing_fields_in_vlm_response(self, mock_get_provider):
         """If VLM returns fields with is_missing=True, they pass through."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         response = {
             "content": "partial extraction",
@@ -290,10 +290,10 @@ class TestExtractNodeTemplateMode:
         assert len(result["raw_fields"]) == 1
         assert result["raw_fields"][0]["is_missing"] is True
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_receipt_template_uses_correct_fields(self, mock_get_provider):
         """Receipt template prompt includes merchant_name, not vendor_name."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         response = {
             "content": "receipt",

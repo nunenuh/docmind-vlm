@@ -19,7 +19,7 @@ from docmind.dbase.supabase.storage import (
     get_signed_url,
     upload_file,
 )
-from docmind.library.pipeline.processing import run_processing_pipeline
+from docmind.library.pipeline.extraction import run_extraction_pipeline
 from docmind.library.providers.factory import get_vlm_provider
 
 logger = get_logger(__name__)
@@ -83,7 +83,7 @@ class DocumentExtractionService:
         Returns:
             Pipeline result dict.
         """
-        return run_processing_pipeline(initial_state)
+        return run_extraction_pipeline(initial_state)
 
 
 class DocumentClassificationService:

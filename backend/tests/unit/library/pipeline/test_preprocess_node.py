@@ -52,14 +52,14 @@ def _make_state(
 class TestPreprocessNodeHappyPath:
     """Tests for successful preprocessing."""
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_returns_page_images_and_count(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """preprocess_node returns corrected images and page count."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img, fake_img]
@@ -74,12 +74,12 @@ class TestPreprocessNodeHappyPath:
         assert len(result["page_images"]) == 2
         assert result["page_count"] == 2
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_returns_skew_angles(self, mock_convert, mock_deskew, mock_quality):
         """preprocess_node collects skew angles from each page."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -91,12 +91,12 @@ class TestPreprocessNodeHappyPath:
 
         assert result["skew_angles"] == [3.14]
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_serializes_quality_map(self, mock_convert, mock_deskew, mock_quality):
         """Quality map keys are serialized from tuples to 'row,col' strings."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -114,12 +114,12 @@ class TestPreprocessNodeHappyPath:
         assert result["quality_map"]["0,0"]["overall_score"] == 0.8
         assert result["quality_map"]["1,2"]["blur_score"] == 20.0
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_creates_audit_entry(self, mock_convert, mock_deskew, mock_quality):
         """preprocess_node appends an audit entry with step_name='preprocess'."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -138,14 +138,14 @@ class TestPreprocessNodeHappyPath:
         assert isinstance(entry["duration_ms"], int)
         assert entry["duration_ms"] >= 0
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_appends_to_existing_audit_entries(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """Audit entries accumulate; existing entries are preserved."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -161,14 +161,14 @@ class TestPreprocessNodeHappyPath:
         assert result["audit_entries"][0]["step_name"] == "init"
         assert result["audit_entries"][1]["step_name"] == "preprocess"
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_does_not_set_error_status_on_success(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """On success, result should NOT contain status='error'."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -184,14 +184,14 @@ class TestPreprocessNodeHappyPath:
 class TestPreprocessNodeCallback:
     """Tests for progress callback invocation."""
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_callback_invoked_at_each_substep(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """progress_callback is called at multiple progress points."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -204,12 +204,12 @@ class TestPreprocessNodeCallback:
 
         assert callback.call_count >= 3
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_works_without_callback(self, mock_convert, mock_deskew, mock_quality):
         """preprocess_node works fine when progress_callback is None."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -225,10 +225,10 @@ class TestPreprocessNodeCallback:
 class TestPreprocessNodeErrorHandling:
     """Tests for error cases."""
 
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_returns_error_on_conversion_failure(self, mock_convert):
         """If convert_to_page_images raises, returns status='error'."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         mock_convert.side_effect = ValueError("Unsupported file type: xyz")
 
@@ -238,11 +238,11 @@ class TestPreprocessNodeErrorHandling:
         assert result["status"] == "error"
         assert "Preprocessing failed" in result["error_message"]
 
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_returns_error_on_deskew_failure(self, mock_convert, mock_deskew):
         """If detect_and_correct raises, returns status='error'."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]
@@ -254,10 +254,10 @@ class TestPreprocessNodeErrorHandling:
         assert result["status"] == "error"
         assert "Preprocessing failed" in result["error_message"]
 
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_handles_empty_file_bytes(self, mock_convert):
         """Empty file bytes should propagate as an error."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         mock_convert.side_effect = ValueError("PDF bytes cannot be empty")
 
@@ -270,14 +270,14 @@ class TestPreprocessNodeErrorHandling:
 class TestPreprocessNodeQualityMapEdgeCases:
     """Tests for quality map edge cases."""
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_empty_quality_map_when_no_images(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """If no corrected images, quality_map should be empty."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         mock_convert.return_value = []
 
@@ -287,14 +287,14 @@ class TestPreprocessNodeQualityMapEdgeCases:
         assert result["quality_map"] == {}
         assert result["page_count"] == 0
 
-    @patch("docmind.library.pipeline.processing.assess_regions")
-    @patch("docmind.library.pipeline.processing.detect_and_correct")
-    @patch("docmind.library.pipeline.processing.convert_to_page_images")
+    @patch("docmind.library.pipeline.extraction.preprocess.assess_regions")
+    @patch("docmind.library.pipeline.extraction.preprocess.detect_and_correct")
+    @patch("docmind.library.pipeline.extraction.preprocess.convert_to_page_images")
     def test_mean_quality_in_audit_with_regions(
         self, mock_convert, mock_deskew, mock_quality
     ):
         """Audit output_summary includes mean_quality computed from quality_map."""
-        from docmind.library.pipeline.processing import preprocess_node
+        from docmind.library.pipeline.extraction.preprocess import preprocess_node
 
         fake_img = np.zeros((100, 100, 3), dtype=np.uint8)
         mock_convert.return_value = [fake_img]

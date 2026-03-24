@@ -101,10 +101,10 @@ def _make_state(
 class TestExtractNodeGeneralMode:
     """Tests for general (schema-free) extraction."""
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_extracts_fields_from_vlm_response(self, mock_get_provider):
         """extract_node returns raw_fields parsed from VLM response."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -117,10 +117,10 @@ class TestExtractNodeGeneralMode:
         assert result["raw_fields"][0]["field_value"] == "INV-001"
         assert result["raw_fields"][1]["field_key"] == "total"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_attaches_vlm_confidence_to_fields(self, mock_get_provider):
         """Each field gets vlm_confidence from its own confidence or VLM response fallback."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -131,10 +131,10 @@ class TestExtractNodeGeneralMode:
         assert result["raw_fields"][0]["vlm_confidence"] == 0.95
         assert result["raw_fields"][1]["vlm_confidence"] == 0.88
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_does_not_mutate_original_vlm_fields(self, mock_get_provider):
         """Original field dicts from VLM response must not be mutated."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -146,10 +146,10 @@ class TestExtractNodeGeneralMode:
         assert "vlm_confidence" not in original_fields[0]
         assert "vlm_confidence" not in original_fields[1]
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_vlm_confidence_falls_back_to_response_level(self, mock_get_provider):
         """If field has no confidence, use VLM response-level confidence."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         response = {
             "content": "text",
@@ -172,10 +172,10 @@ class TestExtractNodeGeneralMode:
 
         assert result["raw_fields"][0]["vlm_confidence"] == 0.7
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_returns_document_type_from_vlm(self, mock_get_provider):
         """document_type is extracted from VLM response structured_data."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -185,10 +185,10 @@ class TestExtractNodeGeneralMode:
 
         assert result["document_type"] == "invoice"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_classifies_when_no_document_type_detected(self, mock_get_provider):
         """If general mode and no document_type in response, calls classify()."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         response = {
             "content": "text",
@@ -215,10 +215,10 @@ class TestExtractNodeGeneralMode:
         provider.classify.assert_called_once()
         assert result["document_type"] == "receipt"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_skips_classify_when_document_type_present(self, mock_get_provider):
         """If document_type is already in response, don't call classify()."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -228,10 +228,10 @@ class TestExtractNodeGeneralMode:
 
         provider.classify.assert_not_called()
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_serializes_vlm_response(self, mock_get_provider):
         """vlm_response in result contains content, confidence, model, usage."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -245,10 +245,10 @@ class TestExtractNodeGeneralMode:
         assert "model" in vlm
         assert "usage" in vlm
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_creates_audit_entry(self, mock_get_provider):
         """extract_node appends audit entry with step_name='extract'."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -271,10 +271,10 @@ class TestExtractNodeGeneralMode:
 class TestExtractNodeCallbackAndErrors:
     """Tests for callback invocation and error handling."""
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_callback_invoked_at_substeps(self, mock_get_provider):
         """progress_callback is called multiple times during extraction."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -285,10 +285,10 @@ class TestExtractNodeCallbackAndErrors:
 
         assert callback.call_count >= 3
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_works_without_callback(self, mock_get_provider):
         """extract_node works when callback is None."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
@@ -298,10 +298,10 @@ class TestExtractNodeCallbackAndErrors:
 
         assert len(result["raw_fields"]) == 2
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_returns_error_on_provider_failure(self, mock_get_provider):
         """If VLM provider raises, returns status='error'."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         provider.extract = AsyncMock(side_effect=RuntimeError("VLM API timeout"))
@@ -313,10 +313,10 @@ class TestExtractNodeCallbackAndErrors:
         assert result["status"] == "error"
         assert result["error_message"] == "Extraction failed. See server logs for details."
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_handles_malformed_vlm_response_missing_fields(self, mock_get_provider):
         """If VLM response has no 'fields' key, treats as empty list."""
-        from docmind.library.pipeline.processing import extract_node
+        from docmind.library.pipeline.extraction.extract import extract_node
 
         response = {
             "content": "text",
@@ -335,10 +335,10 @@ class TestExtractNodeCallbackAndErrors:
         assert result["raw_fields"] == []
         assert result.get("status") != "error"
 
-    @patch("docmind.library.pipeline.processing.get_vlm_provider")
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_uses_general_prompt_when_no_template(self, mock_get_provider):
         """In general mode, the prompt passed to provider.extract is the general prompt."""
-        from docmind.library.pipeline.processing import extract_node, GENERAL_EXTRACTION_PROMPT
+        from docmind.library.pipeline.extraction.extract import extract_node, GENERAL_EXTRACTION_PROMPT
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
