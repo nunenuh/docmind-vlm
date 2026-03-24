@@ -132,8 +132,10 @@ export function ProjectSidebar({ projectId, activeConvId, onSelectConversation, 
 
   const handleFileChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (file) validateAndUpload(file);
+      const files = e.target.files;
+      if (files) {
+        Array.from(files).forEach((file) => validateAndUpload(file));
+      }
       if (inputRef.current) inputRef.current.value = "";
     },
     [validateAndUpload],
@@ -286,6 +288,7 @@ export function ProjectSidebar({ projectId, activeConvId, onSelectConversation, 
                 ref={inputRef}
                 type="file"
                 accept=".pdf,.png,.jpg,.jpeg,.tiff,.webp"
+                multiple
                 onChange={handleFileChange}
                 className="hidden"
               />
