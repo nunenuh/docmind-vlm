@@ -365,7 +365,9 @@
       "Bash(echo \"=== 1. Hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind --include=\"*.py\")",
       "Read(//workspace/company/nunenuh/docmind-vlm/=== 5. Direct DB/**)",
       "Read(//workspace/company/nunenuh/docmind-vlm/=== 7. Bare except /**)",
-      "Bash(echo \"=== 11. Library: hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library --include=\"*.py\")"
+      "Bash(echo \"=== 11. Library: hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library --include=\"*.py\")",
+      "Bash(echo \"=== 1. Hardcoded __init__ \\(no DI\\) in modules ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules --include=\"*.py\")",
+      "Read(//workspace/company/nunenuh/docmind-vlm/=== 3. DB/**)"
     ]
   }
 }

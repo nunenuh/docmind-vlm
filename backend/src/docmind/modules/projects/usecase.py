@@ -341,11 +341,11 @@ class ProjectUseCase:
 
     async def get_conversation(
         self, user_id: str, conversation_id: str
-    ) -> ConversationDetailResponse | None:
+    ) -> ConversationDetailResponse:
         """Get a conversation with all messages."""
         conversation = await self.conv_repo.get_by_id(conversation_id, user_id)
         if conversation is None:
-            return None
+            raise NotFoundException("Conversation not found")
 
         return ConversationDetailResponse(
             id=str(conversation.id),

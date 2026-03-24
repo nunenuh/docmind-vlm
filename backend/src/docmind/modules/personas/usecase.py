@@ -7,6 +7,7 @@ Persona use case — orchestrates persona CRUD and seeding.
 import uuid
 
 from docmind.core.logging import get_logger
+from docmind.shared.exceptions import NotFoundException
 
 from .repositories import PersonaRepository
 from .services import PersonaService
@@ -55,11 +56,11 @@ class PersonaUseCase:
         """Delete a custom persona."""
         return await self.repo.delete(persona_id, user_id)
 
-    async def duplicate_persona(self, persona_id: str, user_id: str) -> object | None:
+    async def duplicate_persona(self, persona_id: str, user_id: str) -> object:
         """Duplicate a persona as user's custom."""
         source = await self.repo.get_by_id(persona_id)
         if source is None:
-            return None
+            raise NotFoundException("Persona not found")
 
         return await self.repo.create(
             user_id=user_id,
