@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import {
   FileText, Upload, Trash2, RefreshCw, Loader2, AlertCircle,
-  CheckCircle, Clock, Plus, Image,
+  CheckCircle, Clock, Plus, Image, MoreHorizontal, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -23,11 +23,10 @@ interface Props {
 function formatSize(bytes: number): string {
   if (!bytes || bytes <= 0) return "";
   if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-// Upload lifecycle per file
 interface UploadTask {
   id: string;
   filename: string;
@@ -35,7 +34,7 @@ interface UploadTask {
   fileType: string;
   step: "uploading" | "linking" | "indexing" | "done" | "error";
   stepLabel: string;
-  progress: number; // 0-100
+  progress: number;
   error?: string;
 }
 
@@ -57,118 +56,79 @@ export function ProjectDocumentsTab({ projectId }: Props) {
   };
 
   const removeTask = (id: string) => {
-    setUploadTasks((prev) => {
-      const next = new Map(prev);
-      next.delete(id);
-      return next;
-    });
+    setUploadTasks((prev) => { const n = new Map(prev); n.delete(id); return n; });
   };
 
   const handleUploadFile = useCallback(
     async (file: File) => {
-      if (file.size > MAX_SIZE) {
-        toast.error(`${file.name} exceeds 20MB limit`);
-        return;
-      }
+      if (file.size > MAX_SIZE) { toast.error(`${file.name} exceeds 20MB limit`); return; }
 
       const taskId = `upload-${Date.now()}-${file.name}`;
-
-      // Add task
       setUploadTasks((prev) => {
         const next = new Map(prev);
         next.set(taskId, {
-          id: taskId,
-          filename: file.name,
-          fileSize: file.size,
+          id: taskId, filename: file.name, fileSize: file.size,
           fileType: file.name.split(".").pop()?.toLowerCase() || "pdf",
-          step: "uploading",
-          stepLabel: "Uploading file...",
-          progress: 10,
+          step: "uploading", stepLabel: "Uploading...", progress: 15,
         });
         return next;
       });
 
       try {
-        // Step 1: Upload + link to project (addDocumentToProject does both)
-        updateTask(taskId, { step: "uploading", stepLabel: "Uploading to storage...", progress: 20 });
-        await new Promise((r) => setTimeout(r, 500));
-        updateTask(taskId, { step: "linking", stepLabel: "Linking to project & indexing...", progress: 45 });
+        updateTask(taskId, { step: "uploading", stepLabel: "Uploading to storage...", progress: 25 });
+        await new Promise((r) => setTimeout(r, 300));
+        updateTask(taskId, { step: "linking", stepLabel: "Linking to project...", progress: 45 });
 
         await addDocumentToProject(projectId, file);
 
-        // Step 2: Indexing happens on backend during addDocumentToProject
-        updateTask(taskId, { step: "indexing", stepLabel: "RAG indexing in progress...", progress: 70 });
-
-        // Refresh document list immediately so it shows
+        updateTask(taskId, { step: "indexing", stepLabel: "Indexing for RAG...", progress: 70 });
         queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
 
         await new Promise((r) => setTimeout(r, 2000));
         updateTask(taskId, { progress: 90, stepLabel: "Finalizing..." });
         await new Promise((r) => setTimeout(r, 1000));
 
-        // Step 3: Done
-        updateTask(taskId, { step: "done", stepLabel: "Uploaded & indexed", progress: 100 });
-
-        // Refresh again to get final status
+        updateTask(taskId, { step: "done", stepLabel: "Complete", progress: 100 });
         queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
         queryClient.invalidateQueries({ queryKey: ["projects"] });
-
-        // Remove task after 3 seconds
-        setTimeout(() => removeTask(taskId), 3000);
-
+        setTimeout(() => removeTask(taskId), 2500);
       } catch (e) {
-        updateTask(taskId, {
-          step: "error",
-          stepLabel: `Failed: ${(e as Error).message}`,
-          progress: 0,
-          error: (e as Error).message,
-        });
+        updateTask(taskId, { step: "error", stepLabel: (e as Error).message, progress: 0, error: (e as Error).message });
       }
     },
     [projectId, queryClient],
   );
 
   const handleFiles = useCallback(
-    (files: FileList | File[]) => {
-      Array.from(files).forEach((file) => handleUploadFile(file));
-    },
+    (files: FileList | File[]) => { Array.from(files).forEach((f) => handleUploadFile(f)); },
     [handleUploadFile],
   );
 
   const handleDrop = useCallback(
-    (e: React.DragEvent) => {
-      e.preventDefault();
-      setDragOver(false);
-      if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files);
-    },
+    (e: React.DragEvent) => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files.length) handleFiles(e.dataTransfer.files); },
     [handleFiles],
   );
 
   const handleReindex = async (docId: string, filename: string) => {
     const taskId = `reindex-${docId}`;
     setUploadTasks((prev) => {
-      const next = new Map(prev);
-      next.set(taskId, {
-        id: taskId, filename, fileSize: 0, fileType: "pdf",
-        step: "indexing", stepLabel: "Re-indexing chunks...", progress: 50,
-      });
-      return next;
+      const n = new Map(prev);
+      n.set(taskId, { id: taskId, filename, fileSize: 0, fileType: "pdf", step: "indexing", stepLabel: "Re-indexing...", progress: 50 });
+      return n;
     });
-
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
-      const resp = await fetch(
-        `${BASE_URL}/api/v1/projects/${projectId}/documents/${docId}/reindex`,
-        { method: "POST", headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} },
-      );
+      const resp = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/documents/${docId}/reindex`, {
+        method: "POST", headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+      });
       if (!resp.ok) throw new Error("Reindex failed");
       const result = await resp.json();
-      updateTask(taskId, { step: "done", stepLabel: `Re-indexed: ${result.chunks_created} chunks`, progress: 100 });
+      updateTask(taskId, { step: "done", stepLabel: `${result.chunks_created} chunks`, progress: 100 });
       queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
-      setTimeout(() => removeTask(taskId), 3000);
-    } catch (e) {
-      updateTask(taskId, { step: "error", stepLabel: `Re-index failed`, progress: 0, error: (e as Error).message });
+      setTimeout(() => removeTask(taskId), 2500);
+    } catch {
+      updateTask(taskId, { step: "error", stepLabel: "Re-index failed", progress: 0 });
     }
   };
 
@@ -176,114 +136,113 @@ export function ProjectDocumentsTab({ projectId }: Props) {
   const activeTasks = Array.from(uploadTasks.values());
 
   return (
-    <div className="h-full flex flex-col bg-[#0a0a0f]">
-      {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-[#1e1e2e]">
-        <h2 className="text-sm font-semibold text-white">Documents ({docList.length})</h2>
+    <div className="h-full flex flex-col bg-[#0C0D12]">
+      {/* Subheader */}
+      <div className="flex items-center justify-between px-6 py-3.5 border-b border-white/[0.04]">
+        <div className="flex items-center gap-3">
+          <p className="text-[13px] font-semibold text-gray-200 tracking-tight">
+            {docList.length} document{docList.length !== 1 ? "s" : ""}
+          </p>
+          {docList.length > 0 && (
+            <span className="text-[11px] text-gray-600">
+              {formatSize(docList.reduce((sum, d) => sum + (d.file_size || 0), 0))} total
+            </span>
+          )}
+        </div>
         <button
           onClick={() => inputRef.current?.click()}
-          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium rounded-lg transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[12px] font-semibold rounded-lg transition-all duration-200 shadow-lg shadow-indigo-500/10 hover:shadow-indigo-500/20 active:scale-[0.98]"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           Upload Files
         </button>
-        <input
-          ref={inputRef}
-          type="file"
-          accept={ACCEPTED}
-          multiple
+        <input ref={inputRef} type="file" accept={ACCEPTED} multiple
           onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = ""; }}
-          className="hidden"
-        />
+          className="hidden" />
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
-        {isLoading ? (
-          <div className="flex items-center justify-center py-16">
-            <Loader2 className="w-6 h-6 text-indigo-400 animate-spin" />
-          </div>
-        ) : docList.length === 0 && activeTasks.length === 0 ? (
-          <div
-            className={`flex flex-col items-center justify-center py-16 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-              dragOver ? "border-indigo-500 bg-indigo-500/5" : "border-[#2a2a3a]"
-            }`}
-            onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-            onDragLeave={() => setDragOver(false)}
-            onDrop={handleDrop}
-            onClick={() => inputRef.current?.click()}
-          >
-            <Upload className="w-10 h-10 text-gray-600 mb-4" />
-            <p className="text-sm text-gray-400 font-medium">Drop files here or click to upload</p>
-            <p className="text-xs text-gray-600 mt-1">PDF, PNG, JPG, TIFF, WebP — up to 20MB each</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {/* Active upload/indexing tasks */}
-            {activeTasks.map((task) => (
-              <UploadProgressCard
-                key={task.id}
-                task={task}
-                onRetry={() => removeTask(task.id)}
-                onDismiss={() => removeTask(task.id)}
-              />
-            ))}
-
-            {/* Existing documents */}
-            {docList.map((doc: ProjectDocumentResponse) => (
-              <DocumentCard
-                key={doc.id}
-                doc={doc}
-                onReindex={() => handleReindex(doc.id, doc.filename)}
-                onRemove={() => {
-                  if (window.confirm(`Remove "${doc.filename}"?`)) removeDoc.mutate(doc.id);
-                }}
-              />
-            ))}
-
-            {/* Drop zone at bottom */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="max-w-4xl mx-auto px-6 py-5">
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-5 h-5 text-indigo-400 animate-spin" />
+            </div>
+          ) : docList.length === 0 && activeTasks.length === 0 ? (
+            /* Empty state */
             <div
-              className={`flex items-center justify-center py-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
-                dragOver ? "border-indigo-500 bg-indigo-500/5" : "border-[#2a2a3a] hover:border-[#3a3a4a]"
+              className={`flex flex-col items-center justify-center py-20 rounded-2xl border-2 border-dashed cursor-pointer transition-all duration-300 ${
+                dragOver
+                  ? "border-indigo-500/50 bg-indigo-500/[0.03] scale-[1.01]"
+                  : "border-white/[0.06] hover:border-white/[0.12]"
               }`}
               onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
               onDragLeave={() => setDragOver(false)}
               onDrop={handleDrop}
               onClick={() => inputRef.current?.click()}
             >
-              <div className="flex items-center gap-2 text-xs text-gray-500">
-                <Upload className="w-3.5 h-3.5" />
-                Drop more files or click to upload
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-indigo-500/10 to-violet-500/10 border border-indigo-500/10 flex items-center justify-center mb-5">
+                <Upload className="w-6 h-6 text-indigo-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-300 mb-1">Drop files here or click to upload</p>
+              <p className="text-xs text-gray-600">PDF, PNG, JPG, TIFF, WebP — up to 20MB each</p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {/* Active upload tasks */}
+              {activeTasks.map((task) => (
+                <UploadCard key={task.id} task={task} onDismiss={() => removeTask(task.id)} />
+              ))}
+
+              {/* Existing documents */}
+              {docList.map((doc: ProjectDocumentResponse, i: number) => (
+                <DocumentRow
+                  key={doc.id}
+                  doc={doc}
+                  index={i}
+                  onReindex={() => handleReindex(doc.id, doc.filename)}
+                  onRemove={() => { if (window.confirm(`Remove "${doc.filename}"?`)) removeDoc.mutate(doc.id); }}
+                />
+              ))}
+
+              {/* Upload more zone */}
+              <div
+                className={`flex items-center justify-center py-5 rounded-xl border border-dashed cursor-pointer transition-all duration-200 mt-3 ${
+                  dragOver ? "border-indigo-500/40 bg-indigo-500/[0.02]" : "border-white/[0.06] hover:border-white/[0.1]"
+                }`}
+                onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+                onClick={() => inputRef.current?.click()}
+              >
+                <span className="flex items-center gap-2 text-[11px] text-gray-600 hover:text-gray-400 transition-colors">
+                  <Upload className="w-3.5 h-3.5" />
+                  Drop more files or click to upload
+                </span>
               </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
+/* ── Upload Progress Card ──────────────────────────────── */
 
-function UploadProgressCard({
-  task,
-  onRetry,
-  onDismiss,
-}: {
-  task: UploadTask;
-  onRetry: () => void;
-  onDismiss: () => void;
-}) {
+function UploadCard({ task, onDismiss }: { task: UploadTask; onDismiss: () => void }) {
   const isError = task.step === "error";
   const isDone = task.step === "done";
 
+  const colors = isError
+    ? { bg: "bg-rose-500/[0.04]", border: "border-rose-500/[0.12]", bar: "bg-rose-500", text: "text-rose-400" }
+    : isDone
+    ? { bg: "bg-emerald-500/[0.04]", border: "border-emerald-500/[0.12]", bar: "bg-emerald-500", text: "text-emerald-400" }
+    : { bg: "bg-indigo-500/[0.04]", border: "border-indigo-500/[0.12]", bar: "bg-indigo-500", text: "text-indigo-300" };
+
   return (
-    <div className={`px-4 py-3 rounded-xl border transition-colors ${
-      isError ? "bg-rose-500/5 border-rose-500/20" :
-      isDone ? "bg-emerald-500/5 border-emerald-500/20" :
-      "bg-indigo-500/5 border-indigo-500/20"
-    }`}>
-      <div className="flex items-center gap-3 mb-2">
-        {/* Icon */}
+    <div className={`${colors.bg} border ${colors.border} rounded-xl px-4 py-3 transition-all duration-300`}>
+      <div className="flex items-center gap-3">
         <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
           isError ? "bg-rose-500/10" : isDone ? "bg-emerald-500/10" : "bg-indigo-500/10"
         }`}>
@@ -292,137 +251,152 @@ function UploadProgressCard({
            <Loader2 className="w-4 h-4 text-indigo-400 animate-spin" />}
         </div>
 
-        {/* Info */}
         <div className="flex-1 min-w-0">
-          <p className="text-sm text-white font-medium truncate">{task.filename}</p>
-          <p className={`text-xs mt-0.5 ${
-            isError ? "text-rose-400" : isDone ? "text-emerald-400" : "text-indigo-300"
-          }`}>
-            {task.stepLabel}
-          </p>
+          <p className="text-[13px] text-gray-200 font-medium truncate">{task.filename}</p>
+          <p className={`text-[11px] mt-0.5 ${colors.text}`}>{task.stepLabel}</p>
         </div>
 
-        {/* Size */}
         {task.fileSize > 0 && (
-          <span className="text-xs text-gray-500">{formatSize(task.fileSize)}</span>
+          <span className="text-[11px] text-gray-600 flex-shrink-0">{formatSize(task.fileSize)}</span>
         )}
 
-        {/* Actions */}
-        {isError && (
-          <button onClick={onRetry} className="text-xs text-rose-400 hover:text-rose-300 px-2 py-1 rounded hover:bg-rose-500/10">
-            Dismiss
-          </button>
-        )}
-        {isDone && (
-          <button onClick={onDismiss} className="text-xs text-gray-500 hover:text-gray-300">
-            ✕
+        {(isDone || isError) && (
+          <button onClick={onDismiss} className="text-gray-600 hover:text-gray-400 p-1 transition-colors">
+            <X className="w-3.5 h-3.5" />
           </button>
         )}
       </div>
 
       {/* Progress bar */}
       {!isDone && !isError && (
-        <div className="flex items-center gap-3">
-          <div className="flex-1 bg-[#1a1a25] rounded-full h-1.5 overflow-hidden">
+        <div className="mt-2.5 flex items-center gap-3">
+          <div className="flex-1 h-1 bg-white/[0.04] rounded-full overflow-hidden">
             <div
-              className="h-full bg-indigo-500 rounded-full transition-all duration-700 ease-out"
+              className={`h-full ${colors.bar} rounded-full transition-all duration-700 ease-out`}
               style={{ width: `${task.progress}%` }}
             />
           </div>
-          <span className="text-[10px] text-gray-500 tabular-nums w-8 text-right">{task.progress}%</span>
+          <span className="text-[10px] text-gray-600 tabular-nums w-7 text-right">{task.progress}%</span>
         </div>
       )}
 
       {/* Step indicators */}
       {!isDone && !isError && (
-        <div className="flex items-center gap-4 mt-2">
-          <StepDot label="Upload" active={task.step === "uploading"} done={["linking", "indexing", "done"].includes(task.step)} />
-          <StepLine done={["linking", "indexing", "done"].includes(task.step)} />
-          <StepDot label="Link" active={task.step === "linking"} done={["indexing", "done"].includes(task.step)} />
-          <StepLine done={["indexing", "done"].includes(task.step)} />
-          <StepDot label="Index" active={task.step === "indexing"} done={task.step === "done"} />
+        <div className="flex items-center gap-3 mt-2">
+          <StepPill label="Upload" active={task.step === "uploading"} done={["linking", "indexing", "done"].includes(task.step)} />
+          <div className={`flex-1 h-px max-w-6 ${["linking", "indexing", "done"].includes(task.step) ? "bg-emerald-500/20" : "bg-white/[0.04]"}`} />
+          <StepPill label="Link" active={task.step === "linking"} done={["indexing", "done"].includes(task.step)} />
+          <div className={`flex-1 h-px max-w-6 ${["indexing", "done"].includes(task.step) ? "bg-emerald-500/20" : "bg-white/[0.04]"}`} />
+          <StepPill label="Index" active={task.step === "indexing"} done={task.step === "done"} />
         </div>
       )}
     </div>
   );
 }
 
-function StepDot({ label, active, done }: { label: string; active: boolean; done: boolean }) {
+function StepPill({ label, active, done }: { label: string; active: boolean; done: boolean }) {
   return (
-    <div className="flex items-center gap-1.5">
-      <div className={`w-2 h-2 rounded-full transition-colors ${
-        done ? "bg-emerald-400" : active ? "bg-indigo-400 animate-pulse" : "bg-gray-700"
-      }`} />
-      <span className={`text-[10px] ${
-        done ? "text-emerald-400" : active ? "text-indigo-300 font-medium" : "text-gray-600"
-      }`}>{label}</span>
-    </div>
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full transition-colors ${
+      done ? "bg-emerald-500/10 text-emerald-400" :
+      active ? "bg-indigo-500/10 text-indigo-300" :
+      "bg-white/[0.02] text-gray-600"
+    }`}>
+      {label}
+    </span>
   );
 }
 
-function StepLine({ done }: { done: boolean }) {
-  return <div className={`flex-1 h-px max-w-8 ${done ? "bg-emerald-500/30" : "bg-gray-800"}`} />;
-}
+/* ── Document Row ──────────────────────────────────────── */
 
-function DocumentCard({
-  doc,
-  onReindex,
-  onRemove,
+function DocumentRow({
+  doc, index, onReindex, onRemove,
 }: {
   doc: ProjectDocumentResponse;
+  index: number;
   onReindex: () => void;
   onRemove: () => void;
 }) {
   const isImage = ["png", "jpg", "jpeg", "webp", "tiff"].includes(doc.file_type);
-  const statusCfg = {
-    uploaded: { icon: <Clock className="w-3.5 h-3.5" />, label: "Uploaded", color: "text-gray-400", bg: "bg-gray-500/10" },
-    processing: { icon: <Loader2 className="w-3.5 h-3.5 animate-spin" />, label: "Processing", color: "text-indigo-400", bg: "bg-indigo-500/10" },
-    ready: { icon: <CheckCircle className="w-3.5 h-3.5" />, label: "Indexed", color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    error: { icon: <AlertCircle className="w-3.5 h-3.5" />, label: "Error", color: "text-rose-400", bg: "bg-rose-500/10" },
+  const [showMenu, setShowMenu] = useState(false);
+
+  const statusMap: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+    uploaded: { label: "Uploaded", color: "text-amber-400 bg-amber-500/[0.08] border-amber-500/[0.12]", icon: <Clock className="w-3 h-3" /> },
+    processing: { label: "Processing", color: "text-indigo-400 bg-indigo-500/[0.08] border-indigo-500/[0.12]", icon: <Loader2 className="w-3 h-3 animate-spin" /> },
+    ready: { label: "Indexed", color: "text-emerald-400 bg-emerald-500/[0.08] border-emerald-500/[0.12]", icon: <CheckCircle className="w-3 h-3" /> },
+    error: { label: "Error", color: "text-rose-400 bg-rose-500/[0.08] border-rose-500/[0.12]", icon: <AlertCircle className="w-3 h-3" /> },
   };
-  const status = statusCfg[doc.status as keyof typeof statusCfg] || statusCfg.uploaded;
+  const status = statusMap[doc.status] || statusMap.uploaded;
 
   return (
-    <div className="group flex items-center gap-4 px-4 py-3 bg-[#12121a] border border-[#1e1e2e] rounded-xl hover:border-[#2a2a3a] transition-colors">
-      {/* Icon */}
-      <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${
-        isImage ? "bg-emerald-500/10" : "bg-rose-500/10"
+    <div
+      className="group flex items-center gap-4 px-4 py-3 rounded-xl border border-white/[0.04] hover:border-white/[0.08] bg-white/[0.01] hover:bg-white/[0.02] transition-all duration-200"
+      style={{ animationDelay: `${index * 30}ms` }}
+    >
+      {/* File icon */}
+      <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${
+        isImage ? "bg-emerald-500/[0.08] border border-emerald-500/[0.08]" : "bg-rose-500/[0.08] border border-rose-500/[0.08]"
       }`}>
-        {isImage ? <Image className="w-5 h-5 text-emerald-400" /> : <FileText className="w-5 h-5 text-rose-400" />}
+        {isImage
+          ? <Image className="w-4 h-4 text-emerald-400" />
+          : <FileText className="w-4 h-4 text-rose-400" />}
       </div>
 
-      {/* Info */}
+      {/* File info */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-white font-medium truncate">{doc.filename}</p>
-        <div className="flex items-center gap-3 mt-0.5">
-          <span className="text-xs text-gray-500">{doc.file_type.toUpperCase()}</span>
-          {doc.file_size > 0 && <span className="text-xs text-gray-600">{formatSize(doc.file_size)}</span>}
-          {doc.page_count > 0 && <span className="text-xs text-gray-600">{doc.page_count} pages</span>}
+        <p className="text-[13px] text-gray-200 font-medium truncate tracking-tight">{doc.filename}</p>
+        <div className="flex items-center gap-2.5 mt-0.5">
+          <span className="text-[11px] text-gray-500 font-medium">{doc.file_type.toUpperCase()}</span>
+          {doc.file_size > 0 && (
+            <>
+              <span className="text-[11px] text-gray-700">·</span>
+              <span className="text-[11px] text-gray-600">{formatSize(doc.file_size)}</span>
+            </>
+          )}
+          {doc.page_count > 0 && (
+            <>
+              <span className="text-[11px] text-gray-700">·</span>
+              <span className="text-[11px] text-gray-600">{doc.page_count} pages</span>
+            </>
+          )}
         </div>
       </div>
 
       {/* Status badge */}
-      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${status.color} ${status.bg}`}>
+      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[11px] font-medium ${status.color}`}>
         {status.icon}
         {status.label}
       </div>
 
-      {/* Actions */}
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+      {/* Actions menu */}
+      <div className="relative">
         <button
-          onClick={onReindex}
-          className="p-2 text-gray-500 hover:text-indigo-400 rounded-lg hover:bg-indigo-500/10 transition-colors"
-          title="Re-index"
+          onClick={() => setShowMenu(!showMenu)}
+          className="p-1.5 text-gray-600 opacity-0 group-hover:opacity-100 hover:text-gray-300 rounded-lg hover:bg-white/[0.06] transition-all duration-200"
         >
-          <RefreshCw className="w-4 h-4" />
+          <MoreHorizontal className="w-4 h-4" />
         </button>
-        <button
-          onClick={onRemove}
-          className="p-2 text-gray-500 hover:text-rose-400 rounded-lg hover:bg-rose-500/10 transition-colors"
-          title="Remove"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+
+        {showMenu && (
+          <>
+            <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />
+            <div className="absolute right-0 top-full mt-1 z-50 bg-[#16181F] border border-white/[0.08] rounded-lg shadow-2xl shadow-black/50 py-1 w-40">
+              <button
+                onClick={() => { setShowMenu(false); onReindex(); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-gray-300 hover:bg-white/[0.04] transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
+                Re-index
+              </button>
+              <button
+                onClick={() => { setShowMenu(false); onRemove(); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-rose-400 hover:bg-rose-500/[0.06] transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Remove
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
