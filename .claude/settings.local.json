@@ -367,7 +367,21 @@
       "Read(//workspace/company/nunenuh/docmind-vlm/=== 7. Bare except /**)",
       "Bash(echo \"=== 11. Library: hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library --include=\"*.py\")",
       "Bash(echo \"=== 1. Hardcoded __init__ \\(no DI\\) in modules ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/modules --include=\"*.py\")",
-      "Read(//workspace/company/nunenuh/docmind-vlm/=== 3. DB/**)"
+      "Read(//workspace/company/nunenuh/docmind-vlm/=== 3. DB/**)",
+      "Bash(timeout 120 .venv/bin/python -m pytest tests/unit/ --tb=short -q)",
+      "Bash(timeout 120 .venv/bin/python -m pytest tests/unit/ --collect-only -q)",
+      "Bash(.venv/bin/python -m pytest tests/unit/ --tb=short -q)",
+      "Bash(timeout 60 .venv/bin/python -m pytest tests/integration/test_documents_api.py::TestUploadDocument::test_upload_rejects_unsupported_type --tb=short)",
+      "Bash(timeout 30 .venv/bin/python -m pytest tests/integration/test_alembic_migration.py::TestTableCreation::test_no_unexpected_tables --tb=short)",
+      "Bash(timeout 120 .venv/bin/python -m pytest tests/unit/ tests/integration/ --tb=line -q)",
+      "Bash(timeout 90 .venv/bin/python -m pytest tests/unit/ -x --tb=line -q)",
+      "Bash(timeout 30 .venv/bin/python -m pytest tests/unit/library/ --tb=line -q)",
+      "Bash(timeout 30 .venv/bin/python -m pytest tests/unit/core/ tests/unit/modules/ --tb=line -q)",
+      "Bash(timeout 15 .venv/bin/python -m pytest tests/unit/modules/ --collect-only -q)",
+      "Bash(timeout 45 .venv/bin/python -m pytest tests/unit/modules/ --timeout=5 --tb=line -q)",
+      "Bash(timeout 45 .venv/bin/python -m pytest tests/unit/modules/ -v --tb=line -q)",
+      "Bash(for mod:*)",
+      "Bash(timeout 10 .venv/bin/python -m pytest tests/unit/modules/chat/ -v)"
     ]
   }
 }

@@ -8,6 +8,7 @@ from docmind.modules.extractions.schemas import (
     ExtractionResponse,
     OverlayRegion,
 )
+from docmind.shared.exceptions import NotFoundException
 
 
 @pytest.fixture
@@ -78,16 +79,16 @@ class TestExtractionUseCaseGetExtraction:
         usecase.repo.get_fields.assert_called_once_with("ext-001")
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_no_extraction(self):
+    async def test_raises_not_found_when_no_extraction(self):
         from docmind.modules.extractions.usecase import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
         usecase.repo.get_latest_extraction.return_value = None
 
-        result = await usecase.get_extraction("nonexistent-doc")
+        with pytest.raises(NotFoundException):
+            await usecase.get_extraction("nonexistent-doc")
 
-        assert result is None
         usecase.repo.get_fields.assert_not_called()
 
 

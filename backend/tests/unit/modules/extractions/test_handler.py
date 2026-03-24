@@ -52,14 +52,14 @@ class TestGetExtraction:
     @pytest.mark.asyncio
     @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
     async def test_raises_404_when_not_found(self, MockUseCase):
-        from fastapi import HTTPException
+        from docmind.shared.exceptions import NotFoundException
         from docmind.modules.extractions.apiv1.handler import get_extraction
 
         mock_uc = AsyncMock()
-        mock_uc.get_extraction.return_value = None
+        mock_uc.get_extraction.side_effect = NotFoundException("Extraction not found")
         MockUseCase.return_value = mock_uc
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(NotFoundException) as exc:
             await get_extraction("missing", current_user={"id": "u1"})
 
         assert exc.value.status_code == 404
@@ -123,14 +123,14 @@ class TestGetComparison:
     @pytest.mark.asyncio
     @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
     async def test_raises_404_when_no_comparison(self, MockUseCase):
-        from fastapi import HTTPException
+        from docmind.shared.exceptions import NotFoundException
         from docmind.modules.extractions.apiv1.handler import get_comparison
 
         mock_uc = AsyncMock()
-        mock_uc.get_comparison.return_value = None
+        mock_uc.get_comparison.side_effect = NotFoundException("Comparison not available")
         MockUseCase.return_value = mock_uc
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(NotFoundException) as exc:
             await get_comparison("missing", current_user={"id": "u1"})
 
         assert exc.value.status_code == 404

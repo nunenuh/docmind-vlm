@@ -87,21 +87,25 @@ class TestChatUseCaseGetHistory:
 class TestChatUseCaseSendMessage:
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.chat.usecase.run_chat_pipeline")
-    async def test_yields_sse_events(self, mock_pipeline):
+    async def test_yields_sse_events(self):
         from docmind.modules.chat.usecase import ChatUseCase
 
-        mock_pipeline.return_value = {
-            "answer": "The total is $1,500.",
-            "citations": [
-                {"page": 1, "bounding_box": {"x": 0.5}, "text_span": "$1,500"},
-            ],
-        }
+        mock_service = MagicMock()
+        mock_service.format_extracted_fields.return_value = ""
+        mock_service.build_system_prompt.return_value = "system"
+        mock_service.get_history_slice.return_value = []
 
-        usecase = ChatUseCase()
+        async def fake_stream(**kwargs):
+            yield {"type": "answer", "content": "The total is $1,500."}
+            yield {"type": "done", "content": ""}
+
+        mock_service.stream_chat = fake_stream
+
+        usecase = ChatUseCase(service=mock_service)
         usecase.repo = AsyncMock()
         usecase.repo.save_message.return_value = "msg-new"
-        usecase._load_context = AsyncMock(return_value=([], [], []))
+        usecase.repo.get_extracted_fields.return_value = []
+        usecase.repo.get_recent_messages.return_value = []
 
         events = []
         async for event_str in usecase._chat_stream("doc-001", "user-001", "What is the total?"):
@@ -114,7 +118,7 @@ class TestChatUseCaseSendMessage:
                 data = json.loads(e[len("data: "):].strip())
                 all_data.append(data)
 
-        done_events = [d for d in all_data if d.get("type") == "done"]
+        done_events = [d for d in all_data if d.get("event") == "done"]
         assert len(done_events) >= 1
 
     @pytest.mark.asyncio
@@ -124,7 +128,7 @@ class TestChatUseCaseSendMessage:
         usecase = ChatUseCase()
         usecase.repo = AsyncMock()
         usecase.repo.save_message.return_value = "msg-new"
-        usecase._load_context = AsyncMock(side_effect=Exception("DB connection lost"))
+        usecase.repo.get_extracted_fields.side_effect = Exception("DB connection lost")
 
         events = []
         async for event_str in usecase._chat_stream("doc-001", "user-001", "Hello"):
@@ -136,7 +140,7 @@ class TestChatUseCaseSendMessage:
                 data = json.loads(e[len("data: "):].strip())
                 all_data.append(data)
 
-        error_events = [d for d in all_data if d.get("type") == "error"]
+        error_events = [d for d in all_data if d.get("event") == "error"]
         assert len(error_events) >= 1
 
     @pytest.mark.asyncio

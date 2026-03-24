@@ -41,6 +41,7 @@ EXPECTED_TABLES = {
     "project_conversations",
     "project_messages",
     "page_chunks",
+    "templates",
 }
 
 pytestmark = [

@@ -60,7 +60,7 @@ def setup_logging() -> None:
         shared_processors.append(
             structlog.dev.ConsoleRenderer(
                 colors=True,
-                pad_event=42,
+                pad_event_to=42,
             )
         )
     else:

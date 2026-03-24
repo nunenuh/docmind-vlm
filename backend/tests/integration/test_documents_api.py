@@ -71,17 +71,17 @@ class TestUploadDocument:
             "/api/v1/documents",
             files={"file": ("script.js", b"console.log('hi')", "application/javascript")},
         )
-        assert response.status_code == 400
+        assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_upload_rejects_oversized_file(self, auth_client):
-        """Files over 20MB return 413."""
+        """Files over 20MB return 422."""
         big_content = b"x" * (20_971_520 + 1)
         response = await auth_client.post(
             "/api/v1/documents",
             files={"file": ("big.pdf", big_content, "application/pdf")},
         )
-        assert response.status_code == 413
+        assert response.status_code == 422
 
     @pytest.mark.asyncio
     async def test_upload_requires_auth(self, client):
@@ -139,8 +139,9 @@ class TestGetDocument:
     @patch("docmind.modules.documents.apiv1.handler.DocumentUseCase")
     async def test_get_returns_404(self, MockUseCase, auth_client):
         """Missing document returns 404."""
+        from docmind.shared.exceptions import NotFoundException
         mock_usecase = MagicMock()
-        mock_usecase.get_document = AsyncMock(return_value=None)
+        mock_usecase.get_document = AsyncMock(side_effect=NotFoundException("Document not found"))
         MockUseCase.return_value = mock_usecase
 
         response = await auth_client.get("/api/v1/documents/nonexistent")
@@ -165,8 +166,9 @@ class TestDeleteDocument:
     @patch("docmind.modules.documents.apiv1.handler.DocumentUseCase")
     async def test_delete_returns_404(self, MockUseCase, auth_client):
         """Deleting nonexistent document returns 404."""
+        from docmind.shared.exceptions import NotFoundException
         mock_usecase = MagicMock()
-        mock_usecase.delete_document = AsyncMock(return_value=False)
+        mock_usecase.delete_document = AsyncMock(side_effect=NotFoundException("Document not found"))
         MockUseCase.return_value = mock_usecase
 
         response = await auth_client.delete("/api/v1/documents/nonexistent")

@@ -17,7 +17,7 @@ from fastapi import HTTPException, UploadFile
 
 from docmind.dbase.psql.models import Document
 from docmind.modules.documents.schemas import DocumentResponse
-from docmind.modules.documents.services import DocumentService
+from docmind.modules.documents.services import DocumentStorageService
 from docmind.modules.documents.usecase import DocumentUseCase
 
 
@@ -115,12 +115,12 @@ class TestStorageUploadFile:
 
 
 class TestDocumentServiceUpload:
-    """Tests for DocumentService.upload_file()."""
+    """Tests for DocumentStorageService.upload_file()."""
 
     @patch("docmind.modules.documents.services.upload_file")
     def test_upload_file_generates_safe_storage_path(self, mock_upload):
         """upload_file should generate a UUID-based storage path."""
-        service = DocumentService()
+        service = DocumentStorageService()
 
         result = service.upload_file(
             user_id=USER_ID,
@@ -140,7 +140,7 @@ class TestDocumentServiceUpload:
     @patch("docmind.modules.documents.services.upload_file")
     def test_upload_file_calls_storage_upload(self, mock_upload):
         """upload_file should delegate to storage.upload_file."""
-        service = DocumentService()
+        service = DocumentStorageService()
 
         service.upload_file(
             user_id=USER_ID,
@@ -158,7 +158,7 @@ class TestDocumentServiceUpload:
     @patch("docmind.modules.documents.services.upload_file")
     def test_upload_file_preserves_extension(self, mock_upload):
         """upload_file should keep the original file extension."""
-        service = DocumentService()
+        service = DocumentStorageService()
 
         result_pdf = service.upload_file(
             USER_ID, DOC_ID, "test.pdf", b"", "application/pdf"
@@ -178,7 +178,7 @@ class TestDocumentServiceUpload:
     @patch("docmind.modules.documents.services.upload_file")
     def test_upload_file_rejects_dangerous_extension(self, mock_upload):
         """upload_file should strip dangerous extensions."""
-        service = DocumentService()
+        service = DocumentStorageService()
 
         result = service.upload_file(
             USER_ID, DOC_ID, "evil.exe", b"", "application/pdf"
@@ -197,10 +197,10 @@ class TestDocumentUseCaseCreate:
 
     @pytest.mark.asyncio
     async def test_create_document_calls_service_upload(self):
-        """create_document should call service.upload_file."""
+        """create_document should call storage_service.upload_file."""
         usecase = DocumentUseCase()
-        usecase.service = MagicMock()
-        usecase.service.upload_file.return_value = "documents/user/doc/file.pdf"
+        usecase.storage_service = MagicMock()
+        usecase.storage_service.upload_file.return_value = "documents/user/doc/file.pdf"
         usecase.repo = AsyncMock()
         usecase.repo.create = AsyncMock(return_value=_make_document_orm())
 
@@ -213,14 +213,14 @@ class TestDocumentUseCaseCreate:
             content_type="application/pdf",
         )
 
-        usecase.service.upload_file.assert_called_once()
+        usecase.storage_service.upload_file.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_create_document_calls_repo_create(self):
         """create_document should call repo.create with correct args."""
         usecase = DocumentUseCase()
-        usecase.service = MagicMock()
-        usecase.service.upload_file.return_value = "documents/user/doc/file.pdf"
+        usecase.storage_service = MagicMock()
+        usecase.storage_service.upload_file.return_value = "documents/user/doc/file.pdf"
         usecase.repo = AsyncMock()
         usecase.repo.create = AsyncMock(return_value=_make_document_orm())
 
@@ -242,8 +242,8 @@ class TestDocumentUseCaseCreate:
     async def test_create_document_returns_document_response(self):
         """create_document should return a DocumentResponse."""
         usecase = DocumentUseCase()
-        usecase.service = MagicMock()
-        usecase.service.upload_file.return_value = "documents/user/doc/file.pdf"
+        usecase.storage_service = MagicMock()
+        usecase.storage_service.upload_file.return_value = "documents/user/doc/file.pdf"
         usecase.repo = AsyncMock()
         usecase.repo.create = AsyncMock(return_value=_make_document_orm())
 
@@ -263,9 +263,9 @@ class TestDocumentUseCaseCreate:
     async def test_create_document_cleans_up_on_repo_failure(self):
         """If repo.create fails, uploaded file should be cleaned up."""
         usecase = DocumentUseCase()
-        usecase.service = MagicMock()
-        usecase.service.upload_file.return_value = "documents/user/doc/file.pdf"
-        usecase.service.delete_storage_file = MagicMock()
+        usecase.storage_service = MagicMock()
+        usecase.storage_service.upload_file.return_value = "documents/user/doc/file.pdf"
+        usecase.storage_service.delete_storage_file = MagicMock()
         usecase.repo = AsyncMock()
         usecase.repo.create = AsyncMock(side_effect=Exception("DB error"))
 
@@ -279,7 +279,7 @@ class TestDocumentUseCaseCreate:
                 content_type="application/pdf",
             )
 
-        usecase.service.delete_storage_file.assert_called_once_with(
+        usecase.storage_service.delete_storage_file.assert_called_once_with(
             "documents/user/doc/file.pdf"
         )
 
@@ -301,8 +301,9 @@ class TestHandlerValidation:
         assert handler_types == ALLOWED_MIME_TYPES
 
     def test_validate_upload_rejects_unsupported_mime_type(self):
-        """Unsupported MIME type should raise HTTPException 400."""
+        """Unsupported MIME type should raise ValidationException."""
         from docmind.modules.documents.apiv1.handler import validate_upload
+        from docmind.shared.exceptions import ValidationException
 
         file = _make_upload_file(
             filename="script.js",
@@ -310,15 +311,15 @@ class TestHandlerValidation:
             size=100,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValidationException) as exc_info:
             validate_upload(file)
 
-        assert exc_info.value.status_code == 400
-        assert "Unsupported file type" in exc_info.value.detail
+        assert "Unsupported file type" in exc_info.value.message
 
     def test_validate_upload_rejects_oversized_file(self):
-        """File exceeding 20MB should raise HTTPException 413."""
+        """File exceeding 20MB should raise ValidationException."""
         from docmind.modules.documents.apiv1.handler import validate_upload
+        from docmind.shared.exceptions import ValidationException
 
         file = _make_upload_file(
             filename="huge.pdf",
@@ -326,11 +327,10 @@ class TestHandlerValidation:
             size=MAX_FILE_SIZE + 1,
         )
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValidationException) as exc_info:
             validate_upload(file)
 
-        assert exc_info.value.status_code == 413
-        assert "too large" in exc_info.value.detail.lower()
+        assert "too large" in exc_info.value.message.lower()
 
     def test_validate_upload_accepts_valid_pdf(self):
         """Valid PDF under size limit should pass validation."""
@@ -363,15 +363,16 @@ class TestHandlerValidation:
             validate_upload(file)  # Should not raise
 
     def test_validate_file_bytes_rejects_oversized_actual_bytes(self):
-        """Actual byte count exceeding limit should raise 413."""
+        """Actual byte count exceeding limit should raise ValidationException."""
         from docmind.modules.documents.apiv1.handler import _validate_file_bytes
+        from docmind.shared.exceptions import ValidationException
 
         oversized = b"x" * (MAX_FILE_SIZE + 1)
 
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(ValidationException) as exc_info:
             _validate_file_bytes(oversized)
 
-        assert exc_info.value.status_code == 413
+        assert "too large" in exc_info.value.message.lower()
 
     def test_validate_file_bytes_accepts_valid_size(self):
         """Bytes within limit should not raise."""
@@ -413,9 +414,9 @@ class TestCleanupFailureResilience:
     async def test_cleanup_failure_preserves_original_exception(self):
         """If delete_storage_file fails during cleanup, original error is still raised."""
         usecase = DocumentUseCase()
-        usecase.service = MagicMock()
-        usecase.service.upload_file.return_value = "documents/user/doc/file.pdf"
-        usecase.service.delete_storage_file.side_effect = RuntimeError("Storage down")
+        usecase.storage_service = MagicMock()
+        usecase.storage_service.upload_file.return_value = "documents/user/doc/file.pdf"
+        usecase.storage_service.delete_storage_file.side_effect = RuntimeError("Storage down")
         usecase.repo = AsyncMock()
         usecase.repo.create = AsyncMock(side_effect=Exception("DB error"))
 
@@ -430,4 +431,4 @@ class TestCleanupFailureResilience:
             )
 
         # Cleanup was attempted even though it failed
-        usecase.service.delete_storage_file.assert_called_once()
+        usecase.storage_service.delete_storage_file.assert_called_once()

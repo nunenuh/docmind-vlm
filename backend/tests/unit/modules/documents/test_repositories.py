@@ -298,9 +298,9 @@ class TestDelete:
         msg_result.all.return_value = []
 
         # SELECT doc, SELECT ext_ids (empty), SELECT msg_ids (empty),
-        # DELETE chat_msgs, DELETE extractions
+        # DELETE chat_msgs, DELETE extractions, DELETE page_chunks
         session.execute = AsyncMock(
-            side_effect=[select_result, ext_result, msg_result, MagicMock(), MagicMock()]
+            side_effect=[select_result, ext_result, msg_result, MagicMock(), MagicMock(), MagicMock()]
         )
         session.delete = AsyncMock()
         session.commit = AsyncMock()
@@ -359,7 +359,8 @@ class TestDelete:
         msg_result.all.return_value = [("msg-1",), ("msg-2",)]
 
         # SELECT doc, SELECT ext_ids, DELETE audit, DELETE fields,
-        # SELECT msg_ids, DELETE citations, DELETE chat_msgs, DELETE extractions
+        # SELECT msg_ids, DELETE citations, DELETE chat_msgs, DELETE extractions,
+        # DELETE page_chunks
         session.execute = AsyncMock(
             side_effect=[
                 select_result, ext_result,
@@ -367,6 +368,7 @@ class TestDelete:
                 msg_result,
                 MagicMock(),  # citations
                 MagicMock(), MagicMock(),  # chat_msgs, extractions
+                MagicMock(),  # page_chunks
             ]
         )
         session.delete = AsyncMock()
@@ -379,7 +381,7 @@ class TestDelete:
         assert result == doc.storage_path
         session.delete.assert_awaited_once()
         session.commit.assert_awaited_once()
-        assert session.execute.await_count == 8
+        assert session.execute.await_count == 9
 
     @pytest.mark.asyncio
     @patch("docmind.modules.documents.repositories.AsyncSessionLocal")

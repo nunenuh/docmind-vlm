@@ -26,20 +26,32 @@ def mock_repo():
 
 
 @pytest.fixture
-def mock_service():
-    """Mock DocumentService."""
+def mock_storage_service():
+    """Mock DocumentStorageService."""
     service = MagicMock()
     service.load_file_bytes = MagicMock(return_value=b"fake-pdf-bytes")
+    return service
+
+
+@pytest.fixture
+def mock_extraction_service():
+    """Mock DocumentExtractionService."""
+    service = MagicMock()
+    service.run_pipeline = MagicMock(return_value={"status": "ready"})
     return service
 
 
 class TestTriggerProcessing:
     """Tests for the trigger_processing method."""
 
-    def test_returns_async_generator(self, mock_repo, mock_service):
+    def test_returns_async_generator(self, mock_repo, mock_storage_service, mock_extraction_service):
         from docmind.modules.documents.usecase import DocumentUseCase
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
         result = usecase.trigger_processing(document_id="doc-123", user_id="user-456")
         assert result is not None
 
@@ -48,8 +60,7 @@ class TestProcessingStream:
     """Tests for _processing_stream SSE events."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.usecase.run_processing_pipeline")
-    async def test_yields_sse_events(self, mock_pipeline, mock_repo, mock_service):
+    async def test_yields_sse_events(self, mock_repo, mock_storage_service, mock_extraction_service):
         """SSE events follow the format: data: {JSON}\\n\\n"""
         from docmind.modules.documents.usecase import DocumentUseCase
 
@@ -61,9 +72,13 @@ class TestProcessingStream:
                 cb("complete", 100, "Done")
             return {"status": "ready", "extraction_id": "ext-123"}
 
-        mock_pipeline.side_effect = fake_pipeline
+        mock_extraction_service.run_pipeline.side_effect = fake_pipeline
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         events = []
         async for event in usecase._processing_stream("doc-123", "user-456", None):
@@ -77,19 +92,22 @@ class TestProcessingStream:
             assert "step" in payload
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.usecase.run_processing_pipeline")
     async def test_yields_error_event_on_pipeline_failure(
-        self, mock_pipeline, mock_repo, mock_service
+        self, mock_repo, mock_storage_service, mock_extraction_service
     ):
         """If pipeline returns status='error', yields error SSE event."""
         from docmind.modules.documents.usecase import DocumentUseCase
 
-        mock_pipeline.return_value = {
+        mock_extraction_service.run_pipeline.return_value = {
             "status": "error",
             "error_message": "VLM provider timed out",
         }
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         events = []
         async for event in usecase._processing_stream("doc-123", "user-456", None):
@@ -102,19 +120,22 @@ class TestProcessingStream:
         assert len(error_events) >= 1
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.usecase.run_processing_pipeline")
     async def test_updates_status_to_error_on_failure(
-        self, mock_pipeline, mock_repo, mock_service
+        self, mock_repo, mock_storage_service, mock_extraction_service
     ):
         """Document status is updated to 'error' when pipeline fails."""
         from docmind.modules.documents.usecase import DocumentUseCase
 
-        mock_pipeline.return_value = {
+        mock_extraction_service.run_pipeline.return_value = {
             "status": "error",
             "error_message": "Extraction failed",
         }
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         async for _ in usecase._processing_stream("doc-123", "user-456", None):
             pass
@@ -122,14 +143,18 @@ class TestProcessingStream:
         mock_repo.update_status.assert_any_call("doc-123", "error")
 
     @pytest.mark.asyncio
-    async def test_yields_error_when_document_not_found(self, mock_service):
+    async def test_yields_error_when_document_not_found(self, mock_storage_service, mock_extraction_service):
         """If document is not found, yields error event."""
         from docmind.modules.documents.usecase import DocumentUseCase
 
         repo = MagicMock()
         repo.get_by_id = AsyncMock(return_value=None)
 
-        usecase = DocumentUseCase(service=mock_service, repo=repo)
+        usecase = DocumentUseCase(
+            repo=repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         events = []
         async for event in usecase._processing_stream("nonexistent", "user-456", None):
@@ -141,14 +166,18 @@ class TestProcessingStream:
         assert "not found" in payload["message"].lower()
 
     @pytest.mark.asyncio
-    async def test_yields_error_when_file_load_fails(self, mock_repo):
+    async def test_yields_error_when_file_load_fails(self, mock_repo, mock_extraction_service):
         """If file loading fails, yields error event."""
         from docmind.modules.documents.usecase import DocumentUseCase
 
-        service = MagicMock()
-        service.load_file_bytes = MagicMock(side_effect=RuntimeError("Storage unavailable"))
+        storage_service = MagicMock()
+        storage_service.load_file_bytes = MagicMock(side_effect=RuntimeError("Storage unavailable"))
 
-        usecase = DocumentUseCase(service=service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         events = []
         async for event in usecase._processing_stream("doc-123", "user-456", None):
@@ -159,16 +188,19 @@ class TestProcessingStream:
         assert payload["step"] == "error"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.usecase.run_processing_pipeline")
     async def test_updates_status_to_processing_before_pipeline(
-        self, mock_pipeline, mock_repo, mock_service
+        self, mock_repo, mock_storage_service, mock_extraction_service
     ):
         """Document status is set to 'processing' before pipeline starts."""
         from docmind.modules.documents.usecase import DocumentUseCase
 
-        mock_pipeline.return_value = {"status": "ready"}
+        mock_extraction_service.run_pipeline.return_value = {"status": "ready"}
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         async for _ in usecase._processing_stream("doc-123", "user-456", None):
             pass
@@ -176,9 +208,8 @@ class TestProcessingStream:
         mock_repo.update_status.assert_any_call("doc-123", "processing")
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.documents.usecase.run_processing_pipeline")
     async def test_passes_template_type_in_initial_state(
-        self, mock_pipeline, mock_repo, mock_service
+        self, mock_repo, mock_storage_service, mock_extraction_service
     ):
         """template_type from ProcessRequest is passed to pipeline initial state."""
         from docmind.modules.documents.usecase import DocumentUseCase
@@ -187,9 +218,13 @@ class TestProcessingStream:
             capture_state.captured = state
             return {"status": "ready"}
 
-        mock_pipeline.side_effect = capture_state
+        mock_extraction_service.run_pipeline.side_effect = capture_state
 
-        usecase = DocumentUseCase(service=mock_service, repo=mock_repo)
+        usecase = DocumentUseCase(
+            repo=mock_repo,
+            storage_service=mock_storage_service,
+            extraction_service=mock_extraction_service,
+        )
 
         async for _ in usecase._processing_stream("doc-123", "user-456", "invoice"):
             pass

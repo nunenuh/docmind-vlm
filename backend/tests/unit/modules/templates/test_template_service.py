@@ -1,99 +1,80 @@
-"""Unit tests for TemplateService."""
-import json
-import tempfile
-from pathlib import Path
+"""Unit tests for template services."""
 
-import pytest
-
-from docmind.modules.templates.schemas import TemplateResponse
+from docmind.modules.templates.services import TemplateFieldService
 
 
-class TestTemplateService:
-    """Tests for TemplateService loading templates from JSON files."""
+class TestTemplateFieldService:
+    """Tests for TemplateFieldService."""
 
-    def _create_template_dir(self, tmp_path: Path) -> Path:
-        """Create a temp directory with template JSON files."""
-        templates_dir = tmp_path / "templates"
-        templates_dir.mkdir()
+    def setup_method(self):
+        self.service = TemplateFieldService()
 
-        invoice = {
-            "type": "invoice",
-            "name": "Invoice",
-            "description": "Commercial invoices",
-            "required_fields": ["invoice_number", "date", "total_amount", "vendor_name"],
-            "optional_fields": ["due_date", "tax_amount"],
-        }
-        (templates_dir / "invoice.json").write_text(json.dumps(invoice))
+    def test_normalize_dict_fields(self):
+        fields = [
+            {"key": "nik", "label": "NIK", "type": "string", "required": True},
+            {"key": "nama", "label": "Nama"},
+        ]
+        result = self.service.normalize_fields(fields)
+        assert len(result) == 2
+        assert result[0]["key"] == "nik"
+        assert result[0]["label"] == "NIK"
+        assert result[0]["type"] == "string"
+        assert result[0]["required"] is True
+        assert result[1]["key"] == "nama"
+        assert result[1]["required"] is True  # default
 
-        receipt = {
-            "type": "receipt",
-            "name": "Receipt",
-            "description": "Purchase receipts",
-            "required_fields": ["date", "total_amount", "merchant_name"],
-            "optional_fields": ["tax_amount", "payment_method"],
-        }
-        (templates_dir / "receipt.json").write_text(json.dumps(receipt))
+    def test_normalize_string_fields(self):
+        fields = ["field_a", "field_b"]
+        result = self.service.normalize_fields(fields)
+        assert len(result) == 2
+        assert result[0]["key"] == "field_a"
+        assert result[0]["label"] == "field_a"
+        assert result[0]["type"] == "string"
+        assert result[0]["required"] is True
 
-        return templates_dir
+    def test_normalize_empty(self):
+        assert self.service.normalize_fields([]) == []
 
-    def test_loads_templates_from_directory(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
+    def test_get_required_field_keys(self):
+        fields = [
+            {"key": "a", "required": True},
+            {"key": "b", "required": False},
+            {"key": "c", "required": True},
+        ]
+        result = self.service.get_required_field_keys(fields)
+        assert result == ["a", "c"]
 
-        templates_dir = self._create_template_dir(tmp_path)
-        service = TemplateService(templates_dir=templates_dir)
+    def test_get_optional_field_keys(self):
+        fields = [
+            {"key": "a", "required": True},
+            {"key": "b", "required": False},
+            {"key": "c", "required": False},
+        ]
+        result = self.service.get_optional_field_keys(fields)
+        assert result == ["b", "c"]
 
-        templates = service.list_templates()
-        assert len(templates) == 2
-        types = {t.type for t in templates}
-        assert "invoice" in types
-        assert "receipt" in types
+    def test_guess_category_identity(self):
+        assert self.service.guess_category("ktp") == "identity"
+        assert self.service.guess_category("kk") == "identity"
+        assert self.service.guess_category("sim") == "identity"
 
-    def test_templates_are_template_response(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
+    def test_guess_category_vehicle(self):
+        assert self.service.guess_category("stnk") == "vehicle"
+        assert self.service.guess_category("bpkb") == "vehicle"
 
-        templates_dir = self._create_template_dir(tmp_path)
-        service = TemplateService(templates_dir=templates_dir)
+    def test_guess_category_tax(self):
+        assert self.service.guess_category("npwp") == "tax"
+        assert self.service.guess_category("faktur_pajak") == "tax"
 
-        templates = service.list_templates()
-        for t in templates:
-            assert isinstance(t, TemplateResponse)
+    def test_guess_category_finance(self):
+        assert self.service.guess_category("invoice") == "finance"
+        assert self.service.guess_category("receipt") == "finance"
+        assert self.service.guess_category("slip_gaji") == "finance"
 
-    def test_get_template_by_type(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
+    def test_guess_category_legal(self):
+        assert self.service.guess_category("contract") == "legal"
+        assert self.service.guess_category("surat_kuasa") == "legal"
 
-        templates_dir = self._create_template_dir(tmp_path)
-        service = TemplateService(templates_dir=templates_dir)
-
-        result = service.get_template("invoice")
-        assert result is not None
-        assert result.type == "invoice"
-        assert "invoice_number" in result.required_fields
-
-    def test_get_template_returns_none_for_unknown(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
-
-        templates_dir = self._create_template_dir(tmp_path)
-        service = TemplateService(templates_dir=templates_dir)
-
-        result = service.get_template("unknown")
-        assert result is None
-
-    def test_skips_invalid_json_files(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
-
-        templates_dir = tmp_path / "templates"
-        templates_dir.mkdir()
-        (templates_dir / "bad.json").write_text("not json")
-        (templates_dir / "empty.json").write_text("{}")
-
-        service = TemplateService(templates_dir=templates_dir)
-        templates = service.list_templates()
-        # Both should be skipped (bad JSON and missing required fields)
-        assert len(templates) == 0
-
-    def test_returns_empty_when_no_directory(self, tmp_path):
-        from docmind.modules.templates.services import TemplateService
-
-        service = TemplateService(templates_dir=tmp_path / "nonexistent")
-        templates = service.list_templates()
-        assert templates == []
+    def test_guess_category_unknown(self):
+        assert self.service.guess_category("random_doc") == "general"
+        assert self.service.guess_category("") == "general"

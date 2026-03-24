@@ -13,6 +13,7 @@ import pytest
 from docmind.dbase.psql.models import Document, Project, ProjectConversation, ProjectMessage
 from docmind.modules.projects.schemas import ProjectUpdate
 from docmind.modules.projects.usecase import ProjectUseCase
+from docmind.shared.exceptions import NotFoundException
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +100,7 @@ def mock_conv_repo() -> AsyncMock:
 
 
 @pytest.fixture
-def mock_service() -> MagicMock:
+def mock_prompt_service() -> MagicMock:
     svc = MagicMock()
     svc.validate_project_name.side_effect = lambda n: n.strip()
     svc.validate_persona_assignment.return_value = None
@@ -107,11 +108,14 @@ def mock_service() -> MagicMock:
 
 
 @pytest.fixture
-def usecase(mock_repo, mock_conv_repo, mock_service) -> ProjectUseCase:
+def usecase(mock_repo, mock_conv_repo, mock_prompt_service) -> ProjectUseCase:
     return ProjectUseCase(
-        service=mock_service,
         repo=mock_repo,
         conv_repo=mock_conv_repo,
+        prompt_service=mock_prompt_service,
+        rag_service=MagicMock(),
+        indexing_service=MagicMock(),
+        vlm_service=MagicMock(),
     )
 
 
@@ -139,13 +143,13 @@ class TestCreateProject:
         mock_repo.create.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validates_name(self, usecase, mock_service, mock_repo):
+    async def test_validates_name(self, usecase, mock_prompt_service, mock_repo):
         project = _make_project()
         mock_repo.create.return_value = project
 
         await usecase.create_project(user_id=USER_ID, name="  Spaced  ")
 
-        mock_service.validate_project_name.assert_called_once_with("  Spaced  ")
+        mock_prompt_service.validate_project_name.assert_called_once_with("  Spaced  ")
 
 
 # ---------------------------------------------------------------------------
@@ -167,12 +171,11 @@ class TestGetProject:
         assert result.document_count == 5
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_not_found(self, usecase, mock_repo):
+    async def test_raises_not_found_when_not_found(self, usecase, mock_repo):
         mock_repo.get_by_id.return_value = None
 
-        result = await usecase.get_project(USER_ID, "nonexistent")
-
-        assert result is None
+        with pytest.raises(NotFoundException):
+            await usecase.get_project(USER_ID, "nonexistent")
 
 
 # ---------------------------------------------------------------------------
@@ -218,14 +221,13 @@ class TestUpdateProject:
         assert result.document_count == 2
 
     @pytest.mark.asyncio
-    async def test_returns_none_when_not_found(self, usecase, mock_repo):
+    async def test_raises_not_found_when_not_found(self, usecase, mock_repo):
         mock_repo.update.return_value = None
 
-        result = await usecase.update_project(
-            USER_ID, "nonexistent", ProjectUpdate(name="X")
-        )
-
-        assert result is None
+        with pytest.raises(NotFoundException):
+            await usecase.update_project(
+                USER_ID, "nonexistent", ProjectUpdate(name="X")
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -328,9 +330,8 @@ class TestConversations:
     async def test_get_conversation_not_found(self, usecase, mock_conv_repo):
         mock_conv_repo.get_by_id.return_value = None
 
-        result = await usecase.get_conversation(USER_ID, "nonexistent")
-
-        assert result is None
+        with pytest.raises(NotFoundException):
+            await usecase.get_conversation(USER_ID, "nonexistent")
 
     @pytest.mark.asyncio
     async def test_delete_conversation(self, usecase, mock_conv_repo):
