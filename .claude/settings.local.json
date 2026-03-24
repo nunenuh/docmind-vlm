@@ -381,7 +381,9 @@
       "Bash(timeout 45 .venv/bin/python -m pytest tests/unit/modules/ --timeout=5 --tb=line -q)",
       "Bash(timeout 45 .venv/bin/python -m pytest tests/unit/modules/ -v --tb=line -q)",
       "Bash(for mod:*)",
-      "Bash(timeout 10 .venv/bin/python -m pytest tests/unit/modules/chat/ -v)"
+      "Bash(timeout 10 .venv/bin/python -m pytest tests/unit/modules/chat/ -v)",
+      "Bash(ls -la /workspace/company/nunenuh/docmind-vlm/frontend/src/pages/Project*.tsx)",
+      "Bash(__NEW_LINE_9652c4853107bee5__ echo:*)"
     ]
   }
 }

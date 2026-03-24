@@ -9,7 +9,7 @@ import {
   useRemoveProjectDocument,
 } from "@/hooks/useProjects";
 import { supabase } from "@/lib/supabase";
-import { uploadDocument, addDocumentToProject } from "@/lib/api";
+import { addDocumentToProject } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ProjectDocumentResponse } from "@/types/api";
 
@@ -89,27 +89,29 @@ export function ProjectDocumentsTab({ projectId }: Props) {
       });
 
       try {
-        // Step 1: Upload file
+        // Step 1: Upload + link to project (addDocumentToProject does both)
         updateTask(taskId, { step: "uploading", stepLabel: "Uploading to storage...", progress: 20 });
-        await uploadDocument(file);
+        await new Promise((r) => setTimeout(r, 500));
+        updateTask(taskId, { step: "linking", stepLabel: "Linking to project & indexing...", progress: 45 });
 
-        // Step 2: Link to project
-        updateTask(taskId, { step: "linking", stepLabel: "Linking to project...", progress: 45 });
         await addDocumentToProject(projectId, file);
 
-        // Step 3: Indexing (happens on backend)
-        updateTask(taskId, { step: "indexing", stepLabel: "Extracting text & creating RAG chunks...", progress: 70 });
+        // Step 2: Indexing happens on backend during addDocumentToProject
+        updateTask(taskId, { step: "indexing", stepLabel: "RAG indexing in progress...", progress: 70 });
 
-        // Wait a bit for indexing to start, then poll
-        await new Promise((r) => setTimeout(r, 2000));
-        updateTask(taskId, { progress: 85, stepLabel: "Embedding chunks..." });
-        await new Promise((r) => setTimeout(r, 2000));
-
-        // Step 4: Done
-        updateTask(taskId, { step: "done", stepLabel: "Indexed successfully", progress: 100 });
-
-        // Refresh document list
+        // Refresh document list immediately so it shows
         queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+
+        await new Promise((r) => setTimeout(r, 2000));
+        updateTask(taskId, { progress: 90, stepLabel: "Finalizing..." });
+        await new Promise((r) => setTimeout(r, 1000));
+
+        // Step 3: Done
+        updateTask(taskId, { step: "done", stepLabel: "Uploaded & indexed", progress: 100 });
+
+        // Refresh again to get final status
+        queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["projects"] });
 
         // Remove task after 3 seconds
         setTimeout(() => removeTask(taskId), 3000);
