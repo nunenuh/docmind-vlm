@@ -1,12 +1,16 @@
 """docmind/modules/chat/apiv1/handler.py"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 from docmind.modules.documents.usecase import DocumentUseCase
-from docmind.shared.exceptions import NotFoundException, ValidationException
+from docmind.shared.exceptions import (
+    AppException,
+    BaseAppException,
+    NotFoundException,
+)
 
 from ..schemas import ChatHistoryResponse, ChatMessageRequest
 from ..usecase import ChatUseCase
@@ -26,7 +30,7 @@ async def send_message(
         user_id=current_user["id"], document_id=document_id
     )
     if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise NotFoundException("Document not found")
 
     chat_usecase = ChatUseCase()
     event_stream = chat_usecase.send_message(
@@ -55,10 +59,8 @@ async def get_chat_history(
         return await chat_usecase.get_history(
             document_id=document_id, user_id=current_user["id"], page=page, limit=limit
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_chat_history error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")

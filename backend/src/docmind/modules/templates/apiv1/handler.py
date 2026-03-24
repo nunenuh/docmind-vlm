@@ -3,11 +3,15 @@
 Template CRUD + auto-detect. All logic goes through TemplateUseCase.
 """
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, UploadFile, File
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
-from docmind.shared.exceptions import NotFoundException, ValidationException
+from docmind.shared.exceptions import (
+    AppException,
+    BaseAppException,
+    NotFoundException,
+)
 
 from ..usecase import TemplateUseCase
 from ..schemas import (
@@ -64,9 +68,11 @@ async def list_templates(current_user: dict = Depends(get_current_user)):
     try:
         templates = await usecase.list_templates(user_id=current_user["id"])
         return TemplateListResponse(items=[_to_summary(t) for t in templates])
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("list_templates error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("", response_model=TemplateDetail)
@@ -91,11 +97,11 @@ async def create_template(
             },
         )
         return _to_detail(template)
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("create_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get("/{template_id}", response_model=TemplateDetail)
@@ -110,11 +116,11 @@ async def get_template(
         if template is None:
             raise NotFoundException("Template not found")
         return _to_detail(template)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.put("/{template_id}", response_model=TemplateDetail)
@@ -131,13 +137,11 @@ async def update_template(
         if template is None:
             raise NotFoundException("Template not found or you don't have permission to edit it")
         return _to_detail(template)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("update_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.delete("/{template_id}", status_code=204)
@@ -151,11 +155,11 @@ async def delete_template(
         deleted = await usecase.delete_template(template_id, current_user["id"])
         if not deleted:
             raise NotFoundException("Template not found or it's a preset template")
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("delete_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("/{template_id}/duplicate", response_model=TemplateDetail)
@@ -170,11 +174,11 @@ async def duplicate_template(
         if template is None:
             raise NotFoundException("Template not found")
         return _to_detail(template)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("duplicate_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("/detect", response_model=AutoDetectResponse)
@@ -188,8 +192,8 @@ async def auto_detect_template(
         file_bytes = await file.read()
         result = await usecase.auto_detect(file_bytes)
         return AutoDetectResponse(**result)
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("auto_detect_template error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")

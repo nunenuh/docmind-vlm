@@ -1,11 +1,16 @@
 """docmind/modules/documents/apiv1/handler.py"""
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
-from docmind.shared.exceptions import NotFoundException, ValidationException
+from docmind.shared.exceptions import (
+    AppException,
+    BaseAppException,
+    NotFoundException,
+    ValidationException,
+)
 
 from ..schemas import (
     DocumentListResponse,
@@ -41,29 +46,20 @@ MAX_FILENAME_LENGTH = 255
 
 
 def validate_upload(file: UploadFile) -> None:
-    """Validate file MIME type and size. Raises HTTPException on failure."""
+    """Validate file MIME type and size. Raises ValidationException on failure."""
     if file.content_type not in ALLOWED_MIME_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=(
-                f"Unsupported file type: {file.content_type}. "
-                f"Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
-            ),
+        raise ValidationException(
+            f"Unsupported file type: {file.content_type}. "
+            f"Allowed: {', '.join(sorted(ALLOWED_MIME_TYPES))}"
         )
     if file.size and file.size > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail="File too large. Maximum size: 20MB",
-        )
+        raise ValidationException("File too large. Maximum size: 20MB")
 
 
 def _validate_file_bytes(file_bytes: bytes) -> None:
     """Enforce actual byte-length limit (defence against missing Content-Length)."""
     if len(file_bytes) > MAX_UPLOAD_SIZE:
-        raise HTTPException(
-            status_code=413,
-            detail="File too large. Maximum size: 20MB",
-        )
+        raise ValidationException("File too large. Maximum size: 20MB")
 
 
 def _sanitize_filename(raw: str | None) -> str:
@@ -96,9 +92,11 @@ async def create_document(
             file_bytes=file_bytes,
             content_type=file.content_type,
         )
+    except BaseAppException:
+        raise
     except Exception as e:
-        logger.error("Document upload failed: %s", e)
-        raise HTTPException(status_code=500, detail="Document upload failed")
+        logger.error("create_document error: %s", e, exc_info=True)
+        raise AppException(message="Internal server error")
 
 
 @router.get("", response_model=DocumentListResponse)
@@ -121,13 +119,11 @@ async def get_document(
     usecase = DocumentUseCase()
     try:
         return await usecase.get_document(user_id=current_user["id"], document_id=document_id)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_document error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get("/{document_id}/url")
@@ -138,13 +134,11 @@ async def get_document_url(
     usecase = DocumentUseCase()
     try:
         return await usecase.get_document_url(user_id=current_user["id"], document_id=document_id)
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_document_url error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.delete("/{document_id}", status_code=204)
@@ -156,13 +150,11 @@ async def delete_document(
         await usecase.delete_document(
             user_id=current_user["id"], document_id=document_id
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("delete_document error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("/{document_id}/process")
@@ -174,7 +166,7 @@ async def process_document(
     usecase = DocumentUseCase()
     document = await usecase.get_document(user_id=current_user["id"], document_id=document_id)
     if document is None:
-        raise HTTPException(status_code=404, detail="Document not found")
+        raise NotFoundException("Document not found")
     event_stream = usecase.trigger_processing(
         document_id=document_id, user_id=current_user["id"], template_type=body.template_type
     )

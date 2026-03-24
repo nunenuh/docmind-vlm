@@ -1,11 +1,16 @@
 """docmind/modules/projects/apiv1/handler.py"""
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
-from docmind.shared.exceptions import NotFoundException, ValidationException
+from docmind.shared.exceptions import (
+    AppException,
+    BaseAppException,
+    NotFoundException,
+    ValidationException,
+)
 
 from ..schemas import (
     ConversationDetailResponse,
@@ -36,13 +41,13 @@ async def create_project(
             description=body.description,
             persona_id=body.persona_id,
         )
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ValidationException(str(e))
     except Exception as e:
         logger.error("create_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get("", response_model=ProjectListResponse)
@@ -67,13 +72,11 @@ async def get_project(
         return await usecase.get_project(
             user_id=current_user["id"], project_id=project_id
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.put("/{project_id}", response_model=ProjectResponse)
@@ -89,15 +92,13 @@ async def update_project(
             project_id=project_id,
             data=body,
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        raise ValidationException(str(e))
     except Exception as e:
         logger.error("update_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.delete("/{project_id}", status_code=204)
@@ -112,11 +113,11 @@ async def delete_project(
         )
         if not deleted:
             raise NotFoundException("Project not found")
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("delete_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post(
@@ -155,13 +156,11 @@ async def add_document_to_project(
             status=doc.status,
             created_at=doc.created_at,
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except ValidationException as e:
-        raise HTTPException(status_code=422, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("add_document_to_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get(
@@ -177,11 +176,11 @@ async def list_project_documents(
         return await usecase.list_documents(
             user_id=current_user["id"], project_id=project_id
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("list_project_documents error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.delete("/{project_id}/documents/{document_id}", status_code=204)
@@ -197,11 +196,11 @@ async def remove_document_from_project(
             project_id=project_id,
             document_id=document_id,
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("remove_document_from_project error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("/{project_id}/documents/{document_id}/reindex")
@@ -219,11 +218,11 @@ async def reindex_document(
             document_id=document_id,
         )
         return {"chunks_created": result}
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("reindex_document error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.post("/{project_id}/chat")
@@ -264,11 +263,11 @@ async def list_conversations(
         return await usecase.list_conversations(
             user_id=current_user["id"], project_id=project_id
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("list_conversations error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get(
@@ -288,11 +287,11 @@ async def get_conversation(
         if conversation is None:
             raise NotFoundException("Conversation not found")
         return conversation
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("get_conversation error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.delete(
@@ -310,11 +309,11 @@ async def delete_conversation(
         )
         if not deleted:
             raise NotFoundException("Conversation not found")
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("delete_conversation error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")
 
 
 @router.get("/{project_id}/chunks")
@@ -331,8 +330,8 @@ async def list_chunks(
             project_id=project_id,
             document_id=document_id,
         )
-    except NotFoundException as e:
-        raise HTTPException(status_code=404, detail=str(e))
+    except BaseAppException:
+        raise
     except Exception as e:
         logger.error("list_chunks error: %s", e, exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal server error")
+        raise AppException(message="Internal server error")

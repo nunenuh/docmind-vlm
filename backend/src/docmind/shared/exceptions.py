@@ -8,7 +8,7 @@ Usage:
     Repository → raises RepositoryException / RecordNotFoundException / DatabaseException
     Service    → raises ServiceException / ProviderException / StorageException / IndexingException
     UseCase    → raises UseCaseException / NotFoundException / ValidationException / AuthorizationException
-    Handler    → catches above, maps to HTTPException
+    Handler    → catches BaseAppException (re-raises); global handler maps to HTTP response
 """
 
 
@@ -20,6 +20,13 @@ class BaseAppException(Exception):
         self.code = code
         self.status_code = status_code
         super().__init__(message)
+
+
+class AppException(BaseAppException):
+    """Generic application error (fallback for unexpected failures in handlers)."""
+
+    def __init__(self, message: str = "Internal server error", code: str = "INTERNAL_ERROR", status_code: int = 500) -> None:
+        super().__init__(message, code, status_code)
 
 
 # ── UseCase Exceptions ─────────────────────────────────
