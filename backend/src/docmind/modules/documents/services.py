@@ -89,8 +89,8 @@ class DocumentExtractionService:
 class DocumentClassificationService:
     """Auto-detect document type using VLM."""
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
+    def __init__(self, settings=None) -> None:
+        self._settings = settings or get_settings()
 
     async def classify(self, file_bytes: bytes, file_type: str, template_types: list[str]) -> str | None:
         """Classify a document image to detect its type.
@@ -135,7 +135,8 @@ class DocumentClassificationService:
                 image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else arr
                 doc.close()
                 return image
-            except Exception:
+            except Exception as e:
+                logger.warning("pdf_to_image_failed: %s", e)
                 return None
         else:
             nparr = np.frombuffer(file_bytes, np.uint8)

@@ -18,20 +18,24 @@ logger = get_logger(__name__)
 class PersonaUseCase:
     """Orchestrates persona operations."""
 
-    def __init__(self) -> None:
-        self.repo = PersonaRepository()
-        self.service = PersonaService()
+    def __init__(
+        self,
+        repo: PersonaRepository | None = None,
+        service: PersonaService | None = None,
+    ) -> None:
+        self.repo = repo or PersonaRepository()
+        self.service = service or PersonaService()
 
     async def list_personas(self, user_id: str) -> list:
         """List all personas (presets + user custom). Seeds on first call."""
         await seed_preset_personas()
         return await self.repo.list_for_user(user_id=user_id)
 
-    async def get_persona(self, persona_id: str):
+    async def get_persona(self, persona_id: str) -> object | None:
         """Get persona by ID."""
         return await self.repo.get_by_id(persona_id)
 
-    async def create_persona(self, user_id: str, data: dict):
+    async def create_persona(self, user_id: str, data: dict) -> object | None:
         """Create a custom persona."""
         return await self.repo.create(
             user_id=user_id,
@@ -43,7 +47,7 @@ class PersonaUseCase:
             boundaries=data.get("boundaries"),
         )
 
-    async def update_persona(self, persona_id: str, user_id: str, data: dict):
+    async def update_persona(self, persona_id: str, user_id: str, data: dict) -> object | None:
         """Update a custom persona."""
         return await self.repo.update(persona_id, user_id, **data)
 
@@ -51,7 +55,7 @@ class PersonaUseCase:
         """Delete a custom persona."""
         return await self.repo.delete(persona_id, user_id)
 
-    async def duplicate_persona(self, persona_id: str, user_id: str):
+    async def duplicate_persona(self, persona_id: str, user_id: str) -> object | None:
         """Duplicate a persona as user's custom."""
         source = await self.repo.get_by_id(persona_id)
         if source is None:

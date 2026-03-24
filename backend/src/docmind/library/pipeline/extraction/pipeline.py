@@ -33,7 +33,15 @@ def build_extraction_graph():
     return graph.compile()
 
 
-_extraction_graph = build_extraction_graph()
+_extraction_graph = None
+
+
+def _get_graph():
+    """Lazily build and cache the extraction graph."""
+    global _extraction_graph
+    if _extraction_graph is None:
+        _extraction_graph = build_extraction_graph()
+    return _extraction_graph
 
 
 def run_extraction_pipeline(initial_state: dict) -> dict:
@@ -45,4 +53,4 @@ def run_extraction_pipeline(initial_state: dict) -> dict:
     Returns:
         Final state dict after all nodes have executed.
     """
-    return _extraction_graph.invoke(initial_state)
+    return _get_graph().invoke(initial_state)

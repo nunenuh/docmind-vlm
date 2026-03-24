@@ -31,9 +31,13 @@ _COLOR_LOW = "#ef4444"       # red
 class ExtractionUseCase:
     """Orchestrates extraction operations."""
 
-    def __init__(self) -> None:
-        self.repo = ExtractionRepository()
-        self.service = ExtractionService()
+    def __init__(
+        self,
+        repo: ExtractionRepository | None = None,
+        service: ExtractionService | None = None,
+    ) -> None:
+        self.repo = repo or ExtractionRepository()
+        self.service = service or ExtractionService()
 
     async def get_extraction(self, document_id: str) -> ExtractionResponse | None:
         """Get the latest extraction with fields for a document.

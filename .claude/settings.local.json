@@ -361,7 +361,11 @@
       "Bash(npm install:*)",
       "Bash(curl -s http://localhost:8009/api/v1/templates)",
       "Bash(curl -s http://localhost:8009/api/v1/templates/ktp)",
-      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \"SELECT count\\(*\\) FROM templates;\")"
+      "Bash(PGPASSWORD=postgres psql -h localhost -p 54322 -U postgres -d postgres -c \"SELECT count\\(*\\) FROM templates;\")",
+      "Bash(echo \"=== 1. Hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind --include=\"*.py\")",
+      "Read(//workspace/company/nunenuh/docmind-vlm/=== 5. Direct DB/**)",
+      "Read(//workspace/company/nunenuh/docmind-vlm/=== 7. Bare except /**)",
+      "Bash(echo \"=== 11. Library: hardcoded __init__ \\(no DI\\) ===\" grep -rn \"def __init__\\(self\\) -> None:\" /workspace/company/nunenuh/docmind-vlm/backend/src/docmind/library --include=\"*.py\")"
     ]
   }
 }

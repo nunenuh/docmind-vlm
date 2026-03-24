@@ -25,9 +25,13 @@ logger = get_logger(__name__)
 class ChatUseCase:
     """Orchestrates per-document chat."""
 
-    def __init__(self) -> None:
-        self.repo = ChatRepository()
-        self.service = ChatService()
+    def __init__(
+        self,
+        repo: ChatRepository | None = None,
+        service: ChatService | None = None,
+    ) -> None:
+        self.repo = repo or ChatRepository()
+        self.service = service or ChatService()
 
     def send_message(
         self, document_id: str, user_id: str, message: str

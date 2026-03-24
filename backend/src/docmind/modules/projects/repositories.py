@@ -167,7 +167,8 @@ class ProjectRepository:
                 await session.delete(project)
                 await session.commit()
                 return True
-            except Exception:
+            except Exception as e:
+                logger.error("project_delete_failed: %s", e)
                 await session.rollback()
                 raise
 
@@ -339,7 +340,8 @@ class ConversationRepository:
                 await session.delete(conversation)
                 await session.commit()
                 return True
-            except Exception:
+            except Exception as e:
+                logger.error("conversation_delete_failed: %s", e)
                 await session.rollback()
                 raise
 

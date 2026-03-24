@@ -179,7 +179,8 @@ class DocumentRepository:
                 await session.commit()
 
                 return storage_path
-            except Exception:
+            except Exception as e:
+                logger.error("document_delete_failed: %s", e)
                 await session.rollback()
                 raise
 

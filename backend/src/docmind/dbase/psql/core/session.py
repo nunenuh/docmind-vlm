@@ -29,7 +29,8 @@ async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
         try:
             yield session
             await session.commit()
-        except Exception:
+        except Exception as e:
+            logger.error("db_session_error: %s", e)
             await session.rollback()
             raise
         finally:

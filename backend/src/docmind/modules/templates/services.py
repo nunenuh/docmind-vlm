@@ -121,13 +121,15 @@ class TemplateDetectionService:
             doc_name = classify_data.get("document_name", doc_type)
             language = classify_data.get("language", "unknown")
             confidence = classify_data.get("confidence", 0.5)
-        except Exception:
+        except Exception as e:
+            logger.warning("classify_response_parse_failed: %s", e)
             doc_type, doc_name, language, confidence = "unknown", "Unknown", "unknown", 0.3
 
         try:
             extract_data = extract_response.get("structured_data", {})
             detected_fields = extract_data.get("fields", [])
-        except Exception:
+        except Exception as e:
+            logger.warning("extract_response_parse_failed: %s", e)
             detected_fields = []
 
         field_service = TemplateFieldService()
@@ -160,5 +162,6 @@ class TemplateDetectionService:
             image = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR) if pix.n == 3 else arr
             doc.close()
             return image
-        except Exception:
+        except Exception as e:
+            logger.warning("pdf_to_image_failed: %s", e)
             return None

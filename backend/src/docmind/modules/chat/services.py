@@ -29,8 +29,8 @@ INSTRUCTIONS:
 class ChatService:
     """VLM interaction + prompt building for per-document chat."""
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
+    def __init__(self, settings=None) -> None:
+        self._settings = settings or get_settings()
 
     def format_extracted_fields(self, fields: list[dict]) -> str:
         """Format extracted fields as text for the system prompt."""

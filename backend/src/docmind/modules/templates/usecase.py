@@ -18,23 +18,28 @@ logger = get_logger(__name__)
 class TemplateUseCase:
     """Orchestrates template operations."""
 
-    def __init__(self) -> None:
-        self.repo = TemplateRepository()
-        self.field_service = TemplateFieldService()
-        self.detection_service = TemplateDetectionService()
+    def __init__(
+        self,
+        repo: TemplateRepository | None = None,
+        field_service: TemplateFieldService | None = None,
+        detection_service: TemplateDetectionService | None = None,
+    ) -> None:
+        self.repo = repo or TemplateRepository()
+        self.field_service = field_service or TemplateFieldService()
+        self.detection_service = detection_service or TemplateDetectionService()
 
     async def list_templates(self, user_id: str) -> list:
         """List all templates. Seeds on first call."""
         await self.repo.seed_presets()
         return await self.repo.list_all(user_id=user_id)
 
-    async def get_template(self, template_id: str):
+    async def get_template(self, template_id: str) -> object | None:
         return await self.repo.get_by_id(template_id)
 
-    async def get_template_by_type(self, template_type: str, user_id: str | None = None):
+    async def get_template_by_type(self, template_type: str, user_id: str | None = None) -> object | None:
         return await self.repo.get_by_type(template_type, user_id)
 
-    async def create_template(self, user_id: str, data: dict):
+    async def create_template(self, user_id: str, data: dict) -> object | None:
         return await self.repo.create({
             "id": str(uuid.uuid4()),
             "user_id": user_id,
@@ -42,13 +47,13 @@ class TemplateUseCase:
             **data,
         })
 
-    async def update_template(self, template_id: str, user_id: str, data: dict):
+    async def update_template(self, template_id: str, user_id: str, data: dict) -> object | None:
         return await self.repo.update(template_id, user_id, data)
 
     async def delete_template(self, template_id: str, user_id: str) -> bool:
         return await self.repo.delete(template_id, user_id)
 
-    async def duplicate_template(self, template_id: str, user_id: str):
+    async def duplicate_template(self, template_id: str, user_id: str) -> object | None:
         return await self.repo.duplicate(template_id, user_id)
 
     async def auto_detect(self, file_bytes: bytes) -> dict:

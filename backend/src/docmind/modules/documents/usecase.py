@@ -22,11 +22,17 @@ logger = get_logger(__name__)
 class DocumentUseCase:
     """Orchestrates document operations. NEVER calls library directly."""
 
-    def __init__(self) -> None:
-        self.repo = DocumentRepository()
-        self.storage_service = DocumentStorageService()
-        self.extraction_service = DocumentExtractionService()
-        self.classification_service = DocumentClassificationService()
+    def __init__(
+        self,
+        repo: DocumentRepository | None = None,
+        storage_service: DocumentStorageService | None = None,
+        extraction_service: DocumentExtractionService | None = None,
+        classification_service: DocumentClassificationService | None = None,
+    ) -> None:
+        self.repo = repo or DocumentRepository()
+        self.storage_service = storage_service or DocumentStorageService()
+        self.extraction_service = extraction_service or DocumentExtractionService()
+        self.classification_service = classification_service or DocumentClassificationService()
 
     async def create_document(
         self,
@@ -60,13 +66,14 @@ class DocumentUseCase:
                 file_size=file_size,
                 storage_path=storage_path,
             )
-        except Exception:
+        except Exception as e:
+            logger.error("document_create_failed: %s", e)
             try:
                 await asyncio.to_thread(
                     self.storage_service.delete_storage_file, storage_path
                 )
-            except Exception:
-                logger.error("storage_cleanup_failed", storage_path=storage_path)
+            except Exception as e_cleanup:
+                logger.error("storage_cleanup_failed: %s", e_cleanup, storage_path=storage_path)
             raise
 
         return DocumentResponse(
@@ -139,8 +146,8 @@ class DocumentUseCase:
             return False
         try:
             await asyncio.to_thread(self.storage_service.delete_storage_file, storage_path)
-        except Exception:
-            logger.warning("storage_cleanup_failed", storage_path=storage_path)
+        except Exception as e:
+            logger.warning("storage_cleanup_failed: %s", e, storage_path=storage_path)
         return True
 
     def trigger_processing(

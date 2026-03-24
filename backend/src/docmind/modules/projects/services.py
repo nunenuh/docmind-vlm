@@ -86,8 +86,8 @@ class ProjectPromptService:
 class ProjectRAGService:
     """RAG operations: embedding, retrieval, query rewriting."""
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
+    def __init__(self, settings=None) -> None:
+        self._settings = settings or get_settings()
 
     async def embed_query(self, query: str) -> list[float]:
         """Embed a query string. Returns embedding vector."""
@@ -155,8 +155,8 @@ class ProjectIndexingService:
 class ProjectVLMService:
     """VLM streaming for project chat."""
 
-    def __init__(self) -> None:
-        self._settings = get_settings()
+    def __init__(self, settings=None) -> None:
+        self._settings = settings or get_settings()
 
     async def stream_chat(
         self,

@@ -33,13 +33,21 @@ logger = get_logger(__name__)
 class ProjectUseCase:
     """Orchestrates project operations. NEVER calls library directly."""
 
-    def __init__(self) -> None:
-        self.repo = ProjectRepository()
-        self.conv_repo = ConversationRepository()
-        self.prompt_service = ProjectPromptService()
-        self.rag_service = ProjectRAGService()
-        self.indexing_service = ProjectIndexingService()
-        self.vlm_service = ProjectVLMService()
+    def __init__(
+        self,
+        repo: ProjectRepository | None = None,
+        conv_repo: ConversationRepository | None = None,
+        prompt_service: ProjectPromptService | None = None,
+        rag_service: ProjectRAGService | None = None,
+        indexing_service: ProjectIndexingService | None = None,
+        vlm_service: ProjectVLMService | None = None,
+    ) -> None:
+        self.repo = repo or ProjectRepository()
+        self.conv_repo = conv_repo or ConversationRepository()
+        self.prompt_service = prompt_service or ProjectPromptService()
+        self.rag_service = rag_service or ProjectRAGService()
+        self.indexing_service = indexing_service or ProjectIndexingService()
+        self.vlm_service = vlm_service or ProjectVLMService()
 
     async def create_project(
         self,
