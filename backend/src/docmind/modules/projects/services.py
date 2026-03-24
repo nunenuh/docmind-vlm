@@ -29,6 +29,11 @@ class ProjectPromptService:
             sanitized = sanitized[:255]
         return sanitized
 
+    def validate_persona_assignment(self, persona_id: str | None) -> None:
+        """Validate persona can be assigned to a project."""
+        if persona_id is not None and not persona_id.strip():
+            raise ValueError("persona_id cannot be an empty string")
+
     def build_system_prompt(
         self,
         persona: dict | None,
