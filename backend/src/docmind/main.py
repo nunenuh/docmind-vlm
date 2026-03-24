@@ -56,6 +56,12 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Request ID + logging middleware (order matters: ID first, then logging)
+    from .core.middleware import RequestIDMiddleware, RequestLoggingMiddleware
+
+    application.add_middleware(RequestLoggingMiddleware)
+    application.add_middleware(RequestIDMiddleware)
+
     application.include_router(api_router, prefix="/api")
 
     from .shared.exceptions import BaseAppException
