@@ -85,7 +85,7 @@ async def get_comparison(
 @router.get("/{document_id}/export")
 async def export_extraction(
     document_id: str,
-    format: str = Query(default="json", regex="^(json|csv)$"),
+    format: str = Query(default="json", pattern="^(json|csv)$"),
     current_user: dict = Depends(get_current_user),
 ):
     """Export extracted fields as JSON or CSV.

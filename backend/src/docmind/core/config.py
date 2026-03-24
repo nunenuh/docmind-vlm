@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     DB_CONNECT_TIMEOUT: int = Field(default=60)
     DB_MAX_RETRIES: int = Field(default=3)
     DB_RETRY_DELAY: float = Field(default=1.0)
+    DB_ECHO: bool = Field(default=False)
 
     @property
     def database_url(self) -> str:

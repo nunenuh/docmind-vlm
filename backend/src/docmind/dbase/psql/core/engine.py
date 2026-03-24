@@ -30,7 +30,7 @@ def create_async_engine() -> AsyncEngine:
     return sqlalchemy_create_async_engine(
         settings.database_url,
         poolclass=NullPool,
-        echo=settings.APP_DEBUG,
+        echo=settings.DB_ECHO,
         pool_pre_ping=True,
         connect_args={
             # Disable prepared statement caching (required for Supabase pooler)
