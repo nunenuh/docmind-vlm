@@ -42,7 +42,7 @@ async def _persist_results(state: dict, extraction_id: str) -> None:
                 extraction_id=extraction_id,
                 field_type=field.get("field_type", "key_value"),
                 field_key=field.get("field_key"),
-                field_value=field.get("field_value", ""),
+                field_value=field.get("field_value") or "",
                 page_number=field.get("page_number", 1),
                 bounding_box=field.get("bounding_box", {}),
                 confidence=field.get("confidence", 0.0),
