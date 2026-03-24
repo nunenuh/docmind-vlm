@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import {
   FileText, Upload, Trash2, RefreshCw, Loader2, AlertCircle,
-  CheckCircle, Clock, Plus, HardDrive, Database,
+  CheckCircle, Clock, Plus, HardDrive, Database, Image,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -136,16 +136,24 @@ export function ProjectDocumentsTab({ projectId }: Props) {
                   className="group flex items-center gap-4 px-4 py-3 bg-[#12121a] border border-[#1e1e2e] rounded-xl hover:border-[#2a2a3a] transition-colors"
                 >
                   {/* Icon */}
-                  <div className="w-10 h-10 rounded-lg bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
-                    <FileText className="w-5 h-5 text-indigo-400" />
-                  </div>
+                  {["png", "jpg", "jpeg", "webp", "tiff"].includes(doc.file_type) ? (
+                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+                      <Image className="w-5 h-5 text-emerald-400" />
+                    </div>
+                  ) : (
+                    <div className="w-10 h-10 rounded-lg bg-rose-500/10 flex items-center justify-center flex-shrink-0">
+                      <FileText className="w-5 h-5 text-rose-400" />
+                    </div>
+                  )}
 
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white font-medium truncate">{doc.filename}</p>
                     <div className="flex items-center gap-3 mt-0.5">
                       <span className="text-xs text-gray-500">{doc.file_type.toUpperCase()}</span>
-                      <span className="text-xs text-gray-600">{formatSize(doc.file_size)}</span>
+                      {doc.file_size > 0 && (
+                        <span className="text-xs text-gray-600">{formatSize(doc.file_size)}</span>
+                      )}
                       {doc.page_count > 0 && (
                         <span className="text-xs text-gray-600">{doc.page_count} pages</span>
                       )}

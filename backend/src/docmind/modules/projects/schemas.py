@@ -38,6 +38,8 @@ class ProjectDocumentResponse(BaseModel):
     id: str
     filename: str
     file_type: str
+    file_size: int = 0
+    page_count: int = 0
     status: str
     created_at: datetime
 

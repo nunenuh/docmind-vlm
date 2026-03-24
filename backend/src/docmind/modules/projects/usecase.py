@@ -229,6 +229,8 @@ class ProjectUseCase:
                 id=str(doc.id),
                 filename=doc.filename,
                 file_type=doc.file_type,
+                file_size=doc.file_size or 0,
+                page_count=doc.page_count or 0,
                 status=doc.status,
                 created_at=doc.created_at,
             )
