@@ -85,7 +85,7 @@ export function processDocument(
   id: string, templateType: string | undefined,
   onMessage: (data: unknown) => void, onError: (error: Error) => void, onComplete: () => void,
 ): AbortController {
-  return createSSEStream(`/api/v1/documents/${id}/process`, { template_type: templateType ?? null }, onMessage, onError, onComplete);
+  return createSSEStream(`/api/v1/extractions/${id}/process`, { template_type: templateType ?? null }, onMessage, onError, onComplete);
 }
 
 export async function fetchExtraction(documentId: string): Promise<ExtractionResponse> {

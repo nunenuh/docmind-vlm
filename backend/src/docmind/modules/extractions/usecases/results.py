@@ -1,57 +1,35 @@
-"""
-docmind/modules/extractions/usecase.py
-
-Extraction use case — orchestrates repository calls and maps to response schemas.
-"""
+"""Extraction results usecase — read extractions, audit trails, overlays."""
 
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import NotFoundException
 
-from .repositories import ExtractionRepository
-from .services import ExtractionService
-from .schemas import (
+from ..protocols import ConfidenceServiceProtocol, ExtractionRepositoryProtocol
+from ..repositories import ExtractionRepository
+from ..schemas import (
     AuditEntryResponse,
     ComparisonResponse,
     ExtractedFieldResponse,
     ExtractionResponse,
     OverlayRegion,
 )
+from ..services import ConfidenceService
 
 logger = get_logger(__name__)
 
-# Confidence color thresholds
-_HIGH_CONFIDENCE = 0.8
-_MEDIUM_CONFIDENCE = 0.5
-_COLOR_HIGH = "#22c55e"      # green
-_COLOR_MEDIUM = "#f59e0b"    # amber
-_COLOR_LOW = "#ef4444"       # red
 
-
-
-
-class ExtractionUseCase:
-    """Orchestrates extraction operations."""
+class ExtractionResultsUseCase:
+    """Orchestrates reading extraction results."""
 
     def __init__(
         self,
-        repo: ExtractionRepository | None = None,
-        service: ExtractionService | None = None,
+        repo: ExtractionRepositoryProtocol | None = None,
+        confidence_service: ConfidenceServiceProtocol | None = None,
     ) -> None:
         self.repo = repo or ExtractionRepository()
-        self.service = service or ExtractionService()
+        self.confidence_service = confidence_service or ConfidenceService()
 
     async def get_extraction(self, document_id: str) -> ExtractionResponse:
-        """Get the latest extraction with fields for a document.
-
-        Args:
-            document_id: The document ID.
-
-        Returns:
-            ExtractionResponse with nested fields.
-
-        Raises:
-            NotFoundException: If no extraction exists for this document.
-        """
+        """Get the latest extraction with fields for a document."""
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
             raise NotFoundException("Extraction not found")
@@ -85,21 +63,15 @@ class ExtractionUseCase:
             created_at=extraction.created_at,
         )
 
-    async def get_audit_trail(self, document_id: str) -> list[AuditEntryResponse]:
-        """Get audit trail for the latest extraction of a document.
-
-        Args:
-            document_id: The document ID.
-
-        Returns:
-            List of AuditEntryResponse, or empty list.
-        """
+    async def get_audit_trail(
+        self, document_id: str
+    ) -> list[AuditEntryResponse]:
+        """Get audit trail for the latest extraction."""
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
             return []
 
         entries = await self.repo.get_audit_trail(str(extraction.id))
-
         return [
             AuditEntryResponse(
                 step_name=e.step_name,
@@ -112,56 +84,40 @@ class ExtractionUseCase:
             for e in entries
         ]
 
-    async def get_overlay_data(self, document_id: str) -> list[OverlayRegion]:
-        """Get confidence overlay regions for the latest extraction.
-
-        Maps each extracted field's bounding box to an OverlayRegion
-        with color coding based on confidence level.
-
-        Args:
-            document_id: The document ID.
-
-        Returns:
-            List of OverlayRegion, or empty list.
-        """
+    async def get_overlay_data(
+        self, document_id: str
+    ) -> list[OverlayRegion]:
+        """Get confidence overlay regions for the latest extraction."""
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
             return []
 
         fields = await self.repo.get_fields(str(extraction.id))
-
-        regions = []
-        for f in fields:
-            bbox = f.bounding_box or {}
-            regions.append(OverlayRegion(
+        return [
+            OverlayRegion(
                 x=bbox.get("x", 0.0),
                 y=bbox.get("y", 0.0),
                 width=bbox.get("width", 0.0),
                 height=bbox.get("height", 0.0),
                 confidence=f.confidence,
-                color=self.service.confidence_color(f.confidence),
-                tooltip=f"{f.field_key}: {f.field_value}" if f.field_key else None,
-            ))
-        return regions
+                color=self.confidence_service.confidence_color(f.confidence),
+                tooltip=(
+                    f"{f.field_key}: {f.field_value}" if f.field_key else None
+                ),
+            )
+            for f in fields
+            for bbox in [f.bounding_box or {}]
+        ]
 
-    async def get_comparison(self, document_id: str) -> ComparisonResponse:
-        """Get comparison data for the latest extraction.
-
-        Args:
-            document_id: The document ID.
-
-        Returns:
-            ComparisonResponse.
-
-        Raises:
-            NotFoundException: If no extraction exists for this document.
-        """
+    async def get_comparison(
+        self, document_id: str
+    ) -> ComparisonResponse:
+        """Get comparison data for the latest extraction."""
         extraction = await self.repo.get_latest_extraction(document_id)
         if extraction is None:
             raise NotFoundException("Comparison not available")
 
         fields = await self.repo.get_fields(str(extraction.id))
-
         field_responses = [
             ExtractedFieldResponse(
                 id=str(f.id),

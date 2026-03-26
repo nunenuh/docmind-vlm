@@ -1,11 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
-import { Send, Loader2, User, Bot, FileText, Brain, ChevronDown, ChevronUp } from "lucide-react";
+import { useState, useRef, useEffect, useCallback, useMemo } from "react";
+import { Send, Loader2, User, Bot, FileText, Brain, ChevronDown, ChevronUp, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { sendProjectChat } from "@/lib/api";
 import { fetchConversation } from "@/lib/api";
-import { useProjectConversations } from "@/hooks/useProjects";
-import type { MessageResponse } from "@/types/api";
+import { useProjectConversations, useProjectDocuments } from "@/hooks/useProjects";
+import type { MessageResponse, ProjectDocumentResponse } from "@/types/api";
 
 interface Citation {
   source_index: number;
@@ -15,6 +15,8 @@ interface Citation {
   similarity: number;
 }
 
+type DocMap = Map<string, ProjectDocumentResponse>;
+
 interface ProjectChatPanelProps {
   projectId: string;
   activeConversationId: string | null;
@@ -23,6 +25,18 @@ interface ProjectChatPanelProps {
 
 export function ProjectChatPanel({ projectId, activeConversationId, onConversationCreated }: ProjectChatPanelProps) {
   const { refetch: refetchConversations } = useProjectConversations(projectId);
+  const { data: docs } = useProjectDocuments(projectId);
+
+  // Build a map of document_id → doc for citation resolution
+  const docMap: DocMap = useMemo(() => {
+    const m = new Map<string, ProjectDocumentResponse>();
+    if (docs) {
+      for (const d of docs) {
+        m.set(d.id, d);
+      }
+    }
+    return m;
+  }, [docs]);
 
   const [messages, setMessages] = useState<MessageResponse[]>([]);
   const [input, setInput] = useState("");
@@ -127,8 +141,6 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
             break;
 
           case "answer":
-            // Final complete answer — don't update streamingContent
-            // as it's already built from tokens. Parse citations.
             if (event.citations) {
               try {
                 citations = typeof event.citations === "string"
@@ -139,7 +151,6 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
                 // Ignore
               }
             }
-            // If we didn't get token events, use the answer content
             if (!answer) {
               answer = (event.content as string) ?? "";
               setStreamingContent(answer);
@@ -191,7 +202,6 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               content: answer,
               citations: citations.length > 0 ? JSON.stringify(citations) : null,
               created_at: new Date().toISOString(),
-              // Store thinking for this message
               _thinking: thinking || undefined,
             } as MessageResponse & { _thinking?: string },
           ]);
@@ -239,6 +249,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
                 key={msg.id}
                 message={msg}
                 thinking={(msg as MessageResponse & { _thinking?: string })._thinking}
+                docMap={docMap}
               />
             ))}
           </>
@@ -288,7 +299,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               {streamingCitations.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {streamingCitations.map((cite) => (
-                    <CitationTag key={cite.source_index} citation={cite} />
+                    <CitationTag key={cite.source_index} citation={cite} docMap={docMap} />
                   ))}
                 </div>
               )}
@@ -324,6 +335,8 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
   );
 }
 
+/* ── Thinking Section ──────────────────────────────────── */
+
 function ThinkingSection({ content, isActive }: { content: string; isActive: boolean }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
@@ -358,20 +371,99 @@ function ThinkingSection({ content, isActive }: { content: string; isActive: boo
   );
 }
 
-function CitationTag({ citation }: { citation: Citation }) {
+/* ── Citation Tag (clickable with popover) ─────────────── */
+
+function CitationTag({ citation, docMap }: { citation: Citation; docMap: DocMap }) {
+  const [showPopover, setShowPopover] = useState(false);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  const doc = docMap.get(citation.document_id);
+  const docName = doc?.filename ?? `Document ${citation.source_index}`;
+  const isImage = doc && ["png", "jpg", "jpeg", "webp", "tiff"].includes(doc.file_type);
+
+  // Close popover when clicking outside
+  useEffect(() => {
+    if (!showPopover) return;
+    const handler = (e: MouseEvent) => {
+      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
+        setShowPopover(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showPopover]);
+
   return (
-    <div
-      className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#12121a] border border-[#2a2a3a] rounded text-xs text-gray-400 hover:text-indigo-400 hover:border-indigo-500/30 transition-colors cursor-default"
-      title={citation.content_preview}
-    >
-      <FileText className="w-3 h-3" />
-      <span>Source {citation.source_index}</span>
-      <span className="text-gray-600">p.{citation.page_number}</span>
+    <div className="relative" ref={popoverRef}>
+      {/* Tag button */}
+      <button
+        onClick={() => setShowPopover(!showPopover)}
+        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${
+          showPopover
+            ? "bg-indigo-500/10 border border-indigo-500/30 text-indigo-300"
+            : "bg-[#12121a] border border-[#2a2a3a] text-gray-400 hover:text-indigo-400 hover:border-indigo-500/30"
+        }`}
+      >
+        <FileText className="w-3 h-3" />
+        <span className="max-w-[120px] truncate">{docName}</span>
+        <span className="text-gray-600">p.{citation.page_number}</span>
+      </button>
+
+      {/* Popover */}
+      {showPopover && (
+        <div className="absolute bottom-full left-0 mb-2 w-[320px] bg-[#14161C] border border-white/[0.08] rounded-xl shadow-2xl shadow-black/60 z-50 overflow-hidden">
+          {/* Header */}
+          <div className="flex items-center gap-2 px-3 py-2.5 border-b border-white/[0.06] bg-white/[0.02]">
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center flex-shrink-0 ${
+              isImage ? "bg-emerald-500/[0.08]" : "bg-rose-500/[0.08]"
+            }`}>
+              <FileText className={`w-3 h-3 ${isImage ? "text-emerald-400" : "text-rose-400"}`} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[12px] text-gray-200 font-medium truncate">{docName}</p>
+              <p className="text-[10px] text-gray-500">
+                {doc?.file_type.toUpperCase() ?? "PDF"} · Page {citation.page_number}
+                {citation.similarity > 0 && ` · ${Math.round(citation.similarity * 100)}% match`}
+              </p>
+            </div>
+            <button
+              onClick={() => setShowPopover(false)}
+              className="p-1 text-gray-600 hover:text-gray-300 rounded transition-colors"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+
+          {/* Content preview */}
+          {citation.content_preview && (
+            <div className="px-3 py-2.5 max-h-[200px] overflow-y-auto">
+              <p className="text-[11px] text-gray-400 leading-relaxed whitespace-pre-wrap">
+                {citation.content_preview}
+              </p>
+            </div>
+          )}
+
+          {/* Footer with similarity score */}
+          <div className="px-3 py-2 border-t border-white/[0.06] flex items-center gap-2">
+            <div className="flex-1 h-1 bg-white/[0.04] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-indigo-500/60 rounded-full"
+                style={{ width: `${Math.round((citation.similarity || 0) * 100)}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-gray-500 tabular-nums">
+              {Math.round((citation.similarity || 0) * 100)}% relevance
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function MessageBubble({ message, thinking }: { message: MessageResponse; thinking?: string }) {
+/* ── Message Bubble ────────────────────────────────────── */
+
+function MessageBubble({ message, thinking, docMap }: { message: MessageResponse; thinking?: string; docMap: DocMap }) {
   const isUser = message.role === "user";
 
   const parsedCitations: Citation[] = (() => {
@@ -413,7 +505,7 @@ function MessageBubble({ message, thinking }: { message: MessageResponse; thinki
         {parsedCitations.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {parsedCitations.map((cite) => (
-              <CitationTag key={cite.source_index} citation={cite} />
+              <CitationTag key={cite.source_index} citation={cite} docMap={docMap} />
             ))}
           </div>
         )}

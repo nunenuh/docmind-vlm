@@ -2,10 +2,11 @@
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from docmind.core.config import get_settings
 
+from ..dependencies import get_health_usecase
 from ..schemas import HealthStatusResponse, PingResponse
 from ..usecase import HealthUseCase
 
@@ -18,8 +19,9 @@ async def ping():
 
 
 @router.get("/status", response_model=HealthStatusResponse)
-async def get_health_status():
-    usecase = HealthUseCase()
+async def get_health_status(
+    usecase: HealthUseCase = Depends(get_health_usecase),
+):
     overall_status, components, uptime = await usecase.get_basic_health()
     return HealthStatusResponse(
         status=overall_status,

@@ -83,7 +83,7 @@ class TestGetComparison:
 
     @pytest.mark.asyncio
     async def test_returns_comparison_response(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         mock_ext = MagicMock(id="ext-001")
         mock_field = MagicMock(
@@ -112,7 +112,7 @@ class TestGetComparison:
 
     @pytest.mark.asyncio
     async def test_raises_not_found_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()

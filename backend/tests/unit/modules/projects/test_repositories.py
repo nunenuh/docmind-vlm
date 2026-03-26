@@ -131,7 +131,7 @@ class TestProjectCreate:
     """Tests for ProjectRepository.create()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_create_adds_project_and_commits(self, mock_factory, repo):
         """create() should add a Project, commit, and refresh."""
         session = AsyncMock()
@@ -157,7 +157,7 @@ class TestProjectCreate:
         assert added.name == "My Project"
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_create_returns_project_instance(self, mock_factory, repo):
         """create() should return the ORM Project instance."""
         session = AsyncMock()
@@ -178,7 +178,7 @@ class TestProjectGetById:
     """Tests for ProjectRepository.get_by_id()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_project_when_found(self, mock_factory, repo):
         project = _make_project()
         session = AsyncMock()
@@ -192,7 +192,7 @@ class TestProjectGetById:
         assert result is project
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_none_when_not_found(self, mock_factory, repo):
         session = AsyncMock()
         execute_result = MagicMock()
@@ -205,7 +205,7 @@ class TestProjectGetById:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_filters_by_user_id(self, mock_factory, repo):
         """The SELECT WHERE clause must include user_id."""
         session = AsyncMock()
@@ -224,7 +224,7 @@ class TestProjectListForUser:
     """Tests for ProjectRepository.list_for_user()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_items_and_total(self, mock_factory, repo):
         projects = [_make_project(project_id=str(uuid.uuid4())) for _ in range(3)]
         session = AsyncMock()
@@ -246,7 +246,7 @@ class TestProjectListForUser:
         assert len(items) == 3
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_empty_returns_zero_total(self, mock_factory, repo):
         session = AsyncMock()
 
@@ -277,7 +277,7 @@ class TestProjectUpdate:
     """Tests for ProjectRepository.update()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_none_when_not_found(self, mock_factory, repo):
         session = AsyncMock()
         execute_result = MagicMock()
@@ -290,7 +290,7 @@ class TestProjectUpdate:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_update_executes_and_commits(self, mock_factory, repo):
         project = _make_project()
         session = AsyncMock()
@@ -322,7 +322,7 @@ class TestProjectDelete:
     """Tests for ProjectRepository.delete()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_true_when_deleted(self, mock_factory, repo):
         project = _make_project()
         session = AsyncMock()
@@ -348,7 +348,7 @@ class TestProjectDelete:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_false_when_not_found(self, mock_factory, repo):
         session = AsyncMock()
         session.rollback = AsyncMock()
@@ -362,7 +362,7 @@ class TestProjectDelete:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_filters_by_user_id(self, mock_factory, repo):
         """delete() must filter by user_id."""
         session = AsyncMock()
@@ -378,7 +378,7 @@ class TestProjectDelete:
         _assert_where_contains(stmt, "user_id")
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_rollback_on_failure(self, mock_factory, repo):
         """delete() should rollback if an operation fails."""
         project = _make_project()
@@ -403,7 +403,7 @@ class TestProjectAddDocument:
     """Tests for ProjectRepository.add_document()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_true_when_linked(self, mock_factory, repo):
         session = AsyncMock()
         update_result = MagicMock()
@@ -418,7 +418,7 @@ class TestProjectAddDocument:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_false_when_doc_not_found(self, mock_factory, repo):
         session = AsyncMock()
         update_result = MagicMock()
@@ -436,7 +436,7 @@ class TestProjectRemoveDocument:
     """Tests for ProjectRepository.remove_document()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_true_when_unlinked(self, mock_factory, repo):
         session = AsyncMock()
         update_result = MagicMock()
@@ -450,7 +450,7 @@ class TestProjectRemoveDocument:
         assert result is True
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_false_when_not_linked(self, mock_factory, repo):
         session = AsyncMock()
         update_result = MagicMock()
@@ -468,7 +468,7 @@ class TestProjectListDocuments:
     """Tests for ProjectRepository.list_documents()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_documents(self, mock_factory, repo):
         docs = [_make_document(doc_id=str(uuid.uuid4()), project_id=PROJECT_ID) for _ in range(2)]
         session = AsyncMock()
@@ -491,7 +491,7 @@ class TestProjectListDocuments:
         assert len(result) == 2
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
     async def test_returns_empty_when_project_not_owned(self, mock_factory, repo):
         session = AsyncMock()
         proj_result = MagicMock()
@@ -513,7 +513,7 @@ class TestConversationCreate:
     """Tests for ConversationRepository.create()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_create_adds_and_commits(self, mock_factory, conv_repo):
         session = AsyncMock()
         session.add = MagicMock()
@@ -540,7 +540,7 @@ class TestConversationGetById:
     """Tests for ConversationRepository.get_by_id()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_returns_conversation_when_found(self, mock_factory, conv_repo):
         conv = _make_conversation()
         session = AsyncMock()
@@ -554,7 +554,7 @@ class TestConversationGetById:
         assert result is conv
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_returns_none_when_not_found(self, mock_factory, conv_repo):
         session = AsyncMock()
         execute_result = MagicMock()
@@ -567,7 +567,7 @@ class TestConversationGetById:
         assert result is None
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_filters_by_user_id(self, mock_factory, conv_repo):
         session = AsyncMock()
         execute_result = MagicMock()
@@ -585,7 +585,7 @@ class TestConversationDelete:
     """Tests for ConversationRepository.delete()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_returns_true_when_deleted(self, mock_factory, conv_repo):
         conv = _make_conversation()
         session = AsyncMock()
@@ -605,7 +605,7 @@ class TestConversationDelete:
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_returns_false_when_not_found(self, mock_factory, conv_repo):
         session = AsyncMock()
         session.rollback = AsyncMock()
@@ -619,7 +619,7 @@ class TestConversationDelete:
         assert result is False
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_rollback_on_failure(self, mock_factory, conv_repo):
         conv = _make_conversation()
         session = AsyncMock()
@@ -643,7 +643,7 @@ class TestConversationAddMessage:
     """Tests for ConversationRepository.add_message()."""
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.projects.repositories.AsyncSessionLocal")
+    @patch("docmind.modules.projects.repositories.conversation.AsyncSessionLocal")
     async def test_adds_message_and_commits(self, mock_factory, conv_repo):
         session = AsyncMock()
         session.add = MagicMock()

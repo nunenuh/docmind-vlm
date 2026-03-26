@@ -42,7 +42,7 @@ class TestAuditTrailRetrieval:
 
     @pytest.mark.asyncio
     async def test_get_audit_trail_returns_ordered_entries(self, mock_extraction_orm, mock_audit_entries):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -58,7 +58,7 @@ class TestAuditTrailRetrieval:
 
     @pytest.mark.asyncio
     async def test_get_audit_trail_empty_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -70,7 +70,7 @@ class TestAuditTrailRetrieval:
 
     @pytest.mark.asyncio
     async def test_get_audit_trail_empty_when_no_entries(self, mock_extraction_orm):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()

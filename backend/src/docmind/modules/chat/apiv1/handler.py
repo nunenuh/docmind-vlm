@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
+from docmind.modules.documents.dependencies import get_document_usecase
 from docmind.modules.documents.usecase import DocumentUseCase
 from docmind.shared.exceptions import (
     AppException,
@@ -12,6 +13,7 @@ from docmind.shared.exceptions import (
     NotFoundException,
 )
 
+from ..dependencies import get_chat_usecase
 from ..schemas import ChatHistoryResponse, ChatMessageRequest
 from ..usecase import ChatUseCase
 
@@ -24,15 +26,15 @@ async def send_message(
     document_id: str,
     body: ChatMessageRequest,
     current_user: dict = Depends(get_current_user),
+    doc_usecase: DocumentUseCase = Depends(get_document_usecase),
+    chat_usecase: ChatUseCase = Depends(get_chat_usecase),
 ):
-    doc_usecase = DocumentUseCase()
     document = await doc_usecase.get_document(
         user_id=current_user["id"], document_id=document_id
     )
     if document is None:
         raise NotFoundException("Document not found")
 
-    chat_usecase = ChatUseCase()
     event_stream = chat_usecase.send_message(
         document_id=document_id, user_id=current_user["id"], message=body.message
     )
@@ -53,8 +55,8 @@ async def get_chat_history(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
     current_user: dict = Depends(get_current_user),
+    chat_usecase: ChatUseCase = Depends(get_chat_usecase),
 ):
-    chat_usecase = ChatUseCase()
     try:
         return await chat_usecase.get_history(
             document_id=document_id, user_id=current_user["id"], page=page, limit=limit

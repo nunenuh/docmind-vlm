@@ -60,7 +60,7 @@ class TestExtractionUseCaseGetExtraction:
 
     @pytest.mark.asyncio
     async def test_returns_extraction_response_when_found(self, mock_extraction_orm, mock_field_orm):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -80,7 +80,7 @@ class TestExtractionUseCaseGetExtraction:
 
     @pytest.mark.asyncio
     async def test_raises_not_found_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -97,7 +97,7 @@ class TestExtractionUseCaseGetAuditTrail:
 
     @pytest.mark.asyncio
     async def test_returns_audit_entries(self, mock_extraction_orm, mock_audit_orm):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -112,7 +112,7 @@ class TestExtractionUseCaseGetAuditTrail:
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -128,7 +128,7 @@ class TestExtractionUseCaseGetOverlayData:
 
     @pytest.mark.asyncio
     async def test_returns_overlay_regions(self, mock_extraction_orm, mock_field_orm):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()
@@ -145,7 +145,7 @@ class TestExtractionUseCaseGetOverlayData:
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()

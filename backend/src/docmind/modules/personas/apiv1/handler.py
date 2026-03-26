@@ -13,8 +13,9 @@ from docmind.shared.exceptions import (
     NotFoundException,
 )
 
-from ..usecase import PersonaUseCase
+from ..dependencies import get_persona_usecase
 from ..schemas import PersonaCreate, PersonaResponse, PersonaUpdate
+from ..usecase import PersonaUseCase
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -35,8 +36,10 @@ def _to_response(persona: object) -> PersonaResponse:
 
 
 @router.get("", response_model=list[PersonaResponse])
-async def list_personas(current_user: dict = Depends(get_current_user)):
-    usecase = PersonaUseCase()
+async def list_personas(
+    current_user: dict = Depends(get_current_user),
+    usecase: PersonaUseCase = Depends(get_persona_usecase),
+):
     try:
         personas = await usecase.list_personas(user_id=current_user["id"])
         return [_to_response(p) for p in personas]
@@ -51,8 +54,8 @@ async def list_personas(current_user: dict = Depends(get_current_user)):
 async def create_persona(
     body: PersonaCreate,
     current_user: dict = Depends(get_current_user),
+    usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
-    usecase = PersonaUseCase()
     try:
         persona = await usecase.create_persona(
             user_id=current_user["id"],
@@ -71,8 +74,8 @@ async def update_persona(
     persona_id: str,
     body: PersonaUpdate,
     current_user: dict = Depends(get_current_user),
+    usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
-    usecase = PersonaUseCase()
     try:
         update_fields = body.model_dump(exclude_unset=True)
         if not update_fields:
@@ -96,8 +99,8 @@ async def update_persona(
 async def delete_persona(
     persona_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
-    usecase = PersonaUseCase()
     try:
         deleted = await usecase.delete_persona(persona_id, current_user["id"])
         if not deleted:
@@ -113,9 +116,9 @@ async def delete_persona(
 async def duplicate_persona(
     persona_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     """Duplicate a persona (preset or custom) as user's custom persona."""
-    usecase = PersonaUseCase()
     try:
         persona = await usecase.duplicate_persona(persona_id, current_user["id"])
         if persona is None:

@@ -12,6 +12,12 @@ from docmind.shared.exceptions import (
     ValidationException,
 )
 
+from ..dependencies import (
+    get_project_chat_usecase,
+    get_project_conversation_usecase,
+    get_project_crud_usecase,
+    get_project_document_usecase,
+)
 from ..schemas import (
     ConversationDetailResponse,
     ConversationResponse,
@@ -22,18 +28,26 @@ from ..schemas import (
     ProjectResponse,
     ProjectUpdate,
 )
-from ..usecase import ProjectUseCase
+from ..usecases import (
+    ProjectChatUseCase,
+    ProjectConversationUseCase,
+    ProjectCRUDUseCase,
+    ProjectDocumentUseCase,
+)
 
 logger = get_logger(__name__)
 router = APIRouter()
+
+
+# ── Project CRUD ──────────────────────────────────────────
 
 
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     body: ProjectCreate,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         return await usecase.create_project(
             user_id=current_user["id"],
@@ -55,8 +69,8 @@ async def list_projects(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
-    usecase = ProjectUseCase()
     return await usecase.get_projects(
         user_id=current_user["id"], page=page, limit=limit
     )
@@ -66,8 +80,8 @@ async def list_projects(
 async def get_project(
     project_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         return await usecase.get_project(
             user_id=current_user["id"], project_id=project_id
@@ -84,8 +98,8 @@ async def update_project(
     project_id: str,
     body: ProjectUpdate,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         return await usecase.update_project(
             user_id=current_user["id"],
@@ -105,8 +119,8 @@ async def update_project(
 async def delete_project(
     project_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         deleted = await usecase.delete_project(
             user_id=current_user["id"], project_id=project_id
@@ -120,6 +134,9 @@ async def delete_project(
         raise AppException(message="Internal server error")
 
 
+# ── Project Documents ─────────────────────────────────────
+
+
 @router.post(
     "/{project_id}/documents",
     response_model=ProjectDocumentResponse,
@@ -129,17 +146,13 @@ async def add_document_to_project(
     project_id: str,
     document_id: str = Query(...),
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
-    from docmind.modules.documents.repositories import DocumentRepository
-
     try:
-        # Fetch document info first (before long-running indexing)
-        doc_repo = DocumentRepository()
-        doc = await doc_repo.get_by_id(document_id, current_user["id"])
+        doc = await usecase.doc_repo.get_by_id(document_id, current_user["id"])
         if doc is None:
             raise NotFoundException("Document not found")
 
-        usecase = ProjectUseCase()
         added = await usecase.add_document(
             user_id=current_user["id"],
             project_id=project_id,
@@ -148,7 +161,6 @@ async def add_document_to_project(
         if not added:
             raise NotFoundException("Project not found")
 
-        # Return document info we already have (avoid extra DB call after indexing)
         return ProjectDocumentResponse(
             id=str(doc.id),
             filename=doc.filename,
@@ -170,8 +182,8 @@ async def add_document_to_project(
 async def list_project_documents(
     project_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         return await usecase.list_documents(
             user_id=current_user["id"], project_id=project_id
@@ -188,8 +200,8 @@ async def remove_document_from_project(
     project_id: str,
     document_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         await usecase.remove_document(
             user_id=current_user["id"],
@@ -208,9 +220,9 @@ async def reindex_document(
     project_id: str,
     document_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     """Re-index a document's RAG chunks (delete old + re-extract + re-embed)."""
-    usecase = ProjectUseCase()
     try:
         result = await usecase.reindex_document(
             user_id=current_user["id"],
@@ -225,14 +237,17 @@ async def reindex_document(
         raise AppException(message="Internal server error")
 
 
+# ── Project Chat ──────────────────────────────────────────
+
+
 @router.post("/{project_id}/chat")
 async def project_chat(
     project_id: str,
     body: ProjectChatRequest,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectChatUseCase = Depends(get_project_chat_usecase),
 ):
     """SSE endpoint for project-level RAG chat."""
-    usecase = ProjectUseCase()
     event_stream = usecase.project_chat_stream(
         project_id=project_id,
         user_id=current_user["id"],
@@ -250,6 +265,9 @@ async def project_chat(
     )
 
 
+# ── Conversations ─────────────────────────────────────────
+
+
 @router.get(
     "/{project_id}/conversations",
     response_model=list[ConversationResponse],
@@ -257,8 +275,8 @@ async def project_chat(
 async def list_conversations(
     project_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         return await usecase.list_conversations(
             user_id=current_user["id"], project_id=project_id
@@ -278,8 +296,8 @@ async def get_conversation(
     project_id: str,
     conversation_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         conversation = await usecase.get_conversation(
             user_id=current_user["id"], conversation_id=conversation_id
@@ -301,8 +319,8 @@ async def delete_conversation(
     project_id: str,
     conversation_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
-    usecase = ProjectUseCase()
     try:
         deleted = await usecase.delete_conversation(
             user_id=current_user["id"], conversation_id=conversation_id
@@ -316,14 +334,17 @@ async def delete_conversation(
         raise AppException(message="Internal server error")
 
 
+# ── Chunks ────────────────────────────────────────────────
+
+
 @router.get("/{project_id}/chunks")
 async def list_chunks(
     project_id: str,
     document_id: str | None = Query(default=None),
     current_user: dict = Depends(get_current_user),
+    usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     """List RAG chunks for a project, optionally filtered by document."""
-    usecase = ProjectUseCase()
     try:
         return await usecase.list_chunks(
             user_id=current_user["id"],

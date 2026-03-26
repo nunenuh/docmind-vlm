@@ -1,22 +1,22 @@
-"""docmind/modules/documents/apiv1/handler.py"""
+"""
+docmind/modules/documents/apiv1/handler.py
+
+Document HTTP endpoints — pure file CRUD + search.
+Extraction is handled by the extractions module.
+"""
 
 from fastapi import APIRouter, Depends, File, Query, UploadFile
-from fastapi.responses import StreamingResponse
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import (
     AppException,
     BaseAppException,
-    NotFoundException,
     ValidationException,
 )
 
-from ..schemas import (
-    DocumentListResponse,
-    DocumentResponse,
-    ProcessRequest,
-)
+from ..dependencies import get_document_usecase
+from ..schemas import DocumentListResponse, DocumentResponse
 from ..usecase import DocumentUseCase
 
 logger = get_logger(__name__)
@@ -40,7 +40,6 @@ _MIME_TO_FILE_TYPE: dict[str, str] = {
     "image/tiff": "tiff",
     "image/webp": "webp",
 }
-
 
 MAX_FILENAME_LENGTH = 255
 
@@ -70,19 +69,23 @@ def _sanitize_filename(raw: str | None) -> str:
     return name[:MAX_FILENAME_LENGTH]
 
 
+# ── CRUD ──────────────────────────────────────────────────
+
+
 @router.post("", response_model=DocumentResponse, status_code=201)
 async def create_document(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
+    """Upload a document file."""
     validate_upload(file)
     file_bytes = await file.read()
     _validate_file_bytes(file_bytes)
 
     filename = _sanitize_filename(file.filename)
-    file_type = _MIME_TO_FILE_TYPE[file.content_type]  # guaranteed by validate_upload
+    file_type = _MIME_TO_FILE_TYPE[file.content_type]
 
-    usecase = DocumentUseCase()
     try:
         return await usecase.create_document(
             user_id=current_user["id"],
@@ -105,18 +108,50 @@ async def list_documents(
     limit: int = Query(default=20, ge=1, le=100),
     standalone: bool = Query(default=False, description="If true, only return documents not linked to a project"),
     current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
-    usecase = DocumentUseCase()
+    """List documents with pagination."""
     return await usecase.get_documents(
         user_id=current_user["id"], page=page, limit=limit, standalone_only=standalone
     )
 
 
+@router.get("/search", response_model=DocumentListResponse)
+async def search_documents(
+    q: str | None = Query(default=None, description="Filename search (case-insensitive)"),
+    file_type: str | None = Query(default=None, description="Filter by file type: pdf, png, jpg, etc."),
+    status: str | None = Query(default=None, description="Filter by status: uploaded, processing, ready, error"),
+    standalone: bool = Query(default=True, description="Only standalone documents (not in projects)"),
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
+):
+    """Search documents by filename, file type, and/or status."""
+    try:
+        return await usecase.search_documents(
+            user_id=current_user["id"],
+            query=q,
+            file_type=file_type,
+            status=status,
+            standalone_only=standalone,
+            page=page,
+            limit=limit,
+        )
+    except BaseAppException:
+        raise
+    except Exception as e:
+        logger.error("search_documents error: %s", e, exc_info=True)
+        raise AppException(message="Internal server error")
+
+
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
-    document_id: str, current_user: dict = Depends(get_current_user)
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
-    usecase = DocumentUseCase()
+    """Get a single document by ID."""
     try:
         return await usecase.get_document(user_id=current_user["id"], document_id=document_id)
     except BaseAppException:
@@ -128,10 +163,11 @@ async def get_document(
 
 @router.get("/{document_id}/url")
 async def get_document_url(
-    document_id: str, current_user: dict = Depends(get_current_user)
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Get a signed URL for downloading the document file."""
-    usecase = DocumentUseCase()
     try:
         return await usecase.get_document_url(user_id=current_user["id"], document_id=document_id)
     except BaseAppException:
@@ -143,9 +179,11 @@ async def get_document_url(
 
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
-    document_id: str, current_user: dict = Depends(get_current_user)
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
-    usecase = DocumentUseCase()
+    """Delete a document and all associated data."""
     try:
         await usecase.delete_document(
             user_id=current_user["id"], document_id=document_id
@@ -155,52 +193,3 @@ async def delete_document(
     except Exception as e:
         logger.error("delete_document error: %s", e, exc_info=True)
         raise AppException(message="Internal server error")
-
-
-@router.post("/{document_id}/process")
-async def process_document(
-    document_id: str,
-    body: ProcessRequest,
-    current_user: dict = Depends(get_current_user),
-):
-    usecase = DocumentUseCase()
-    document = await usecase.get_document(user_id=current_user["id"], document_id=document_id)
-    if document is None:
-        raise NotFoundException("Document not found")
-    event_stream = usecase.trigger_processing(
-        document_id=document_id, user_id=current_user["id"], template_type=body.template_type
-    )
-    return StreamingResponse(
-        event_stream,
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
-
-
-@router.post("/batch", response_model=list[DocumentResponse])
-async def batch_upload(
-    files: list[UploadFile] = File(...),
-    current_user: dict = Depends(get_current_user),
-):
-    """Upload multiple documents at once.
-
-    Returns list of created document records.
-    Processing is NOT started automatically — use /process for each.
-    """
-    usecase = DocumentUseCase()
-    results = []
-    for file in files:
-        try:
-            doc = await usecase.create_document(
-                user_id=current_user["id"],
-                file=file,
-            )
-            results.append(doc)
-        except Exception as e:
-            logger.error("batch_upload_failed for %s: %s", file.filename, e)
-            # Continue with remaining files
-    return results

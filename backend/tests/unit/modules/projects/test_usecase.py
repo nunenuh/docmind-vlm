@@ -1,7 +1,7 @@
 """
-Unit tests for docmind/modules/projects/usecase.py.
+Unit tests for docmind/modules/projects/usecases/.
 
-All tests mock the repositories and service to test orchestration logic.
+All tests mock the repositories and services to test orchestration logic.
 """
 
 import uuid
@@ -12,7 +12,11 @@ import pytest
 
 from docmind.dbase.psql.models import Document, Project, ProjectConversation, ProjectMessage
 from docmind.modules.projects.schemas import ProjectUpdate
-from docmind.modules.projects.usecase import ProjectUseCase
+from docmind.modules.projects.usecases import (
+    ProjectConversationUseCase,
+    ProjectCRUDUseCase,
+    ProjectDocumentUseCase,
+)
 from docmind.shared.exceptions import NotFoundException
 
 
@@ -108,14 +112,28 @@ def mock_prompt_service() -> MagicMock:
 
 
 @pytest.fixture
-def usecase(mock_repo, mock_conv_repo, mock_prompt_service) -> ProjectUseCase:
-    return ProjectUseCase(
+def crud_usecase(mock_repo, mock_prompt_service) -> ProjectCRUDUseCase:
+    return ProjectCRUDUseCase(
+        repo=mock_repo,
+        prompt_service=mock_prompt_service,
+    )
+
+
+@pytest.fixture
+def doc_usecase(mock_repo) -> ProjectDocumentUseCase:
+    return ProjectDocumentUseCase(
+        repo=mock_repo,
+        indexing_service=MagicMock(),
+        doc_repo=AsyncMock(),
+        storage_service=MagicMock(),
+    )
+
+
+@pytest.fixture
+def conv_usecase(mock_repo, mock_conv_repo) -> ProjectConversationUseCase:
+    return ProjectConversationUseCase(
         repo=mock_repo,
         conv_repo=mock_conv_repo,
-        prompt_service=mock_prompt_service,
-        rag_service=MagicMock(),
-        indexing_service=MagicMock(),
-        vlm_service=MagicMock(),
     )
 
 
@@ -127,11 +145,11 @@ def usecase(mock_repo, mock_conv_repo, mock_prompt_service) -> ProjectUseCase:
 class TestCreateProject:
 
     @pytest.mark.asyncio
-    async def test_creates_and_returns_response(self, usecase, mock_repo):
+    async def test_creates_and_returns_response(self, crud_usecase, mock_repo):
         project = _make_project()
         mock_repo.create.return_value = project
 
-        result = await usecase.create_project(
+        result = await crud_usecase.create_project(
             user_id=USER_ID,
             name="Test Project",
             description="Test",
@@ -143,11 +161,11 @@ class TestCreateProject:
         mock_repo.create.assert_awaited_once()
 
     @pytest.mark.asyncio
-    async def test_validates_name(self, usecase, mock_prompt_service, mock_repo):
+    async def test_validates_name(self, crud_usecase, mock_prompt_service, mock_repo):
         project = _make_project()
         mock_repo.create.return_value = project
 
-        await usecase.create_project(user_id=USER_ID, name="  Spaced  ")
+        await crud_usecase.create_project(user_id=USER_ID, name="  Spaced  ")
 
         mock_prompt_service.validate_project_name.assert_called_once_with("  Spaced  ")
 
@@ -160,22 +178,22 @@ class TestCreateProject:
 class TestGetProject:
 
     @pytest.mark.asyncio
-    async def test_returns_response_when_found(self, usecase, mock_repo):
+    async def test_returns_response_when_found(self, crud_usecase, mock_repo):
         mock_repo.get_by_id.return_value = _make_project()
         mock_repo.get_document_count.return_value = 5
 
-        result = await usecase.get_project(USER_ID, PROJECT_ID)
+        result = await crud_usecase.get_project(USER_ID, PROJECT_ID)
 
         assert result is not None
         assert result.id == PROJECT_ID
         assert result.document_count == 5
 
     @pytest.mark.asyncio
-    async def test_raises_not_found_when_not_found(self, usecase, mock_repo):
+    async def test_raises_not_found_when_not_found(self, crud_usecase, mock_repo):
         mock_repo.get_by_id.return_value = None
 
         with pytest.raises(NotFoundException):
-            await usecase.get_project(USER_ID, "nonexistent")
+            await crud_usecase.get_project(USER_ID, "nonexistent")
 
 
 # ---------------------------------------------------------------------------
@@ -186,12 +204,12 @@ class TestGetProject:
 class TestGetProjects:
 
     @pytest.mark.asyncio
-    async def test_returns_paginated_list(self, usecase, mock_repo):
+    async def test_returns_paginated_list(self, crud_usecase, mock_repo):
         projects = [_make_project(project_id=str(uuid.uuid4())) for _ in range(3)]
         mock_repo.list_for_user.return_value = (projects, 3)
         mock_repo.get_document_count.return_value = 0
 
-        result = await usecase.get_projects(USER_ID, page=1, limit=20)
+        result = await crud_usecase.get_projects(USER_ID, page=1, limit=20)
 
         assert result.total == 3
         assert len(result.items) == 3
@@ -207,12 +225,12 @@ class TestGetProjects:
 class TestUpdateProject:
 
     @pytest.mark.asyncio
-    async def test_updates_and_returns_response(self, usecase, mock_repo):
+    async def test_updates_and_returns_response(self, crud_usecase, mock_repo):
         updated = _make_project(name="Updated")
         mock_repo.update.return_value = updated
         mock_repo.get_document_count.return_value = 2
 
-        result = await usecase.update_project(
+        result = await crud_usecase.update_project(
             USER_ID, PROJECT_ID, ProjectUpdate(name="Updated")
         )
 
@@ -221,11 +239,11 @@ class TestUpdateProject:
         assert result.document_count == 2
 
     @pytest.mark.asyncio
-    async def test_raises_not_found_when_not_found(self, usecase, mock_repo):
+    async def test_raises_not_found_when_not_found(self, crud_usecase, mock_repo):
         mock_repo.update.return_value = None
 
         with pytest.raises(NotFoundException):
-            await usecase.update_project(
+            await crud_usecase.update_project(
                 USER_ID, "nonexistent", ProjectUpdate(name="X")
             )
 
@@ -238,18 +256,18 @@ class TestUpdateProject:
 class TestDeleteProject:
 
     @pytest.mark.asyncio
-    async def test_returns_true_when_deleted(self, usecase, mock_repo):
+    async def test_returns_true_when_deleted(self, crud_usecase, mock_repo):
         mock_repo.delete.return_value = True
 
-        result = await usecase.delete_project(USER_ID, PROJECT_ID)
+        result = await crud_usecase.delete_project(USER_ID, PROJECT_ID)
 
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_not_found(self, usecase, mock_repo):
+    async def test_returns_false_when_not_found(self, crud_usecase, mock_repo):
         mock_repo.delete.return_value = False
 
-        result = await usecase.delete_project(USER_ID, "nonexistent")
+        result = await crud_usecase.delete_project(USER_ID, "nonexistent")
 
         assert result is False
 
@@ -262,19 +280,19 @@ class TestDeleteProject:
 class TestAddDocument:
 
     @pytest.mark.asyncio
-    async def test_links_document(self, usecase, mock_repo):
+    async def test_links_document(self, doc_usecase, mock_repo):
         mock_repo.get_by_id.return_value = _make_project()
         mock_repo.add_document.return_value = True
 
-        result = await usecase.add_document(USER_ID, PROJECT_ID, DOC_ID)
+        result = await doc_usecase.add_document(USER_ID, PROJECT_ID, DOC_ID)
 
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_returns_false_when_project_not_found(self, usecase, mock_repo):
+    async def test_returns_false_when_project_not_found(self, doc_usecase, mock_repo):
         mock_repo.get_by_id.return_value = None
 
-        result = await usecase.add_document(USER_ID, "nonexistent", DOC_ID)
+        result = await doc_usecase.add_document(USER_ID, "nonexistent", DOC_ID)
 
         assert result is False
 
@@ -287,11 +305,11 @@ class TestAddDocument:
 class TestListDocuments:
 
     @pytest.mark.asyncio
-    async def test_returns_document_list(self, usecase, mock_repo):
+    async def test_returns_document_list(self, doc_usecase, mock_repo):
         docs = [_make_document(doc_id=str(uuid.uuid4())) for _ in range(2)]
         mock_repo.list_documents.return_value = docs
 
-        result = await usecase.list_documents(USER_ID, PROJECT_ID)
+        result = await doc_usecase.list_documents(USER_ID, PROJECT_ID)
 
         assert len(result) == 2
 
@@ -304,39 +322,39 @@ class TestListDocuments:
 class TestConversations:
 
     @pytest.mark.asyncio
-    async def test_list_conversations(self, usecase, mock_repo, mock_conv_repo):
+    async def test_list_conversations(self, conv_usecase, mock_repo, mock_conv_repo):
         mock_repo.get_by_id.return_value = _make_project()
         convs = [_make_conversation(conv_id=str(uuid.uuid4())) for _ in range(2)]
         mock_conv_repo.list_for_project.return_value = convs
         mock_conv_repo.get_message_count.return_value = 5
 
-        result = await usecase.list_conversations(USER_ID, PROJECT_ID)
+        result = await conv_usecase.list_conversations(USER_ID, PROJECT_ID)
 
         assert len(result) == 2
         assert result[0].message_count == 5
 
     @pytest.mark.asyncio
-    async def test_get_conversation(self, usecase, mock_conv_repo):
+    async def test_get_conversation(self, conv_usecase, mock_conv_repo):
         conv = _make_conversation()
         conv.messages = [_make_message()]
         mock_conv_repo.get_by_id.return_value = conv
 
-        result = await usecase.get_conversation(USER_ID, CONV_ID)
+        result = await conv_usecase.get_conversation(USER_ID, CONV_ID)
 
         assert result is not None
         assert len(result.messages) == 1
 
     @pytest.mark.asyncio
-    async def test_get_conversation_not_found(self, usecase, mock_conv_repo):
+    async def test_get_conversation_not_found(self, conv_usecase, mock_conv_repo):
         mock_conv_repo.get_by_id.return_value = None
 
         with pytest.raises(NotFoundException):
-            await usecase.get_conversation(USER_ID, "nonexistent")
+            await conv_usecase.get_conversation(USER_ID, "nonexistent")
 
     @pytest.mark.asyncio
-    async def test_delete_conversation(self, usecase, mock_conv_repo):
+    async def test_delete_conversation(self, conv_usecase, mock_conv_repo):
         mock_conv_repo.delete.return_value = True
 
-        result = await usecase.delete_conversation(USER_ID, CONV_ID)
+        result = await conv_usecase.delete_conversation(USER_ID, CONV_ID)
 
         assert result is True

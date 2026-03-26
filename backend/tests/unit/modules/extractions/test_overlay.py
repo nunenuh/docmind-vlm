@@ -59,7 +59,7 @@ class TestOverlayDataUsecase:
 
     @pytest.mark.asyncio
     async def test_returns_overlay_regions_with_colors(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         mock_ext = MagicMock(id="ext-001")
         mock_field = MagicMock(
@@ -81,7 +81,7 @@ class TestOverlayDataUsecase:
 
     @pytest.mark.asyncio
     async def test_returns_empty_when_no_extraction(self):
-        from docmind.modules.extractions.usecase import ExtractionUseCase
+        from docmind.modules.extractions.usecases import ExtractionUseCase
 
         usecase = ExtractionUseCase()
         usecase.repo = AsyncMock()

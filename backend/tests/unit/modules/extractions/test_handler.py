@@ -1,6 +1,6 @@
 """Unit tests for extraction handler endpoints."""
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+from unittest.mock import AsyncMock
 from datetime import datetime, timezone
 
 from docmind.modules.extractions.schemas import (
@@ -36,31 +36,31 @@ def mock_extraction():
 class TestGetExtraction:
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_returns_extraction(self, MockUseCase, mock_extraction):
+    async def test_returns_extraction(self, mock_extraction):
         from docmind.modules.extractions.apiv1.handler import get_extraction
 
         mock_uc = AsyncMock()
         mock_uc.get_extraction.return_value = mock_extraction
-        MockUseCase.return_value = mock_uc
 
-        result = await get_extraction("doc-001", current_user={"id": "u1"})
+        result = await get_extraction(
+            "doc-001", current_user={"id": "u1"}, usecase=mock_uc
+        )
 
         assert result.id == "ext-001"
         mock_uc.get_extraction.assert_called_once_with(document_id="doc-001")
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_raises_404_when_not_found(self, MockUseCase):
+    async def test_raises_404_when_not_found(self):
         from docmind.shared.exceptions import NotFoundException
         from docmind.modules.extractions.apiv1.handler import get_extraction
 
         mock_uc = AsyncMock()
         mock_uc.get_extraction.side_effect = NotFoundException("Extraction not found")
-        MockUseCase.return_value = mock_uc
 
         with pytest.raises(NotFoundException) as exc:
-            await get_extraction("missing", current_user={"id": "u1"})
+            await get_extraction(
+                "missing", current_user={"id": "u1"}, usecase=mock_uc
+            )
 
         assert exc.value.status_code == 404
 
@@ -68,8 +68,7 @@ class TestGetExtraction:
 class TestGetAuditTrail:
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_returns_audit_entries(self, MockUseCase):
+    async def test_returns_audit_entries(self):
         from docmind.modules.extractions.apiv1.handler import get_audit_trail
 
         entries = [AuditEntryResponse(
@@ -79,9 +78,10 @@ class TestGetAuditTrail:
         )]
         mock_uc = AsyncMock()
         mock_uc.get_audit_trail.return_value = entries
-        MockUseCase.return_value = mock_uc
 
-        result = await get_audit_trail("doc-001", current_user={"id": "u1"})
+        result = await get_audit_trail(
+            "doc-001", current_user={"id": "u1"}, usecase=mock_uc
+        )
 
         assert len(result) == 1
         assert result[0].step_name == "preprocess"
@@ -90,16 +90,16 @@ class TestGetAuditTrail:
 class TestGetOverlayData:
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_returns_overlay_regions(self, MockUseCase):
+    async def test_returns_overlay_regions(self):
         from docmind.modules.extractions.apiv1.handler import get_overlay_data
 
         regions = [OverlayRegion(x=0.1, y=0.2, width=0.3, height=0.05, confidence=0.9, color="#22c55e", tooltip="total")]
         mock_uc = AsyncMock()
         mock_uc.get_overlay_data.return_value = regions
-        MockUseCase.return_value = mock_uc
 
-        result = await get_overlay_data("doc-001", current_user={"id": "u1"})
+        result = await get_overlay_data(
+            "doc-001", current_user={"id": "u1"}, usecase=mock_uc
+        )
 
         assert len(result) == 1
 
@@ -107,30 +107,30 @@ class TestGetOverlayData:
 class TestGetComparison:
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_returns_comparison(self, MockUseCase):
+    async def test_returns_comparison(self):
         from docmind.modules.extractions.apiv1.handler import get_comparison
 
         comp = ComparisonResponse(enhanced_fields=[], raw_fields=[], corrected=[], added=[])
         mock_uc = AsyncMock()
         mock_uc.get_comparison.return_value = comp
-        MockUseCase.return_value = mock_uc
 
-        result = await get_comparison("doc-001", current_user={"id": "u1"})
+        result = await get_comparison(
+            "doc-001", current_user={"id": "u1"}, usecase=mock_uc
+        )
 
         assert result.corrected == []
 
     @pytest.mark.asyncio
-    @patch("docmind.modules.extractions.apiv1.handler.ExtractionUseCase")
-    async def test_raises_404_when_no_comparison(self, MockUseCase):
+    async def test_raises_404_when_no_comparison(self):
         from docmind.shared.exceptions import NotFoundException
         from docmind.modules.extractions.apiv1.handler import get_comparison
 
         mock_uc = AsyncMock()
         mock_uc.get_comparison.side_effect = NotFoundException("Comparison not available")
-        MockUseCase.return_value = mock_uc
 
         with pytest.raises(NotFoundException) as exc:
-            await get_comparison("missing", current_user={"id": "u1"})
+            await get_comparison(
+                "missing", current_user={"id": "u1"}, usecase=mock_uc
+            )
 
         assert exc.value.status_code == 404

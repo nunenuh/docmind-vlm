@@ -32,4 +32,15 @@ class DocumentListResponse(BaseModel):
 
 
 class ProcessRequest(BaseModel):
+    """Deprecated — use POST /api/v1/extractions/{document_id}/process instead."""
+
     template_type: str | None = None
+
+
+class DocumentSearchParams(BaseModel):
+    """Query parameters for document search."""
+
+    q: str | None = None
+    file_type: str | None = None
+    status: str | None = None
+    standalone: bool = True

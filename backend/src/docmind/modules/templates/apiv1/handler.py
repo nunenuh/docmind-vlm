@@ -3,7 +3,7 @@
 Template CRUD + auto-detect. All logic goes through TemplateUseCase.
 """
 
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, File, UploadFile
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
@@ -13,15 +13,16 @@ from docmind.shared.exceptions import (
     NotFoundException,
 )
 
-from ..usecase import TemplateUseCase
+from ..dependencies import get_template_usecase
 from ..schemas import (
+    AutoDetectResponse,
+    TemplateCreateRequest,
+    TemplateDetail,
     TemplateListResponse,
     TemplateSummary,
-    TemplateDetail,
-    TemplateCreateRequest,
     TemplateUpdateRequest,
-    AutoDetectResponse,
 )
+from ..usecase import TemplateUseCase
 
 logger = get_logger(__name__)
 router = APIRouter()
@@ -62,9 +63,11 @@ def _to_detail(t) -> TemplateDetail:
 
 
 @router.get("", response_model=TemplateListResponse)
-async def list_templates(current_user: dict = Depends(get_current_user)):
+async def list_templates(
+    current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
+):
     """List all templates: presets + user's custom."""
-    usecase = TemplateUseCase()
     try:
         templates = await usecase.list_templates(user_id=current_user["id"])
         return TemplateListResponse(items=[_to_summary(t) for t in templates])
@@ -79,9 +82,9 @@ async def list_templates(current_user: dict = Depends(get_current_user)):
 async def create_template(
     body: TemplateCreateRequest,
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Create a custom template."""
-    usecase = TemplateUseCase()
     try:
         template = await usecase.create_template(
             user_id=current_user["id"],
@@ -108,9 +111,9 @@ async def create_template(
 async def get_template(
     template_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Get template detail."""
-    usecase = TemplateUseCase()
     try:
         template = await usecase.get_template(template_id)
         if template is None:
@@ -128,9 +131,9 @@ async def update_template(
     template_id: str,
     body: TemplateUpdateRequest,
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Update a custom template (presets can't be edited)."""
-    usecase = TemplateUseCase()
     try:
         data = body.model_dump(exclude_unset=True)
         template = await usecase.update_template(template_id, current_user["id"], data)
@@ -148,9 +151,9 @@ async def update_template(
 async def delete_template(
     template_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Delete a custom template (presets can't be deleted)."""
-    usecase = TemplateUseCase()
     try:
         deleted = await usecase.delete_template(template_id, current_user["id"])
         if not deleted:
@@ -166,9 +169,9 @@ async def delete_template(
 async def duplicate_template(
     template_id: str,
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Duplicate a template as a custom template."""
-    usecase = TemplateUseCase()
     try:
         template = await usecase.duplicate_template(template_id, current_user["id"])
         if template is None:
@@ -185,9 +188,9 @@ async def duplicate_template(
 async def auto_detect_template(
     file: UploadFile = File(...),
     current_user: dict = Depends(get_current_user),
+    usecase: TemplateUseCase = Depends(get_template_usecase),
 ):
     """Auto-detect document type and fields from an image using VLM."""
-    usecase = TemplateUseCase()
     try:
         file_bytes = await file.read()
         result = await usecase.auto_detect(file_bytes)

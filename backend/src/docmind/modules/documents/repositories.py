@@ -184,6 +184,61 @@ class DocumentRepository:
                 await session.rollback()
                 raise
 
+    async def search(
+        self,
+        user_id: str,
+        query: str | None = None,
+        file_type: str | None = None,
+        status: str | None = None,
+        standalone_only: bool = True,
+        page: int = 1,
+        limit: int = 20,
+    ) -> tuple[list[Document], int]:
+        """Search documents by filename, file_type, and/or status.
+
+        Args:
+            user_id: Owner user ID.
+            query: Filename search (case-insensitive ILIKE).
+            file_type: Exact match on file_type.
+            status: Exact match on status.
+            standalone_only: If True, only standalone docs (not in projects).
+            page: Page number (1-based).
+            limit: Items per page.
+
+        Returns:
+            Tuple of (items, total_count).
+        """
+        if page < 1:
+            raise ValueError(f"page must be >= 1, got {page}")
+
+        offset = (page - 1) * limit
+
+        async with AsyncSessionLocal() as session:
+            filters = [Document.user_id == user_id]
+            if query:
+                filters.append(Document.filename.ilike(f"%{query}%"))
+            if file_type:
+                filters.append(Document.file_type == file_type)
+            if status:
+                filters.append(Document.status == status)
+            if standalone_only:
+                filters.append(Document.project_id.is_(None))
+
+            count_stmt = select(func.count()).select_from(Document).where(*filters)
+            total = (await session.execute(count_stmt)).scalar() or 0
+
+            stmt = (
+                select(Document)
+                .where(*filters)
+                .order_by(Document.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            items = list(result.scalars().all())
+
+            return items, total
+
     async def update_status(
         self,
         document_id: str,

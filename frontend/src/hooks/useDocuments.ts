@@ -18,10 +18,10 @@ export function useDocumentUrl(documentId: string) {
   });
 }
 
-export function useDocuments(page = 1, limit = 20) {
+export function useDocuments(page = 1, limit = 20, standalone = true) {
   return useQuery({
-    queryKey: ["documents", page, limit],
-    queryFn: () => fetchDocuments(page, limit),
+    queryKey: ["documents", page, limit, standalone],
+    queryFn: () => fetchDocuments(page, limit, standalone),
   });
 }
 

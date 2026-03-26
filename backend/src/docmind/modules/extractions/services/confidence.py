@@ -1,16 +1,15 @@
-"""docmind/modules/extractions/services.py"""
-
-from docmind.core.logging import get_logger
-
-logger = get_logger(__name__)
+"""Confidence service — scoring and visualization helpers."""
 
 COLOR_HIGH = "#22c55e"
 COLOR_MEDIUM = "#eab308"
 COLOR_LOW = "#ef4444"
 
 
-class ExtractionService:
+class ConfidenceService:
+    """Confidence scoring and visualization helpers."""
+
     def confidence_color(self, confidence: float) -> str:
+        """Map confidence score to hex color."""
         if confidence >= 0.8:
             return COLOR_HIGH
         if confidence >= 0.5:
@@ -46,6 +45,7 @@ class ExtractionService:
         return {"corrected": corrected, "added": added}
 
     def build_overlay_region(self, field: dict) -> dict | None:
+        """Build overlay region dict from an extracted field."""
         bbox = field.get("bounding_box", {})
         if not bbox or not bbox.get("x"):
             return None
@@ -62,3 +62,7 @@ class ExtractionService:
             "color": self.confidence_color(confidence),
             "tooltip": tooltip[:200],
         }
+
+
+# Backward compat
+ExtractionService = ConfidenceService
