@@ -12,7 +12,7 @@ dev = "docmind.main:dev"
 python = "^3.11"
 fastapi = "^0.135"
 uvicorn = {extras = ["standard"], version = "^0.42"}
-pydantic = "^2.12"
+pydantic = {extras = ["email"], version = "^2.12"}
 pydantic-settings = "^2.13"
 structlog = "^25.5"
 supabase = "^2.28"

@@ -8,7 +8,7 @@ import {
   useProjectDocuments,
   useRemoveProjectDocument,
 } from "@/hooks/useProjects";
-import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/auth-store";
 import { addDocumentToProject } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import type { ProjectDocumentResponse } from "@/types/api";
@@ -115,10 +115,10 @@ export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
       return n;
     });
     try {
-      const { data: { session } } = await supabase.auth.getSession();
+      const token = useAuthStore.getState().accessToken;
       const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
       const resp = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/documents/${docId}/reindex`, {
-        method: "POST", headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
+        method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {},
       });
       if (!resp.ok) throw new Error("Reindex failed");
       const result = await resp.json();

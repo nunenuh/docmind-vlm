@@ -3,7 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "sonner";
 import { queryClient } from "@/lib/query-client";
-import { supabase } from "@/lib/supabase";
+import { refreshSession } from "@/lib/auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { AuthGuard } from "@/components/workspace/AuthGuard";
 import { AppShell } from "@/components/layout/AppShell";
@@ -21,22 +21,19 @@ import { PersonasPage } from "@/pages/PersonasPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setSession, setIsLoading } = useAuthStore();
+  const { setAuth, clearAuth, setIsLoading } = useAuthStore();
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
+    const storedRefreshToken = localStorage.getItem("docmind_refresh_token");
+    if (storedRefreshToken) {
+      refreshSession(storedRefreshToken)
+        .then((session) => setAuth(session))
+        .catch(() => clearAuth())
+        .finally(() => setIsLoading(false));
+    } else {
       setIsLoading(false);
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [setSession, setIsLoading]);
+    }
+  }, [setAuth, clearAuth, setIsLoading]);
 
   return <>{children}</>;
 }

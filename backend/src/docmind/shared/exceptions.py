@@ -60,6 +60,13 @@ class AuthorizationException(UseCaseException):
         super().__init__(message, code="FORBIDDEN", status_code=403)
 
 
+class AuthenticationException(UseCaseException):
+    """Authentication failed (bad credentials, expired token, etc.)."""
+
+    def __init__(self, message: str = "Authentication failed") -> None:
+        super().__init__(message, code="AUTHENTICATION_ERROR", status_code=401)
+
+
 class ConflictException(UseCaseException):
     """Duplicate or conflicting resource."""
 

@@ -6,6 +6,7 @@ Aggregates all module routers under versioned prefixes.
 
 from fastapi import APIRouter
 
+from .modules.auth.apiv1.handler import router as auth_router
 from .modules.chat.apiv1.handler import router as chat_router
 from .modules.documents.apiv1.handler import router as documents_router
 from .modules.extractions.apiv1.handler import router as extractions_router
@@ -18,6 +19,7 @@ from .modules.rag.apiv1.handler import router as rag_router
 
 api_router = APIRouter()
 
+api_router.include_router(auth_router, prefix="/v1/auth", tags=["Auth"])
 api_router.include_router(health_router, prefix="/v1/health", tags=["Health"])
 api_router.include_router(documents_router, prefix="/v1/documents", tags=["Documents"])
 api_router.include_router(

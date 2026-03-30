@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Code, Table2, Loader2, FileSearch, Download } from "lucide-react";
 import { toast } from "sonner";
-import { supabase } from "@/lib/supabase";
+import { useAuthStore } from "@/stores/auth-store";
 import { useExtraction } from "@/hooks/useExtraction";
 import { useWorkspaceStore } from "@/stores/workspace-store";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -98,8 +98,7 @@ function ExportDropdown({ documentId }: { documentId: string }) {
   const handleExport = async (format: "json" | "csv") => {
     setOpen(false);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = useAuthStore.getState().accessToken;
       const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
       const resp = await fetch(
         `${BASE_URL}/api/v1/extractions/${documentId}/export?format=${format}`,

@@ -1,4 +1,5 @@
-import { supabase } from "./supabase";
+import { useAuthStore } from "@/stores/auth-store";
+import { refreshSession } from "@/lib/auth";
 import type {
   DocumentCreate,
   DocumentResponse,
@@ -19,11 +20,14 @@ import type {
 } from "@/types/api";
 import { ApiError, TemplateDetail } from "@/types/api";
 
-const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8009";
+
+function getToken(): string | null {
+  return useAuthStore.getState().accessToken;
+}
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  const token = getToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -46,8 +50,7 @@ async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> 
 }
 
 export async function uploadDocument(file: File): Promise<DocumentResponse> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+  const token = getToken();
   const formData = new FormData();
   formData.append("file", file);
   const response = await fetch(`${BASE_URL}/api/v1/documents`, {
@@ -122,8 +125,7 @@ export function createSSEStream(
   const controller = new AbortController();
   (async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const token = session?.access_token;
+      const token = getToken();
       const response = await fetch(`${BASE_URL}${path}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },

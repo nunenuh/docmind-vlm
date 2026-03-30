@@ -250,11 +250,12 @@ export function ProjectSidebar({ projectId, activeConvId, onSelectConversation, 
                         onClick={async () => {
                           try {
                             toast.loading("Re-indexing...", { id: `reindex-${doc.id}` });
-                            const { data: { session } } = await (await import("@/lib/supabase")).supabase.auth.getSession();
+                            const { useAuthStore } = await import("@/stores/auth-store");
+                            const token = useAuthStore.getState().accessToken;
                             const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
                             const resp = await fetch(
                               `${BASE_URL}/api/v1/projects/${projectId}/documents/${doc.id}/reindex`,
-                              { method: "POST", headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} },
+                              { method: "POST", headers: token ? { Authorization: `Bearer ${token}` } : {} },
                             );
                             if (!resp.ok) throw new Error("Reindex failed");
                             const result = await resp.json();

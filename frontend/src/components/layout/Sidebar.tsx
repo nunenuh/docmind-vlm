@@ -12,7 +12,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
 } from "lucide-react";
-import { signOut } from "@/lib/supabase";
+import { logout } from "@/lib/auth";
 import { useAuthStore } from "@/stores/auth-store";
 import { NavItem } from "./NavItem";
 
@@ -22,7 +22,11 @@ export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
 
   const handleSignOut = async () => {
-    await signOut();
+    const token = useAuthStore.getState().accessToken;
+    if (token) {
+      try { await logout(token); } catch { /* ignore logout errors */ }
+    }
+    useAuthStore.getState().clearAuth();
     navigate("/");
   };
 

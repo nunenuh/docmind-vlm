@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { useAuthStore } from "@/stores/auth-store";
 
 export function AuthGuard() {
-  const { session, isLoading } = useAuthStore();
+  const { accessToken, isLoading } = useAuthStore();
 
   if (isLoading) {
     return (
@@ -13,7 +13,7 @@ export function AuthGuard() {
     );
   }
 
-  if (!session) {
+  if (!accessToken) {
     return <Navigate to="/login" replace />;
   }
 
