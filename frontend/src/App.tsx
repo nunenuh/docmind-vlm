@@ -16,6 +16,9 @@ import { Workspace } from "@/pages/Workspace";
 import { ProjectDashboard } from "@/pages/ProjectDashboard";
 import { ProjectWorkspace } from "@/pages/ProjectWorkspace";
 import { Settings } from "@/pages/Settings";
+import { TemplatesPage } from "@/pages/TemplatesPage";
+import { PersonasPage } from "@/pages/PersonasPage";
+import { AnalyticsPage } from "@/pages/AnalyticsPage";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setSession, setIsLoading } = useAuthStore();
@@ -49,7 +52,10 @@ export function App() {
               <Route path="/login" element={<LoginPage />} />
               <Route element={<AuthGuard />}>
                 <Route element={<AppShell />}>
-                  <Route path="/dashboard" element={<Dashboard />} />
+                  <Route path="/dashboard" element={<AnalyticsPage />} />
+                  <Route path="/documents" element={<Dashboard />} />
+                  <Route path="/templates" element={<TemplatesPage />} />
+                  <Route path="/personas" element={<PersonasPage />} />
                   <Route path="/projects" element={<ProjectDashboard />} />
                   <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
                   <Route path="/workspace/:documentId" element={<Workspace />} />

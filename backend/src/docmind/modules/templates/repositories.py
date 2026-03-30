@@ -18,27 +18,27 @@ class TemplateRepository:
     """Repository for Template CRUD operations."""
 
     async def list_all(self, user_id: str | None = None) -> list[Template]:
-        """List all templates: presets + user's custom templates.
+        """List all templates: seeded (user_id=NULL) + user's own.
 
         Args:
-            user_id: If provided, includes user's custom templates.
+            user_id: If provided, includes user's templates alongside seeded ones.
 
         Returns:
-            List of Template objects, presets first then custom.
+            List of Template objects, ordered by category then name.
         """
         async with AsyncSessionLocal() as session:
             if user_id:
                 stmt = (
                     select(Template)
                     .where(
-                        (Template.is_preset == True) | (Template.user_id == user_id)
+                        (Template.user_id.is_(None)) | (Template.user_id == user_id)
                     )
-                    .order_by(Template.is_preset.desc(), Template.category, Template.name)
+                    .order_by(Template.category, Template.name)
                 )
             else:
                 stmt = (
                     select(Template)
-                    .where(Template.is_preset == True)
+                    .where(Template.user_id.is_(None))
                     .order_by(Template.category, Template.name)
                 )
             result = await session.execute(stmt)
@@ -83,12 +83,11 @@ class TemplateRepository:
             return template
 
     async def update(self, template_id: str, user_id: str, data: dict) -> Template | None:
-        """Update a template (only custom templates owned by user)."""
+        """Update any template owned by user or seeded (user_id=NULL)."""
         async with AsyncSessionLocal() as session:
             stmt = select(Template).where(
                 Template.id == template_id,
-                Template.user_id == user_id,
-                Template.is_preset == False,
+                (Template.user_id == user_id) | (Template.user_id.is_(None)),
             )
             result = await session.execute(stmt)
             template = result.scalar_one_or_none()
@@ -96,7 +95,7 @@ class TemplateRepository:
                 return None
 
             for key, value in data.items():
-                if hasattr(template, key) and key not in ("id", "user_id", "is_preset", "created_at"):
+                if hasattr(template, key) and key not in ("id", "created_at"):
                     setattr(template, key, value)
 
             await session.commit()
@@ -104,12 +103,11 @@ class TemplateRepository:
             return template
 
     async def delete(self, template_id: str, user_id: str) -> bool:
-        """Delete a custom template (presets can't be deleted)."""
+        """Delete any template owned by user or seeded (user_id=NULL)."""
         async with AsyncSessionLocal() as session:
             stmt = sa_delete(Template).where(
                 Template.id == template_id,
-                Template.user_id == user_id,
-                Template.is_preset == False,
+                (Template.user_id == user_id) | (Template.user_id.is_(None)),
             )
             result = await session.execute(stmt)
             await session.commit()

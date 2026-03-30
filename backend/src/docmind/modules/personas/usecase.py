@@ -11,7 +11,6 @@ from docmind.shared.exceptions import NotFoundException
 
 from .repositories import PersonaRepository
 from .services import PersonaService
-from .seed import seed_preset_personas
 
 logger = get_logger(__name__)
 
@@ -28,8 +27,8 @@ class PersonaUseCase:
         self.service = service or PersonaService()
 
     async def list_personas(self, user_id: str) -> list:
-        """List all personas (presets + user custom). Seeds on first call."""
-        await seed_preset_personas()
+        """List all personas. Seeds from JSON on first call if DB is empty."""
+        await self.repo.seed_presets()
         return await self.repo.list_for_user(user_id=user_id)
 
     async def get_persona(self, persona_id: str) -> object | None:

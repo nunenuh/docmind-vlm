@@ -259,28 +259,26 @@ class TestDelete:
     @pytest.mark.asyncio
     @patch("docmind.modules.personas.repositories.AsyncSessionLocal")
     async def test_returns_true_when_deleted(self, mock_factory, repo):
-        persona = _make_persona()
         session = AsyncMock()
-        select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = persona
-        session.execute = AsyncMock(return_value=select_result)
-        session.delete = AsyncMock()
+        delete_result = MagicMock()
+        delete_result.rowcount = 1
+        session.execute = AsyncMock(return_value=delete_result)
         session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.delete(PERSONA_ID, USER_ID)
 
         assert result is True
-        session.delete.assert_awaited_once()
         session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     @patch("docmind.modules.personas.repositories.AsyncSessionLocal")
     async def test_returns_false_when_not_found(self, mock_factory, repo):
         session = AsyncMock()
-        select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = None
-        session.execute = AsyncMock(return_value=select_result)
+        delete_result = MagicMock()
+        delete_result.rowcount = 0
+        session.execute = AsyncMock(return_value=delete_result)
+        session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.delete("nonexistent", USER_ID)
@@ -289,26 +287,28 @@ class TestDelete:
 
     @pytest.mark.asyncio
     @patch("docmind.modules.personas.repositories.AsyncSessionLocal")
-    async def test_cannot_delete_preset(self, mock_factory, repo):
-        """Presets should not be deletable — the WHERE filter excludes them."""
+    async def test_can_delete_seeded_persona(self, mock_factory, repo):
+        """Seeded personas (user_id=NULL) can be deleted by any user."""
         session = AsyncMock()
-        select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = None  # filtered out
-        session.execute = AsyncMock(return_value=select_result)
+        delete_result = MagicMock()
+        delete_result.rowcount = 1
+        session.execute = AsyncMock(return_value=delete_result)
+        session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.delete(PERSONA_ID, USER_ID)
 
-        assert result is False
+        assert result is True
 
     @pytest.mark.asyncio
     @patch("docmind.modules.personas.repositories.AsyncSessionLocal")
-    async def test_cannot_delete_other_users_persona(self, mock_factory, repo):
-        """User scoping prevents deletion of another user's persona."""
+    async def test_returns_false_for_other_users_persona(self, mock_factory, repo):
+        """WHERE filter excludes personas owned by other users."""
         session = AsyncMock()
-        select_result = MagicMock()
-        select_result.scalar_one_or_none.return_value = None
-        session.execute = AsyncMock(return_value=select_result)
+        delete_result = MagicMock()
+        delete_result.rowcount = 0
+        session.execute = AsyncMock(return_value=delete_result)
+        session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.delete(PERSONA_ID, OTHER_USER_ID)

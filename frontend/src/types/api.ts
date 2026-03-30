@@ -160,6 +160,27 @@ export interface AutoDetectResponse {
 
 export type TemplateResponse = TemplateSummary;
 
+export interface TemplateCreateRequest {
+  type: string;
+  name: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category?: string;
+  fields?: TemplateFieldDef[];
+  extraction_prompt?: string;
+}
+
+export interface TemplateUpdateRequest {
+  name?: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category?: string;
+  fields?: TemplateFieldDef[];
+  extraction_prompt?: string;
+}
+
 export interface HealthComponentResponse {
   name: string;
   status: string;

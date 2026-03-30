@@ -18,6 +18,7 @@ const MAX_SIZE = 20 * 1024 * 1024;
 
 interface Props {
   projectId: string;
+  onDocumentClick?: (doc: ProjectDocumentResponse) => void;
 }
 
 function formatSize(bytes: number): string {
@@ -36,7 +37,7 @@ interface UploadTask {
   error?: string;
 }
 
-export function ProjectDocumentsPanel({ projectId }: Props) {
+export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
   const queryClient = useQueryClient();
   const { data: docs, isLoading } = useProjectDocuments(projectId);
   const removeDoc = useRemoveProjectDocument(projectId);
@@ -180,6 +181,7 @@ export function ProjectDocumentsPanel({ projectId }: Props) {
                 key={doc.id}
                 doc={doc}
                 index={i}
+                onClick={() => onDocumentClick?.(doc)}
                 onReindex={() => handleReindex(doc.id, doc.filename)}
                 onRemove={() => { if (window.confirm(`Remove "${doc.filename}"?`)) removeDoc.mutate(doc.id); }}
               />
@@ -259,10 +261,11 @@ function CompactUploadCard({ task, onDismiss }: { task: UploadTask; onDismiss: (
 /* ── Compact Document Row ────────────────────────────── */
 
 function CompactDocRow({
-  doc, index, onReindex, onRemove,
+  doc, index, onClick, onReindex, onRemove,
 }: {
   doc: ProjectDocumentResponse;
   index: number;
+  onClick?: () => void;
   onReindex: () => void;
   onRemove: () => void;
 }) {
@@ -282,6 +285,7 @@ function CompactDocRow({
     <div
       className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer relative"
       style={{ animationDelay: `${index * 30}ms` }}
+      onClick={onClick}
       onMouseEnter={() => setShowActions(true)}
       onMouseLeave={() => setShowActions(false)}
     >

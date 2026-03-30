@@ -8,6 +8,7 @@ import {
   deleteTemplate,
   duplicateTemplate,
 } from "@/lib/api";
+import type { TemplateCreateRequest, TemplateUpdateRequest } from "@/types/api";
 
 export function useTemplates() {
   return useQuery({
@@ -28,7 +29,7 @@ export function useTemplateDetail(templateId: string) {
 export function useCreateTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: (data: Record<string, unknown>) => createTemplate(data),
+    mutationFn: (data: TemplateCreateRequest) => createTemplate(data),
     onSuccess: () => {
       toast.success("Template created");
       qc.invalidateQueries({ queryKey: ["templates"] });
@@ -40,7 +41,7 @@ export function useCreateTemplate() {
 export function useUpdateTemplate() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Record<string, unknown> }) =>
+    mutationFn: ({ id, data }: { id: string; data: TemplateUpdateRequest }) =>
       updateTemplate(id, data),
     onSuccess: (_data, vars) => {
       toast.success("Template updated");

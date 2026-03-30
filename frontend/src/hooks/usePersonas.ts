@@ -15,6 +15,12 @@ export function usePersonas() {
   });
 }
 
+export function usePersonaDetail(personaId: string) {
+  const { data: personas, ...rest } = usePersonas();
+  const persona = personas?.find((p: { id: string }) => p.id === personaId) ?? null;
+  return { data: persona, ...rest };
+}
+
 export function useCreatePersona() {
   const qc = useQueryClient();
   return useMutation({

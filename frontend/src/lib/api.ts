@@ -170,7 +170,7 @@ export async function fetchTemplateDetail(templateId: string): Promise<TemplateD
   return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}`);
 }
 
-export async function createTemplate(data: Record<string, unknown>): Promise<TemplateDetail> {
+export async function createTemplate(data: Record<string, unknown> | object): Promise<TemplateDetail> {
   return apiFetch<TemplateDetail>("/api/v1/templates", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -178,7 +178,7 @@ export async function createTemplate(data: Record<string, unknown>): Promise<Tem
   });
 }
 
-export async function updateTemplate(templateId: string, data: Record<string, unknown>): Promise<TemplateDetail> {
+export async function updateTemplate(templateId: string, data: Record<string, unknown> | object): Promise<TemplateDetail> {
   return apiFetch<TemplateDetail>(`/api/v1/templates/${templateId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },

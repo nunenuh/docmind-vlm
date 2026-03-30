@@ -3,6 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   FileText,
   FolderOpen,
+  LayoutTemplate,
+  Bot,
+  BarChart3,
   Settings,
   LogOut,
   Search,
@@ -71,8 +74,11 @@ export function Sidebar() {
           </div>
         )}
         <div className="space-y-1">
-          <NavItem icon={FileText} label="Documents" to="/dashboard" collapsed={collapsed} />
+          <NavItem icon={BarChart3} label="Dashboard" to="/dashboard" collapsed={collapsed} />
           <NavItem icon={FolderOpen} label="Projects" to="/projects" collapsed={collapsed} />
+          <NavItem icon={FileText} label="Documents" to="/documents" collapsed={collapsed} />
+          <NavItem icon={LayoutTemplate} label="Templates" to="/templates" collapsed={collapsed} />
+          <NavItem icon={Bot} label="Personas" to="/personas" collapsed={collapsed} />
         </div>
       </nav>
 
