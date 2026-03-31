@@ -28,6 +28,28 @@ For each piece of information found, return a JSON object with:
 Return a JSON object: {"fields": [...], "document_type": "<detected type>"}
 """
 
+SUMMARIZE_PROMPT = """Analyze this document thoroughly and extract the following information:
+
+1. **document_type**: What kind of document is this? (cv, resume, report, contract, letter, memo, article, manual, form, certificate, other)
+2. **summary**: A concise 2-3 sentence summary of the document's content and purpose.
+3. **language**: The primary language of the document.
+4. **sections**: List of distinct sections or headings found in the document.
+5. **entities**: Key named entities found (people, organizations, dates, emails, phones, addresses, skills, etc.)
+
+Return a JSON object:
+{
+  "document_type": "...",
+  "summary": "...",
+  "language": "...",
+  "sections": [
+    {"name": "Section Name", "content_preview": "First 100 chars of section content...", "page_number": 1}
+  ],
+  "entities": [
+    {"type": "person|org|date|email|phone|address|skill|education|job_title|other", "value": "...", "page_number": 1}
+  ]
+}
+"""
+
 TEMPLATE_EXTRACTION_PROMPT = """Analyze this document as a {template_type}.
 
 Extract the following required fields: {required_fields}
@@ -50,6 +72,57 @@ DOCUMENT_CATEGORIES = [
     "invoice", "receipt", "medical_report", "contract",
     "id_document", "letter", "form", "other",
 ]
+
+
+def _build_summary_fields(structured: dict, confidence: float) -> list[dict]:
+    """Convert summarization response into field dicts.
+
+    Creates field_type='summary' for metadata, 'section' for sections,
+    and 'entity' for named entities.
+    """
+    fields: list[dict] = []
+
+    # Summary metadata fields
+    for key in ("document_type", "summary", "language"):
+        value = structured.get(key)
+        if value:
+            fields.append({
+                "field_type": "summary",
+                "field_key": key,
+                "field_value": str(value),
+                "page_number": 1,
+                "bounding_box": {},
+                "confidence": confidence,
+                "vlm_confidence": confidence,
+            })
+
+    # Section fields
+    for section in structured.get("sections", []):
+        if isinstance(section, dict) and section.get("name"):
+            fields.append({
+                "field_type": "section",
+                "field_key": section["name"],
+                "field_value": section.get("content_preview", ""),
+                "page_number": section.get("page_number", 1),
+                "bounding_box": {},
+                "confidence": confidence,
+                "vlm_confidence": confidence,
+            })
+
+    # Entity fields
+    for entity in structured.get("entities", []):
+        if isinstance(entity, dict) and entity.get("value"):
+            fields.append({
+                "field_type": "entity",
+                "field_key": entity.get("type", "other"),
+                "field_value": entity["value"],
+                "page_number": entity.get("page_number", 1),
+                "bounding_box": {},
+                "confidence": confidence,
+                "vlm_confidence": confidence,
+            })
+
+    return fields
 
 
 def extract_node(state: dict) -> dict:
@@ -75,7 +148,8 @@ def extract_node(state: dict) -> dict:
         _notify(0.1, "Initializing VLM provider")
         provider = get_vlm_provider()
 
-        # Build prompt
+        # Build prompt and determine mode
+        is_summarize = False
         if template_type:
             config = get_template_fields(template_type)
             if config is None:
@@ -87,9 +161,10 @@ def extract_node(state: dict) -> dict:
                 optional_fields=", ".join(config["optional_fields"]),
             )
         else:
-            prompt = GENERAL_EXTRACTION_PROMPT
+            prompt = SUMMARIZE_PROMPT
+            is_summarize = True
 
-        _notify(0.3, "Running VLM extraction")
+        _notify(0.3, "Running VLM extraction" if not is_summarize else "Analyzing document")
 
         async def _run_extraction():
             vlm_resp = await provider.extract(images=page_images, prompt=prompt)
@@ -108,16 +183,19 @@ def extract_node(state: dict) -> dict:
         finally:
             loop.close()
 
-        _notify(0.6, "Parsing extraction results")
+        _notify(0.6, "Parsing results")
 
         structured = vlm_response["structured_data"]
-        raw_fields = structured.get("fields", [])
-
         response_confidence = vlm_response["confidence"]
-        raw_fields = [
-            {**field, "vlm_confidence": field.get("confidence", response_confidence)}
-            for field in raw_fields
-        ]
+
+        if is_summarize:
+            raw_fields = _build_summary_fields(structured, response_confidence)
+        else:
+            raw_fields = structured.get("fields", [])
+            raw_fields = [
+                {**field, "vlm_confidence": field.get("confidence", response_confidence)}
+                for field in raw_fields
+            ]
 
         serialized_vlm = {
             "content": vlm_response.get("content", ""),
@@ -131,7 +209,7 @@ def extract_node(state: dict) -> dict:
             "step_name": "extract",
             "step_order": 2,
             "input_summary": {
-                "mode": "template" if template_type else "general",
+                "mode": "template" if template_type else "summarize",
                 "page_count": len(page_images),
                 "template_type": template_type,
             },

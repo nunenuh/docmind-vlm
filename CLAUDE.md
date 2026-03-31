@@ -75,7 +75,11 @@ RAG Chat Pipeline (project-level):
 | `specs/backend/streaming-thinking.md` | DashScope SSE streaming with thinking/reasoning |
 | `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
 | `specs/frontend/state.md` | State management: React Query + Zustand |
-| `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors |
+| `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors (no Supabase) |
+| `specs/backend/auth.md` | Auth proxy module: endpoints, GoTrue integration, JWT strategy |
+| `specs/conventions/deployment.md` | Docker, GHCR, ThinkCentre deployment, Cloudflare tunnels |
+| `specs/conventions/solid-refactor.md` | SOLID refactor: split usecases, protocols, DI factories |
+| `specs/backend/documents-extractions-refactor.md` | Document/extraction module separation |
 
 ## Git Workflow
 
@@ -168,6 +172,21 @@ Never expose stack traces in HTTP responses. Log server-side with structlog, ret
 | `POST` | `/api/v1/personas` | JWT |
 | `PUT` | `/api/v1/personas/{id}` | JWT |
 | `DELETE` | `/api/v1/personas/{id}` | JWT |
+| `POST` | `/api/v1/auth/signup` | No |
+| `POST` | `/api/v1/auth/login` | No |
+| `POST` | `/api/v1/auth/logout` | JWT |
+| `GET` | `/api/v1/auth/session` | JWT |
+| `POST` | `/api/v1/auth/refresh` | No |
+| `POST` | `/api/v1/rag/search` | JWT |
+| `GET` | `/api/v1/rag/chunks` | JWT |
+| `GET` | `/api/v1/rag/chunks/{chunk_id}` | JWT |
+| `GET` | `/api/v1/rag/stats` | JWT |
+| `GET` | `/api/v1/analytics/summary` | JWT |
+| `GET` | `/api/v1/documents/{id}/file` | JWT |
+| `GET` | `/api/v1/documents/search` | JWT |
+| `POST` | `/api/v1/extractions/{document_id}/process` | JWT (SSE) |
+| `POST` | `/api/v1/extractions/classify` | JWT |
+| `GET` | `/api/v1/extractions/{document_id}/export` | JWT |
 
 ## Commands
 

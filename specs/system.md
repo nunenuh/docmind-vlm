@@ -106,67 +106,21 @@ backend/                             # Independent Python service
 │       │       │                    #   nodes: preprocess → extract → postprocess → store
 │       │       └── chat.py          # Chat agent StateGraph
 │       │                            #   nodes: router → retrieve → reason → cite
-│       ├── modules/                 # Feature modules (Handler → UseCase → Service → Repository)
+│       ├── modules/                 # Feature modules — SOLID architecture
+│       │   │                        # Each module has: protocols.py, dependencies.py,
+│       │   │                        # schemas.py, usecase.py (or usecases/), services/,
+│       │   │                        # repositories.py (or repositories/), apiv1/handler.py
 │       │   ├── __init__.py
-│       │   ├── health/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # HealthResponse, ComponentStatus
-│       │   │   ├── services.py      # Check Supabase, Redis, VLM provider connectivity
-│       │   │   ├── usecase.py       # Orchestrates health checks
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # GET /api/v1/health
-│       │   ├── documents/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # DocumentUpload, DocumentResponse, DocumentList
-│       │   │   ├── services.py      # File validation, metadata extraction, trigger processing
-│       │   │   ├── repositories.py  # Supabase documents table CRUD + storage upload
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # POST upload, GET list, GET /{id}, DELETE /{id}, POST /{id}/process
-│       │   ├── extractions/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # ExtractionResult, ExtractedField, AuditEntry, OverlayRegion, ComparisonResult
-│       │   │   ├── services.py      # Get results, build audit trail, generate overlay, compute comparison
-│       │   │   ├── repositories.py  # extraction_results, extracted_fields, audit_log, raw_baselines tables
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # GET /{doc_id}/extraction, /audit, /overlay, /compare
-│       │   ├── chat/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # ChatRequest, ChatResponse, ChatMessage, Citation
-│       │   │   ├── services.py      # Invoke chat pipeline, persist messages, load context
-│       │   │   ├── repositories.py  # chat_messages table CRUD
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # POST /api/v1/documents/{doc_id}/chat (SSE), GET chat/history
-│       │   ├── templates/
-│       │       ├── __init__.py
-│       │       ├── schemas.py       # TemplateResponse, TemplateListResponse
-│       │       ├── services.py      # Load templates from data/templates/*.json
-│       │       ├── usecase.py       # Orchestrates service
-│       │       └── apiv1/
-│       │           ├── __init__.py
-│       │           └── handler.py   # GET /api/v1/templates
-│       │   ├── projects/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # ProjectCreate, ProjectResponse, ProjectChatRequest
-│       │   │   ├── services.py      # Project business logic, RAG indexing orchestration
-│       │   │   ├── repositories.py  # Project CRUD, document association, conversation persistence
-│       │   │   ├── usecase.py       # Orchestrates service + repository + RAG pipeline
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # Project CRUD, doc management, RAG chat, conversations
-│       │   └── personas/
-│       │       ├── __init__.py
-│       │       ├── schemas.py       # PersonaCreate, PersonaResponse
-│       │       ├── repositories.py  # Persona CRUD (thin — no service layer)
-│       │       └── apiv1/
-│       │           ├── __init__.py
-│       │           └── handler.py   # GET/POST/PUT/DELETE /api/v1/personas
+│       │   ├── auth/                # Authentication (proxies GoTrue REST)
+│       │   ├── health/              # Health checks
+│       │   ├── documents/           # Document CRUD + file serving
+│       │   ├── extractions/         # Extraction pipeline trigger + results (usecases/ split)
+│       │   ├── chat/                # Per-document VLM chat
+│       │   ├── templates/           # Extraction template CRUD (seeded from JSON)
+│       │   ├── projects/            # Knowledge base projects (usecases/ split into 4)
+│       │   ├── personas/            # AI persona CRUD (seeded from JSON)
+│       │   ├── rag/                 # Independent RAG module (indexing, retrieval, search)
+│       │   └── analytics/           # Dashboard stats
 │       └── shared/
 │           ├── __init__.py
 │           ├── exceptions.py        # Exception hierarchy

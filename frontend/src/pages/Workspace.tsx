@@ -73,7 +73,7 @@ export function Workspace() {
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Document viewer */}
         <div className="flex-1 min-w-0">
-          <DocumentViewer imageUrl={urlData?.url} />
+          <DocumentViewer imageUrl={urlData?.url} fileType={doc?.file_type} />
         </div>
 
         {/* Right: Panel */}

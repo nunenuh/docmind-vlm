@@ -11,12 +11,18 @@ from pathlib import Path
 
 from sqlalchemy import delete as sa_delete, or_, select
 
+from docmind.core.config import get_settings
 from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.dbase.psql.models import Persona
 
 logger = logging.getLogger(__name__)
 
-PERSONAS_DIR = Path(__file__).resolve().parents[5] / "data" / "personas"
+
+def _get_personas_dir() -> Path:
+    settings = get_settings()
+    if settings.DATA_DIR:
+        return Path(settings.DATA_DIR) / "personas"
+    return Path(__file__).resolve().parents[5] / "data" / "personas"
 
 
 class PersonaRepository:
@@ -160,13 +166,13 @@ class PersonaRepository:
             logger.info("Personas already exist (%d), skipping seed", count)
             return 0
 
-        if not PERSONAS_DIR.exists():
-            logger.warning("Personas directory not found: %s", PERSONAS_DIR)
+        if not _get_personas_dir().exists():
+            logger.warning("Personas directory not found: %s", _get_personas_dir())
             return 0
 
         seeded = 0
         async with AsyncSessionLocal() as session:
-            for path in sorted(PERSONAS_DIR.glob("*.json")):
+            for path in sorted(_get_personas_dir().glob("*.json")):
                 try:
                     with open(path) as f:
                         data = json.load(f)

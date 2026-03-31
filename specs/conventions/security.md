@@ -10,13 +10,13 @@ Security guidelines for DocMind-VLM backend using Supabase JWT authentication.
 
 ## Overview
 
-DocMind-VLM uses **Supabase Auth** for authentication. Supabase issues JWTs via Google/GitHub OAuth. The backend validates the JWT on every protected request, extracts the `user_id`, and passes it through the module layers for row-level security (RLS) enforcement.
+DocMind-VLM uses **Supabase GoTrue** for authentication, proxied through the backend. **The frontend never talks to Supabase directly** — all auth flows go through backend `/api/v1/auth/*` endpoints.
 
 ```
-User → Supabase Auth (Google/GitHub OAuth) → JWT issued
-Frontend → stores JWT via Supabase JS SDK
+User → POST /api/v1/auth/login (email+password) → Backend → GoTrue → JWT returned
+Frontend → stores access_token in memory (Zustand), refresh_token in localStorage
 Frontend → API request with Authorization: Bearer <token>
-Backend → core/auth.py validates JWT, extracts user_id
+Backend → core/auth.py validates JWT (HS256 or ES256), extracts user_id
 Backend → handler → usecase → service/repository (user_id for RLS)
 ```
 
@@ -25,19 +25,17 @@ Backend → handler → usecase → service/repository (user_id for RLS)
 ## Authentication Flow
 
 ```
-┌──────────┐     ┌─────────────────┐     ┌──────────────┐
-│  Browser  │────▶│  Supabase Auth  │────▶│  OAuth       │
-│           │◀────│  (hosted)       │◀────│  (Google/    │
-│           │     │                 │     │   GitHub)    │
-└─────┬─────┘     └─────────────────┘     └──────────────┘
-      │ JWT stored via
-      │ Supabase JS SDK
-      │
-      ▼
-┌──────────┐     Authorization: Bearer <jwt>     ┌──────────────┐
-│ Frontend  │───────────────────────────────────▶│  Backend API  │
-│ (React)   │◀───────────────────────────────────│  (FastAPI)    │
-└──────────┘     200 / 401 / 403                 └──────┬───────┘
+┌──────────┐     POST /api/v1/auth/login      ┌──────────────┐     ┌─────────────────┐
+│  Browser  │──────────────────────────────────▶│  Backend API  │────▶│  Supabase       │
+│ (React)   │◀──────────────────────────────────│  (FastAPI)    │◀────│  GoTrue (local) │
+└─────┬─────┘  { access_token, refresh_token } └──────┬───────┘     └─────────────────┘
+      │                                                │
+      │ Authorization: Bearer <jwt>                    │
+      ▼                                                ▼
+┌──────────┐     All API calls with JWT        ┌──────────────┐
+│ Frontend  │──────────────────────────────────▶│  Backend API  │
+│ (React)   │◀──────────────────────────────────│  (FastAPI)    │
+└──────────┘     200 / 401 / 403               └──────┬───────┘
                                                         │
                                                         │ JWT validated
                                                         │ user_id extracted

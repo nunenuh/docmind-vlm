@@ -288,42 +288,57 @@ export const useWorkspaceStore = create<WorkspaceState>((set) => ({
 }));
 ```
 
-### `auth-store.ts` — Auth state derived from Supabase
+### `auth-store.ts` — Auth state (no Supabase dependency)
 
 ```typescript
 /**
  * src/stores/auth-store.ts
  *
- * Stores current user session from Supabase.
- * Initialized in App.tsx via onAuthStateChange listener.
- * Components read user info from here instead of calling Supabase directly.
+ * Stores JWT tokens and user info from backend auth endpoints.
+ * Initialized in App.tsx via refresh token recovery from localStorage.
+ * No Supabase types — uses custom AuthUser/AuthSession from lib/auth.ts.
  */
 
 import { create } from "zustand";
-import type { Session, User } from "@supabase/supabase-js";
+import type { AuthUser, AuthSession } from "@/lib/auth";
 
 interface AuthState {
-  session: Session | null;
-  user: User | null;
+  accessToken: string | null;
+  refreshToken: string | null;
+  user: AuthUser | null;
   isLoading: boolean;
 
-  setSession: (session: Session | null) => void;
+  setAuth: (session: AuthSession) => void;
+  clearAuth: () => void;
   setIsLoading: (loading: boolean) => void;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  session: null,
+  accessToken: null,
+  refreshToken: null,
   user: null,
   isLoading: true,
 
-  setSession: (session) =>
+  setAuth: (session) => {
+    localStorage.setItem("docmind_refresh_token", session.refresh_token);
     set({
-      session,
-      user: session?.user ?? null,
-    }),
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      user: session.user,
+    });
+  },
+  clearAuth: () => {
+    localStorage.removeItem("docmind_refresh_token");
+    set({ accessToken: null, refreshToken: null, user: null });
+  },
   setIsLoading: (loading) => set({ isLoading: loading }),
 }));
 ```
+
+**Token strategy:**
+- `accessToken` — memory only (never localStorage)
+- `refreshToken` — persisted in localStorage for session recovery across page reloads
+- On mount: if refresh token in localStorage → call backend `/auth/refresh` → populate store
 
 ---
 

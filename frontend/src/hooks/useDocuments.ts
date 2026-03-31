@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { fetchDocuments, fetchDocument, fetchDocumentUrl, uploadDocument, deleteDocument } from "@/lib/api";
+import { fetchDocuments, fetchDocument, uploadDocument, deleteDocument } from "@/lib/api";
+import { useAuthStore } from "@/stores/auth-store";
 
 export function useDocument(documentId: string) {
   return useQuery({
@@ -13,8 +14,18 @@ export function useDocument(documentId: string) {
 export function useDocumentUrl(documentId: string) {
   return useQuery({
     queryKey: ["document-url", documentId],
-    queryFn: () => fetchDocumentUrl(documentId),
+    queryFn: async () => {
+      const token = useAuthStore.getState().accessToken;
+      const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
+      const resp = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/file`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!resp.ok) throw new Error("Failed to load document");
+      const blob = await resp.blob();
+      return { url: URL.createObjectURL(blob) };
+    },
     enabled: !!documentId,
+    staleTime: 5 * 60_000,
   });
 }
 

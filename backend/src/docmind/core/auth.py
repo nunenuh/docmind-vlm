@@ -1,7 +1,9 @@
 """
 docmind/core/auth.py
 
-Supabase JWT verification dependency using JWKS (ES256).
+Supabase JWT verification — supports both:
+  - HS256 (local Supabase with JWT_SECRET)
+  - ES256 via JWKS (cloud Supabase)
 """
 
 import threading
@@ -18,7 +20,7 @@ logger = get_logger(__name__)
 security = HTTPBearer()
 
 # ---------------------------------------------------------------------------
-# JWKS client with thread-safe caching
+# JWKS client (for cloud Supabase with ES256)
 # ---------------------------------------------------------------------------
 
 _jwks_client: PyJWKClient | None = None
@@ -53,22 +55,28 @@ def reset_jwks_client() -> None:
 
 def decode_jwt(token: str) -> dict:
     """
-    Decode and verify a Supabase JWT token using JWKS (ES256).
+    Decode and verify a Supabase JWT token.
 
-    Args:
-        token: Raw JWT string from Authorization header.
+    Strategy:
+      1. If JWT_SECRET is configured → verify with HS256 (local Supabase)
+      2. Otherwise → verify with JWKS/ES256 (cloud Supabase)
 
     Returns:
         Dict with 'id' (from sub claim) and 'email'.
-
-    Raises:
-        jwt.ExpiredSignatureError: Token has expired.
-        jwt.InvalidSignatureError: Signature verification failed.
-        jwt.InvalidAudienceError: Audience claim mismatch.
-        jwt.DecodeError: Token is malformed.
-        jwt.PyJWKClientError: JWKS endpoint unreachable or key not found.
-        KeyError: Missing 'sub' claim.
     """
+    settings = get_settings()
+
+    # Strategy 1: HS256 with shared secret (local Supabase)
+    if settings.JWT_SECRET:
+        payload = jwt.decode(
+            token,
+            settings.JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+        return {"id": payload["sub"], "email": payload.get("email")}
+
+    # Strategy 2: ES256 via JWKS (cloud Supabase)
     client = _get_jwks_client()
     signing_key = client.get_signing_key_from_jwt(token)
     payload = jwt.decode(
@@ -107,10 +115,17 @@ async def get_current_user(
             detail="Token expired",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    except (jwt.InvalidTokenError, jwt.PyJWKClientError, KeyError) as e:
+    except (jwt.InvalidTokenError, jwt.PyJWKClientError, jwt.PyJWKSetError, KeyError) as e:
         logger.warning("Invalid JWT token", error=str(e))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid or expired token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except Exception as e:
+        logger.error("JWT verification error", error=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication failed",
             headers={"WWW-Authenticate": "Bearer"},
         )

@@ -19,18 +19,19 @@ export function DocumentViewer({ documentId, filename, fileType }: Props) {
   useEffect(() => {
     let cancelled = false;
 
-    async function fetchUrl() {
+    // Build a blob URL from the backend file endpoint
+    async function fetchFile() {
       setLoading(true);
       setError(null);
       try {
         const token = useAuthStore.getState().accessToken;
         const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
-        const resp = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/url`, {
+        const resp = await fetch(`${BASE_URL}/api/v1/documents/${documentId}/file`, {
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        if (!resp.ok) throw new Error("Failed to get document URL");
-        const data = await resp.json();
-        if (!cancelled) setUrl(data.url);
+        if (!resp.ok) throw new Error("Failed to load document");
+        const blob = await resp.blob();
+        if (!cancelled) setUrl(URL.createObjectURL(blob));
       } catch (e) {
         if (!cancelled) setError((e as Error).message);
       } finally {
@@ -38,7 +39,7 @@ export function DocumentViewer({ documentId, filename, fileType }: Props) {
       }
     }
 
-    fetchUrl();
+    fetchFile();
     return () => { cancelled = true; };
   }, [documentId]);
 

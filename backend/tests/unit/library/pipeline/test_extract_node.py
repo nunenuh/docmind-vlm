@@ -23,28 +23,20 @@ def _make_fake_provider(
     type(provider).model_name = PropertyMock(return_value=model_name)
 
     if extract_response is None:
+        # Default: summarize-style response (no template mode)
         extract_response = {
-            "content": "Extracted content",
+            "content": "Summarized content",
             "structured_data": {
-                "fields": [
-                    {
-                        "field_type": "key_value",
-                        "field_key": "invoice_number",
-                        "field_value": "INV-001",
-                        "page_number": 1,
-                        "bounding_box": {"x": 0.1, "y": 0.1, "width": 0.2, "height": 0.05},
-                        "confidence": 0.95,
-                    },
-                    {
-                        "field_type": "key_value",
-                        "field_key": "total",
-                        "field_value": "$500.00",
-                        "page_number": 1,
-                        "bounding_box": {"x": 0.5, "y": 0.8, "width": 0.2, "height": 0.05},
-                        "confidence": 0.88,
-                    },
-                ],
                 "document_type": "invoice",
+                "summary": "An invoice from Acme Corp for $500.",
+                "language": "English",
+                "sections": [
+                    {"name": "Header", "content_preview": "Invoice INV-001", "page_number": 1},
+                ],
+                "entities": [
+                    {"type": "org", "value": "Acme Corp", "page_number": 1},
+                    {"type": "date", "value": "2026-01-15", "page_number": 1},
+                ],
             },
             "confidence": 0.9,
             "model": "test-model",
@@ -102,8 +94,8 @@ class TestExtractNodeGeneralMode:
     """Tests for general (schema-free) extraction."""
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
-    def test_extracts_fields_from_vlm_response(self, mock_get_provider):
-        """extract_node returns raw_fields parsed from VLM response."""
+    def test_extracts_summary_fields_from_vlm_response(self, mock_get_provider):
+        """extract_node returns raw_fields from summarize response."""
         from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
@@ -112,14 +104,15 @@ class TestExtractNodeGeneralMode:
         state = _make_state()
         result = extract_node(state)
 
-        assert len(result["raw_fields"]) == 2
-        assert result["raw_fields"][0]["field_key"] == "invoice_number"
-        assert result["raw_fields"][0]["field_value"] == "INV-001"
-        assert result["raw_fields"][1]["field_key"] == "total"
+        # Should have summary fields (document_type, summary, language) + 1 section + 2 entities = 6
+        assert len(result["raw_fields"]) == 6
+        field_keys = [f["field_key"] for f in result["raw_fields"]]
+        assert "document_type" in field_keys
+        assert "summary" in field_keys
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
-    def test_attaches_vlm_confidence_to_fields(self, mock_get_provider):
-        """Each field gets vlm_confidence from its own confidence or VLM response fallback."""
+    def test_attaches_vlm_confidence_to_summary_fields(self, mock_get_provider):
+        """Summary fields get vlm_confidence from the response-level confidence."""
         from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
@@ -128,23 +121,23 @@ class TestExtractNodeGeneralMode:
         state = _make_state()
         result = extract_node(state)
 
-        assert result["raw_fields"][0]["vlm_confidence"] == 0.95
-        assert result["raw_fields"][1]["vlm_confidence"] == 0.88
+        for field in result["raw_fields"]:
+            assert field["vlm_confidence"] == 0.9
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
-    def test_does_not_mutate_original_vlm_fields(self, mock_get_provider):
-        """Original field dicts from VLM response must not be mutated."""
+    def test_does_not_mutate_original_vlm_response(self, mock_get_provider):
+        """Original structured_data from VLM response must not be mutated."""
         from docmind.library.pipeline.extraction.extract import extract_node
 
         provider = _make_fake_provider()
         mock_get_provider.return_value = provider
-        original_fields = provider.extract.return_value["structured_data"]["fields"]
+        original_sections = provider.extract.return_value["structured_data"]["sections"]
 
         state = _make_state()
         extract_node(state)
 
-        assert "vlm_confidence" not in original_fields[0]
-        assert "vlm_confidence" not in original_fields[1]
+        # Original sections should not have vlm_confidence added
+        assert "vlm_confidence" not in original_sections[0]
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_vlm_confidence_falls_back_to_response_level(self, mock_get_provider):
@@ -260,8 +253,8 @@ class TestExtractNodeGeneralMode:
         entry = result["audit_entries"][0]
         assert entry["step_name"] == "extract"
         assert entry["step_order"] == 2
-        assert entry["input_summary"]["mode"] == "general"
-        assert entry["output_summary"]["field_count"] == 2
+        assert entry["input_summary"]["mode"] == "summarize"
+        assert entry["output_summary"]["field_count"] == 6
         assert entry["output_summary"]["vlm_model"] == "test-model"
         assert entry["parameters"]["provider"] == "test-provider"
         assert entry["parameters"]["model"] == "test-model"
@@ -296,7 +289,7 @@ class TestExtractNodeCallbackAndErrors:
         state = _make_state(callback=None)
         result = extract_node(state)
 
-        assert len(result["raw_fields"]) == 2
+        assert len(result["raw_fields"]) > 0
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
     def test_returns_error_on_provider_failure(self, mock_get_provider):
@@ -336,15 +329,166 @@ class TestExtractNodeCallbackAndErrors:
         assert result.get("status") != "error"
 
     @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
-    def test_uses_general_prompt_when_no_template(self, mock_get_provider):
-        """In general mode, the prompt passed to provider.extract is the general prompt."""
-        from docmind.library.pipeline.extraction.extract import extract_node, GENERAL_EXTRACTION_PROMPT
+    def test_uses_summarize_prompt_when_no_template(self, mock_get_provider):
+        """In no-template mode, the prompt should be the SUMMARIZE_PROMPT."""
+        from docmind.library.pipeline.extraction.extract import extract_node, SUMMARIZE_PROMPT
 
-        provider = _make_fake_provider()
+        # Return a summarize-style response
+        response = {
+            "content": "text",
+            "structured_data": {
+                "document_type": "cv",
+                "summary": "A CV.",
+                "language": "English",
+                "sections": [],
+                "entities": [],
+            },
+            "confidence": 0.9,
+            "model": "test",
+            "usage": {},
+            "raw_response": {},
+        }
+        provider = _make_fake_provider(extract_response=response)
         mock_get_provider.return_value = provider
 
         state = _make_state(template_type=None)
         extract_node(state)
 
         call_args = provider.extract.call_args
-        assert call_args.kwargs.get("prompt") == GENERAL_EXTRACTION_PROMPT or call_args[1].get("prompt") == GENERAL_EXTRACTION_PROMPT
+        prompt = call_args.kwargs.get("prompt") or call_args[1].get("prompt", "")
+        assert prompt == SUMMARIZE_PROMPT
+
+
+class TestSummarizeMode:
+    """Tests for unstructured document summarization."""
+
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
+    def test_summarize_produces_summary_fields(self, mock_get_provider):
+        """Summarization should produce summary, document_type, and language fields."""
+        from docmind.library.pipeline.extraction.extract import extract_node
+
+        response = {
+            "content": "text",
+            "structured_data": {
+                "document_type": "cv",
+                "summary": "Muhammad Ziad Alfian is a Mobile App Developer.",
+                "language": "English",
+                "sections": [
+                    {"name": "Education", "content_preview": "Computer Science", "page_number": 1},
+                ],
+                "entities": [
+                    {"type": "person", "value": "Muhammad Ziad Alfian", "page_number": 1},
+                ],
+            },
+            "confidence": 0.9,
+            "model": "test",
+            "usage": {},
+            "raw_response": {},
+        }
+        provider = _make_fake_provider(extract_response=response)
+        mock_get_provider.return_value = provider
+
+        state = _make_state(template_type=None)
+        result = extract_node(state)
+
+        fields = result["raw_fields"]
+        assert len(fields) > 0
+
+        field_keys = [f["field_key"] for f in fields]
+        assert "summary" in field_keys
+        assert "document_type" in field_keys
+        assert "language" in field_keys
+        assert result["document_type"] == "cv"
+
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
+    def test_summarize_creates_section_fields(self, mock_get_provider):
+        """Sections should become field_type='section' fields."""
+        from docmind.library.pipeline.extraction.extract import extract_node
+
+        response = {
+            "content": "text",
+            "structured_data": {
+                "document_type": "report",
+                "summary": "A report.",
+                "language": "English",
+                "sections": [
+                    {"name": "Introduction", "content_preview": "This report covers...", "page_number": 1},
+                    {"name": "Financials", "content_preview": "Revenue grew 15%", "page_number": 2},
+                ],
+                "entities": [],
+            },
+            "confidence": 0.9,
+            "model": "test",
+            "usage": {},
+            "raw_response": {},
+        }
+        provider = _make_fake_provider(extract_response=response)
+        mock_get_provider.return_value = provider
+
+        state = _make_state(template_type=None)
+        result = extract_node(state)
+
+        section_fields = [f for f in result["raw_fields"] if f["field_type"] == "section"]
+        assert len(section_fields) == 2
+        assert section_fields[0]["field_key"] == "Introduction"
+
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
+    def test_summarize_creates_entity_fields(self, mock_get_provider):
+        """Entities should become field_type='entity' fields."""
+        from docmind.library.pipeline.extraction.extract import extract_node
+
+        response = {
+            "content": "text",
+            "structured_data": {
+                "document_type": "letter",
+                "summary": "A letter.",
+                "language": "English",
+                "sections": [],
+                "entities": [
+                    {"type": "person", "value": "John Doe", "page_number": 1},
+                    {"type": "org", "value": "Acme Corp", "page_number": 1},
+                ],
+            },
+            "confidence": 0.9,
+            "model": "test",
+            "usage": {},
+            "raw_response": {},
+        }
+        provider = _make_fake_provider(extract_response=response)
+        mock_get_provider.return_value = provider
+
+        state = _make_state(template_type=None)
+        result = extract_node(state)
+
+        entity_fields = [f for f in result["raw_fields"] if f["field_type"] == "entity"]
+        assert len(entity_fields) == 2
+        assert entity_fields[0]["field_key"] == "person"
+        assert entity_fields[0]["field_value"] == "John Doe"
+
+    @patch("docmind.library.pipeline.extraction.extract.get_vlm_provider")
+    def test_summarize_audit_mode(self, mock_get_provider):
+        """Audit entry should record mode as 'summarize'."""
+        from docmind.library.pipeline.extraction.extract import extract_node
+
+        response = {
+            "content": "text",
+            "structured_data": {
+                "document_type": "cv",
+                "summary": "A CV.",
+                "language": "English",
+                "sections": [],
+                "entities": [],
+            },
+            "confidence": 0.9,
+            "model": "test",
+            "usage": {},
+            "raw_response": {},
+        }
+        provider = _make_fake_provider(extract_response=response)
+        mock_get_provider.return_value = provider
+
+        state = _make_state(template_type=None)
+        result = extract_node(state)
+
+        audit = result["audit_entries"][-1]
+        assert audit["input_summary"]["mode"] == "summarize"

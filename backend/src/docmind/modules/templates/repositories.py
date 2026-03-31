@@ -6,12 +6,18 @@ from pathlib import Path
 
 from sqlalchemy import select, delete as sa_delete
 
+from docmind.core.config import get_settings
 from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.dbase.psql.models import Template
 
 logger = logging.getLogger(__name__)
 
-TEMPLATES_DIR = Path(__file__).resolve().parents[5] / "data" / "templates"
+
+def _get_templates_dir() -> Path:
+    settings = get_settings()
+    if settings.DATA_DIR:
+        return Path(settings.DATA_DIR) / "templates"
+    return Path(__file__).resolve().parents[5] / "data" / "templates"
 
 
 class TemplateRepository:
@@ -158,13 +164,13 @@ class TemplateRepository:
             logger.info("Presets already exist (%d), skipping seed", count)
             return 0
 
-        if not TEMPLATES_DIR.exists():
-            logger.warning("Templates directory not found: %s", TEMPLATES_DIR)
+        if not _get_templates_dir().exists():
+            logger.warning("Templates directory not found: %s", _get_templates_dir())
             return 0
 
         seeded = 0
         async with AsyncSessionLocal() as session:
-            for path in sorted(TEMPLATES_DIR.glob("*.json")):
+            for path in sorted(_get_templates_dir().glob("*.json")):
                 try:
                     with open(path) as f:
                         data = json.load(f)

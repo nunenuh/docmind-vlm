@@ -171,6 +171,21 @@ There is **no monolithic router** with all endpoints. Each module owns its own `
 | `POST` | `/api/v1/personas` | personas | JWT | `modules/personas/apiv1/handler.py` |
 | `PUT` | `/api/v1/personas/{id}` | personas | JWT | `modules/personas/apiv1/handler.py` |
 | `DELETE` | `/api/v1/personas/{id}` | personas | JWT | `modules/personas/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/signup` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/login` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/logout` | auth | JWT | `modules/auth/apiv1/handler.py` |
+| `GET` | `/api/v1/auth/session` | auth | JWT | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/refresh` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/rag/search` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/chunks` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/chunks/{chunk_id}` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/stats` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/analytics/summary` | analytics | JWT | `modules/analytics/apiv1/handler.py` |
+| `GET` | `/api/v1/documents/{id}/file` | documents | JWT | `modules/documents/apiv1/handler.py` |
+| `GET` | `/api/v1/documents/search` | documents | JWT | `modules/documents/apiv1/handler.py` |
+| `POST` | `/api/v1/extractions/{document_id}/process` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
+| `POST` | `/api/v1/extractions/classify` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
+| `GET` | `/api/v1/extractions/{document_id}/export` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
 
 ---
 

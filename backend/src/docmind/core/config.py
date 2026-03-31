@@ -52,6 +52,7 @@ class Settings(BaseSettings):
     SUPABASE_URL: str = Field(default="")
     SUPABASE_PUBLISHABLE_KEY: str = Field(default="")
     SUPABASE_SECRET_KEY: str = Field(default="")
+    JWT_SECRET: str = Field(default="", description="HMAC secret for local Supabase JWT verification")
 
     # Database (Supabase Postgres via SQLAlchemy)
     DB_HOST: str = Field(default="localhost")

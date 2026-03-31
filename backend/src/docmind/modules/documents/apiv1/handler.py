@@ -5,7 +5,10 @@ Document HTTP endpoints — pure file CRUD + search.
 Extraction is handled by the extractions module.
 """
 
-from fastapi import APIRouter, Depends, File, Query, UploadFile
+import asyncio
+
+from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
+from fastapi.responses import Response
 
 from docmind.core.auth import get_current_user
 from docmind.core.logging import get_logger
@@ -164,16 +167,56 @@ async def get_document(
 @router.get("/{document_id}/url")
 async def get_document_url(
     document_id: str,
+    request: Request,
     current_user: dict = Depends(get_current_user),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
-    """Get a signed URL for downloading the document file."""
+    """Get a URL for viewing the document file (proxied through backend)."""
     try:
-        return await usecase.get_document_url(user_id=current_user["id"], document_id=document_id)
+        # Return a backend-proxied URL instead of Supabase signed URL
+        base_url = str(request.base_url).rstrip("/")
+        proxy_url = f"{base_url}/api/v1/documents/{document_id}/file"
+        return {"url": proxy_url}
     except BaseAppException:
         raise
     except Exception as e:
         logger.error("get_document_url error: %s", e, exc_info=True)
+        raise AppException(message="Internal server error")
+
+
+@router.get("/{document_id}/file")
+async def get_document_file(
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+    usecase: DocumentUseCase = Depends(get_document_usecase),
+):
+    """Serve the document file bytes directly (proxied from Supabase Storage)."""
+    try:
+        # Get raw ORM doc (not schema) to access storage_path
+        raw_doc = await usecase.repo.get_by_id(document_id, current_user["id"])
+        if raw_doc is None:
+            from docmind.shared.exceptions import NotFoundException
+            raise NotFoundException("Document not found")
+        file_bytes = await asyncio.to_thread(
+            usecase.storage_service.load_file_bytes, raw_doc.storage_path
+        )
+        content_type = {
+            "pdf": "application/pdf",
+            "png": "image/png",
+            "jpeg": "image/jpeg",
+            "jpg": "image/jpeg",
+            "tiff": "image/tiff",
+            "webp": "image/webp",
+        }.get(raw_doc.file_type, "application/octet-stream")
+        return Response(
+            content=file_bytes,
+            media_type=content_type,
+            headers={"Content-Disposition": f'inline; filename="{raw_doc.filename}"'},
+        )
+    except BaseAppException:
+        raise
+    except Exception as e:
+        logger.error("get_document_file error: %s", e, exc_info=True)
         raise AppException(message="Internal server error")
 
 
