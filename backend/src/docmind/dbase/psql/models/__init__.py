@@ -1,5 +1,6 @@
 """PostgreSQL models for DocMind-VLM."""
 
+from .api_token import ApiToken
 from .audit_entry import AuditEntry
 from .chat_message import ChatMessage
 from .citation import Citation
@@ -14,6 +15,7 @@ from .project_message import ProjectMessage
 from .template import Template
 
 __all__ = [
+    "ApiToken",
     "Document",
     "Extraction",
     "ExtractedField",

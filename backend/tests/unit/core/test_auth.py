@@ -175,15 +175,19 @@ class TestDecodeJwt:
 class TestGetCurrentUser:
     """Tests for the get_current_user FastAPI dependency."""
 
+    @staticmethod
+    def _make_request(token: str) -> MagicMock:
+        request = MagicMock()
+        request.headers = {"authorization": f"Bearer {token}"}
+        return request
+
     @pytest.mark.asyncio
     async def test_valid_token_returns_user_payload(self):
         """Valid credentials should return the user dict."""
         token = _make_token()
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials=token
-        )
+        request = self._make_request(token)
 
-        result = await get_current_user(credentials)
+        result = await get_current_user(request)
 
         assert result["id"] == TEST_USER_ID
         assert result["email"] == TEST_EMAIL
@@ -192,12 +196,10 @@ class TestGetCurrentUser:
     async def test_expired_token_raises_401_with_expired_message(self):
         """Expired token should raise 401 with 'Token expired'."""
         token = _make_token(exp=int(time.time()) - 3600)
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials=token
-        )
+        request = self._make_request(token)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(credentials)
+            await get_current_user(request)
 
         assert exc_info.value.status_code == 401
         assert "expired" in exc_info.value.detail.lower()
@@ -218,35 +220,29 @@ class TestGetCurrentUser:
         )
 
         token = _make_token()
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials=token
-        )
+        request = self._make_request(token)
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(credentials)
+            await get_current_user(request)
 
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_malformed_token_raises_401(self):
         """Malformed token should raise HTTPException 401."""
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials="garbage.token.here"
-        )
+        request = self._make_request("garbage.token.here")
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(credentials)
+            await get_current_user(request)
 
         assert exc_info.value.status_code == 401
 
     @pytest.mark.asyncio
     async def test_401_includes_www_authenticate_header(self):
         """All 401 responses should include WWW-Authenticate header."""
-        credentials = HTTPAuthorizationCredentials(
-            scheme="Bearer", credentials="invalid"
-        )
+        request = self._make_request("invalid")
 
         with pytest.raises(HTTPException) as exc_info:
-            await get_current_user(credentials)
+            await get_current_user(request)
 
         assert exc_info.value.headers == {"WWW-Authenticate": "Bearer"}

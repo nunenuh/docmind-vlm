@@ -1,23 +1,25 @@
 """
 docmind/core/auth.py
 
-Supabase JWT verification — supports both:
-  - HS256 (local Supabase with JWT_SECRET)
-  - ES256 via JWKS (cloud Supabase)
+Unified authentication — supports both:
+  - Supabase JWT (HS256 local / ES256 cloud)
+  - API tokens (dm_live_xxx / dm_test_xxx prefix)
 """
 
 import threading
 
 import jwt
+from fastapi import HTTPException, Request, status
 from jwt import PyJWKClient
-from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from docmind.shared.exceptions import AuthenticationException
 
 from .config import get_settings
 from .logging import get_logger
 
 logger = get_logger(__name__)
-security = HTTPBearer()
+
+API_TOKEN_PREFIXES = ("dm_live_", "dm_test_")
 
 # ---------------------------------------------------------------------------
 # JWKS client (for cloud Supabase with ES256)
@@ -89,25 +91,87 @@ def decode_jwt(token: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# FastAPI dependency
+# Token extraction helpers
 # ---------------------------------------------------------------------------
 
 
-async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(security),
-) -> dict:
+def _is_api_token(token: str) -> bool:
+    return any(token.startswith(p) for p in API_TOKEN_PREFIXES)
+
+
+def _extract_token(request: Request) -> str | None:
+    """Extract token from X-API-Key or Authorization header."""
+    api_key = request.headers.get("x-api-key")
+    if api_key and _is_api_token(api_key):
+        return api_key
+
+    auth_header = request.headers.get("authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        return auth_header[7:]
+
+    return None
+
+
+# ---------------------------------------------------------------------------
+# Lazy import to avoid circular dependency
+# ---------------------------------------------------------------------------
+
+from docmind.modules.auth.services.api_token_service import ApiTokenService  # noqa: E402
+
+
+# ---------------------------------------------------------------------------
+# FastAPI dependency — unified JWT + API token
+# ---------------------------------------------------------------------------
+
+
+async def get_current_user(request: Request) -> dict:
     """
-    Validate Supabase JWT token and return user payload.
+    Validate authentication and return user payload.
+
+    Supports:
+      - API token: Authorization: Bearer dm_live_xxx or X-API-Key: dm_live_xxx
+      - JWT: Authorization: Bearer eyJhbG...
 
     Returns:
-        dict with at minimum: {"id": str, "email": str | None}
-
-    Raises:
-        HTTPException 401 if token is missing, expired, or invalid.
+        dict: {"id": str, "email": str, "scopes": list|None,
+               "auth_method": "jwt"|"api_token", "token_id": str|None}
     """
-    token = credentials.credentials
+    token = _extract_token(request)
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing authentication token",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    # API token path
+    if _is_api_token(token):
+        try:
+            service = ApiTokenService()
+            user_data = await service.validate_token(token)
+            return {
+                "id": user_data["user_id"],
+                "email": "",
+                "scopes": user_data["scopes"],
+                "auth_method": "api_token",
+                "token_id": user_data["token_id"],
+            }
+        except AuthenticationException:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired API token",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+    # JWT path
     try:
-        return decode_jwt(token)
+        payload = decode_jwt(token)
+        return {
+            **payload,
+            "scopes": None,
+            "auth_method": "jwt",
+            "token_id": None,
+        }
     except jwt.ExpiredSignatureError:
         logger.warning("Expired JWT token")
         raise HTTPException(
