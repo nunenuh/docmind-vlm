@@ -109,16 +109,49 @@ use-cloud: ## Switch back to cloud Supabase (.env.cloud.bak → .env)
 		echo "No cloud backup found. Edit backend/.env manually."; \
 	fi
 
-# ── Docker ─────────────────────────────────────────────
+# ── Docker Build (image builder) ───────────────────────
 
-docker-up: ## Start all services
-	docker compose up -d
+docker-build: ## Build GHCR-tagged images (backend + frontend)
+	docker compose -f docker/docker-compose.build.yml build
 
-docker-build: ## Build and start all services
-	docker compose up -d --build
+docker-build-backend: ## Build backend image only
+	docker compose -f docker/docker-compose.build.yml build backend
 
-docker-down: ## Stop all services
-	docker compose down
+docker-build-frontend: ## Build frontend image only
+	docker compose -f docker/docker-compose.build.yml build frontend
+
+# ── Docker Dev (built images + full stack) ─────────────
+
+docker-dev: ## Start full dev stack with built images
+	@test -f .env.dev || (echo "Missing .env.dev — run: cp .env.dev.example .env.dev" && exit 1)
+	docker compose -f docker/docker-compose.dev.yml --env-file .env.dev up -d --build
+
+docker-dev-up: ## Start dev stack (no rebuild)
+	docker compose -f docker/docker-compose.dev.yml --env-file .env.dev up -d
+
+docker-dev-down: ## Stop dev stack
+	docker compose -f docker/docker-compose.dev.yml --env-file .env.dev down
+
+docker-dev-logs: ## Tail dev stack logs
+	docker compose -f docker/docker-compose.dev.yml --env-file .env.dev logs -f backend frontend
+
+docker-dev-clean: ## Stop dev stack and remove volumes
+	docker compose -f docker/docker-compose.dev.yml --env-file .env.dev down -v
+
+# ── Docker Run (source mounted + hot reload) ───────────
+
+docker-run: ## Start stack with source mounting (hot reload)
+	@test -f .env.dev || (echo "Missing .env.dev — run: cp .env.dev.example .env.dev" && exit 1)
+	docker compose -f docker/docker-compose.run.yml --env-file .env.dev up -d
+
+docker-run-down: ## Stop run stack
+	docker compose -f docker/docker-compose.run.yml --env-file .env.dev down
+
+docker-run-logs: ## Tail run stack logs
+	docker compose -f docker/docker-compose.run.yml --env-file .env.dev logs -f backend frontend
+
+docker-run-clean: ## Stop run stack and remove volumes
+	docker compose -f docker/docker-compose.run.yml --env-file .env.dev down -v
 
 # ── Tests ──────────────────────────────────────────────
 

@@ -7,7 +7,6 @@ All queries MUST filter by project_id.
 import uuid
 from datetime import datetime, timezone
 
-from pgvector.sqlalchemy import Vector
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,9 +40,9 @@ class PageChunk(Base):
     content_hash: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )  # SHA-256 hash for duplicate detection
-    embedding = mapped_column(
-        Vector(1024), nullable=True
-    )  # pgvector embedding for similarity search
+    embedding: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )  # Stored as pgvector-compatible string '[0.1,0.2,...]'; DB column is vector(1024)
     metadata_json: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # JSON string for extra metadata

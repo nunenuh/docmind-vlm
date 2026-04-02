@@ -163,7 +163,7 @@ class ChunkRepository:
                         content=chunk_data["content"],
                         raw_content=chunk_data.get("raw_content", ""),
                         content_hash=chunk_data.get("content_hash", ""),
-                        embedding=embedding,
+                        embedding=json.dumps(embedding),
                         metadata_json=json.dumps(metadata),
                     )
                     session.add(chunk)
