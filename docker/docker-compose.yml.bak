@@ -1,0 +1,47 @@
+services:
+  backend:
+    image: ghcr.io/nunenuh/docmind-vlm-backend:latest
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: docmind-backend
+    ports:
+      - "8009:8009"
+    env_file:
+      - ./backend/.env
+    volumes:
+      - ./data:/app/data
+    depends_on:
+      - redis
+    networks:
+      - docmind-network
+
+  frontend:
+    image: ghcr.io/nunenuh/docmind-vlm-frontend:latest
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: docmind-frontend
+    ports:
+      - "5177:5177"
+    depends_on:
+      - backend
+    networks:
+      - docmind-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: docmind-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - docmind-network
+
+networks:
+  docmind-network:
+    driver: bridge
+
+volumes:
+  redis_data:

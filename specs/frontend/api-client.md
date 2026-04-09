@@ -1,6 +1,6 @@
 # Frontend Spec: API Client
 
-Files: `frontend/src/lib/supabase.ts` · `frontend/src/lib/api.ts` · `frontend/src/types/api.ts`
+Files: `frontend/src/lib/auth.ts` · `frontend/src/lib/api.ts` · `frontend/src/types/api.ts`
 
 See also: [[projects/docmind-vlm/specs/frontend/components]] · [[projects/docmind-vlm/specs/frontend/state]]
 
@@ -11,8 +11,8 @@ See also: [[projects/docmind-vlm/specs/frontend/components]] · [[projects/docmi
 ```
 frontend/src/
 ├── lib/
-│   ├── supabase.ts    <- Supabase client (auth, storage)
-│   ├── api.ts         <- Backend API calls (fetch wrapper with JWT)
+│   ├── auth.ts        <- Auth client (calls backend /api/v1/auth/*)
+│   ├── api.ts         <- Backend API calls (fetch wrapper with JWT from auth store)
 │   └── utils.ts       <- Shared utilities
 └── types/
     └── api.ts         <- TypeScript interfaces mirroring backend API
@@ -21,22 +21,20 @@ frontend/src/
 **Rule**: Types and API functions are in separate files.
 - `types/api.ts` — pure TypeScript interfaces, no logic
 - `lib/api.ts` — fetch calls, error handling, URL construction
-- `lib/supabase.ts` — Supabase client, auth helpers, storage helpers
+- `lib/auth.ts` — login, signup, logout, refresh, session check (calls backend auth endpoints)
+
+**IMPORTANT**: No `@supabase/supabase-js` dependency. Frontend NEVER imports Supabase. All auth goes through the backend.
 
 ---
 
-## `src/lib/supabase.ts`
+## `src/lib/auth.ts`
 
 ```typescript
 /**
- * lib/supabase.ts
+ * lib/auth.ts
  *
- * Supabase client for authentication and file storage.
- * Auth: Google and GitHub OAuth.
- * Storage: document uploads to "documents" bucket.
- */
-
-import { createClient } from "@supabase/supabase-js";
+ * Auth client — calls backend /api/v1/auth/* endpoints.
+ * No Supabase JS dependency.
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;

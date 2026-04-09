@@ -422,11 +422,11 @@ Database queries use SQLAlchemy async sessions. Supabase is only for Auth (JWT) 
 ```python
 # ✅ Use SQLAlchemy async sessions for all DB queries
 from sqlalchemy import select
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document
 
 async def get_by_id(document_id: str, user_id: str) -> Document | None:
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         stmt = select(Document).where(
             Document.id == document_id,
             Document.user_id == user_id,
@@ -448,7 +448,7 @@ Always filter by `user_id` from JWT — never trust client-provided user IDs:
 ```python
 # ✅ user_id from JWT, not from request body
 async def list_documents(user_id: str) -> list[Document]:
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         stmt = (
             select(Document)
             .where(Document.user_id == user_id)
@@ -460,10 +460,10 @@ async def list_documents(user_id: str) -> list[Document]:
 
 ### ORM Models
 
-All models inherit from `Base` in `dbase/sqlalchemy/base.py`:
+All models inherit from `Base` in `dbase/psql/core/base.py`:
 
 ```python
-# dbase/sqlalchemy/models.py
+# dbase/psql/models/
 import uuid
 from datetime import datetime, timezone
 

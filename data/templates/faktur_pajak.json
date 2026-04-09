@@ -1,0 +1,25 @@
+{
+  "type": "faktur_pajak",
+  "name": "Faktur Pajak",
+  "name_en": "Tax Invoice",
+  "description": "Faktur pajak pertambahan nilai (PPN)",
+  "description_en": "Indonesian VAT tax invoice",
+  "category": "tax",
+  "required_fields": [
+    {"key": "no_faktur", "label": "Nomor Faktur", "label_en": "Invoice Number", "type": "string"},
+    {"key": "npwp_penjual", "label": "NPWP Penjual", "label_en": "Seller Tax ID", "type": "string"},
+    {"key": "nama_penjual", "label": "Nama Penjual", "label_en": "Seller Name", "type": "string"},
+    {"key": "npwp_pembeli", "label": "NPWP Pembeli", "label_en": "Buyer Tax ID", "type": "string"},
+    {"key": "nama_pembeli", "label": "Nama Pembeli", "label_en": "Buyer Name", "type": "string"},
+    {"key": "dpp", "label": "Dasar Pengenaan Pajak (DPP)", "label_en": "Tax Base Amount", "type": "currency"},
+    {"key": "ppn", "label": "PPN", "label_en": "VAT Amount", "type": "currency"},
+    {"key": "total", "label": "Total", "label_en": "Total Amount", "type": "currency"}
+  ],
+  "optional_fields": [
+    {"key": "tanggal", "label": "Tanggal", "label_en": "Date", "type": "date"},
+    {"key": "alamat_penjual", "label": "Alamat Penjual", "label_en": "Seller Address", "type": "string"},
+    {"key": "alamat_pembeli", "label": "Alamat Pembeli", "label_en": "Buyer Address", "type": "string"},
+    {"key": "items", "label": "Barang/Jasa", "label_en": "Items/Services", "type": "table", "columns": ["no", "nama_barang", "harga_satuan", "jumlah", "total"]}
+  ],
+  "extraction_prompt": "This is an Indonesian Faktur Pajak (Tax Invoice). Extract the invoice number, seller and buyer NPWP/name, DPP (tax base), PPN (VAT), and total amount. If there is an item table, extract each line item."
+}

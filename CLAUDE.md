@@ -2,31 +2,43 @@
 
 ## Project
 
-Full-stack **intelligent document extraction and chat platform** powered by Vision Language Models.
-Users upload PDFs/images, a VLM extracts structured fields with confidence scores and bounding boxes, and users can chat with the document.
+Dual-mode **intelligent document platform** powered by Vision Language Models and RAG.
+
+**Mode 1 — Document Extraction:** Upload PDFs/images → VLM extracts structured fields with confidence scores and bounding boxes → chat with the document.
+**Mode 2 — Knowledge Base:** Create projects → upload multiple docs → RAG indexes everything (pgvector) → chat with a configurable AI persona across all documents.
 
 ```
-Upload → CV Preprocess → VLM Extract → Structured Fields + Confidence → Chat with Document
+Mode 1: Upload → CV Preprocess → VLM Extract → Structured Fields + Confidence → Per-Doc Chat
+Mode 2: Project → Upload Docs → Text Extract → Chunk → Embed → pgvector → Persona RAG Chat
 ```
 
 ## Current State
 
-- **Phase**: Scaffold complete. No business logic implemented yet.
-- **Branch**: `main` (default); `dev` for integration)
-- **Backend**: Scaffold only — all handlers, usecases, services, repositories are stubs
-- **Frontend**: Scaffold only — stub pages, hooks, stores, components
-- **Tests**: Directory structure in place, no test assertions written yet
-- **Data**: Empty template JSONs + demo `.gitkeep` placeholders
+- **Phase**: Core extraction pipeline complete. Knowledge Base + RAG in progress.
+- **Branch**: `main` (default); `dev` for integration
+- **Backend**: Extraction pipeline working end-to-end (preprocess → extract → postprocess → store). RAG pipeline in design.
+- **Frontend**: Dashboard, extraction workspace, chat working. Project workspace in design.
+- **Tests**: 400+ unit tests, ~88% coverage
+- **Data**: Template JSONs for 5 document types + demo placeholders
 
 ## Architecture
 
 ```
 Handler (FastAPI) → UseCase → Service → Repository → SQLAlchemy/Supabase
                                   ↓
-                             Library (CV, Providers, Pipeline)
+                             Library (CV, Providers, Pipeline, RAG)
 ```
 
 Each module in `backend/src/docmind/modules/{name}/` follows this layering.
+
+### Two Pipeline Architectures
+```
+Processing Pipeline (per-doc extraction):
+  preprocess (CV) → extract (VLM) → postprocess → store
+
+RAG Chat Pipeline (project-level):
+  embed_query → retrieve (pgvector) → reason (LLM + persona) → cite
+```
 
 ## Key Paths
 
@@ -56,10 +68,18 @@ Each module in `backend/src/docmind/modules/{name}/` follows this layering.
 | `specs/backend/cv.md` | Classical CV module: deskew, quality, preprocessing |
 | `specs/backend/providers.md` | VLM provider protocol, factory, 4 providers |
 | `specs/backend/pipeline-processing.md` | LangGraph document processing pipeline |
-| `specs/backend/pipeline-chat.md` | LangGraph chat agent pipeline |
+| `specs/backend/pipeline-chat.md` | LangGraph chat agent pipeline + RAG chat pipeline |
+| `specs/backend/projects.md` | Project + Persona data model, CRUD, API |
+| `specs/backend/rag.md` | RAG pipeline v1: basic chunking, embedding, pgvector retrieval |
+| `specs/backend/rag-v2.md` | RAG pipeline v2: contextual chunking, hybrid search (BM25+vector), RRF |
+| `specs/backend/streaming-thinking.md` | DashScope SSE streaming with thinking/reasoning |
 | `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
 | `specs/frontend/state.md` | State management: React Query + Zustand |
-| `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors |
+| `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors (no Supabase) |
+| `specs/backend/auth.md` | Auth proxy module: endpoints, GoTrue integration, JWT strategy |
+| `specs/conventions/deployment.md` | Docker, GHCR, ThinkCentre deployment, Cloudflare tunnels |
+| `specs/conventions/solid-refactor.md` | SOLID refactor: split usecases, protocols, DI factories |
+| `specs/backend/documents-extractions-refactor.md` | Document/extraction module separation |
 
 ## Git Workflow
 
@@ -136,6 +156,37 @@ Never expose stack traces in HTTP responses. Log server-side with structlog, ret
 | `POST` | `/api/v1/chat/{document_id}` | JWT (SSE) |
 | `GET` | `/api/v1/chat/{document_id}/history` | JWT |
 | `GET` | `/api/v1/templates` | No |
+| `POST` | `/api/v1/projects` | JWT |
+| `GET` | `/api/v1/projects` | JWT |
+| `GET` | `/api/v1/projects/{id}` | JWT |
+| `PUT` | `/api/v1/projects/{id}` | JWT |
+| `DELETE` | `/api/v1/projects/{id}` | JWT |
+| `POST` | `/api/v1/projects/{id}/documents` | JWT |
+| `GET` | `/api/v1/projects/{id}/documents` | JWT |
+| `DELETE` | `/api/v1/projects/{id}/documents/{doc_id}` | JWT |
+| `POST` | `/api/v1/projects/{id}/chat` | JWT (SSE) |
+| `GET` | `/api/v1/projects/{id}/conversations` | JWT |
+| `GET` | `/api/v1/projects/{id}/conversations/{conv_id}` | JWT |
+| `DELETE` | `/api/v1/projects/{id}/conversations/{conv_id}` | JWT |
+| `GET` | `/api/v1/personas` | JWT |
+| `POST` | `/api/v1/personas` | JWT |
+| `PUT` | `/api/v1/personas/{id}` | JWT |
+| `DELETE` | `/api/v1/personas/{id}` | JWT |
+| `POST` | `/api/v1/auth/signup` | No |
+| `POST` | `/api/v1/auth/login` | No |
+| `POST` | `/api/v1/auth/logout` | JWT |
+| `GET` | `/api/v1/auth/session` | JWT |
+| `POST` | `/api/v1/auth/refresh` | No |
+| `POST` | `/api/v1/rag/search` | JWT |
+| `GET` | `/api/v1/rag/chunks` | JWT |
+| `GET` | `/api/v1/rag/chunks/{chunk_id}` | JWT |
+| `GET` | `/api/v1/rag/stats` | JWT |
+| `GET` | `/api/v1/analytics/summary` | JWT |
+| `GET` | `/api/v1/documents/{id}/file` | JWT |
+| `GET` | `/api/v1/documents/search` | JWT |
+| `POST` | `/api/v1/extractions/{document_id}/process` | JWT (SSE) |
+| `POST` | `/api/v1/extractions/classify` | JWT |
+| `GET` | `/api/v1/extractions/{document_id}/export` | JWT |
 
 ## Commands
 

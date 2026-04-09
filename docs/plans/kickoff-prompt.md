@@ -107,7 +107,7 @@ Service (modules/*/services.py)         ← Business logic, calls library/
     ↓                   ↓
 Library                 Repository (modules/*/repositories.py)
   ├── Pipeline            ↓
-  ├── Providers         SQLAlchemy (dbase/sqlalchemy/)
+  ├── Providers         SQLAlchemy (dbase/psql/)
   └── CV
 ```
 
@@ -115,7 +115,7 @@ Library                 Repository (modules/*/repositories.py)
 - Handlers → UseCases only (never services/repos directly)
 - UseCases → Services + Repositories
 - Services → Library only (never repos/dbase)
-- Repositories → dbase/sqlalchemy only
+- Repositories → dbase/psql only
 - Library → core/ + dbase/ (for pipeline store node); NEVER imports from modules/
 
 **All imports use full package path:**
@@ -197,7 +197,7 @@ Read these specs BEFORE implementing each layer. They contain exact code example
 2. **Backend skeleton** — pyproject.toml, poetry.toml, Dockerfile, `src/docmind/__init__.py`
 3. **Core layer** — config.py, logging.py, auth.py, dependencies.py
 4. **Shared layer** — exceptions.py hierarchy
-5. **Database layer** — dbase/sqlalchemy/ (engine.py, base.py, models.py) + dbase/supabase/ (client.py for Auth+Storage)
+5. **Database layer** — dbase/psql/ (engine.py, base.py, models.py) + dbase/supabase/ (client.py for Auth+Storage)
 6. **Alembic setup** — alembic.ini, env.py, initial migration
 7. **Health module** — First complete module end-to-end (schemas → service → usecase → handler)
 8. **main.py + router.py** — App factory, mount health router, verify Docker Compose boots

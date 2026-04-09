@@ -3,11 +3,13 @@ docmind/main.py
 
 FastAPI app factory. Configures CORS, registers routers, manages lifecycle.
 """
+
 import logging
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .core.config import get_settings
 from .core.logging import setup_logging
@@ -54,7 +56,33 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    # Request ID + logging middleware (order matters: ID first, then logging)
+    from .core.middleware import RequestIDMiddleware, RequestLoggingMiddleware
+
+    application.add_middleware(RequestLoggingMiddleware)
+    application.add_middleware(RequestIDMiddleware)
+
     application.include_router(api_router, prefix="/api")
+
+    from .shared.exceptions import BaseAppException
+
+    @application.exception_handler(BaseAppException)
+    async def app_exception_handler(request: Request, exc: BaseAppException):
+        """Catch any custom exception not handled by the endpoint."""
+        logger.error("%s [%s]: %s", exc.__class__.__name__, exc.code, exc.message)
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.message},
+        )
+
+    @application.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        """Last resort — unhandled exceptions."""
+        logger.error("Unhandled exception: %s", exc, exc_info=True)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Internal server error"},
+        )
 
     return application
 

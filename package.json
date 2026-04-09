@@ -1,0 +1,12 @@
+{
+  "name": "docmind-vlm",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Intelligent document extraction and chat platform powered by Vision Language Models",
+  "scripts": {},
+  "devDependencies": {
+    "semantic-release": "^24.2.9",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1"
+  }
+}

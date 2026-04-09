@@ -743,8 +743,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import (
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import (
     AuditEntry as AuditEntryModel,
     Document,
     ExtractedField,
@@ -758,7 +758,7 @@ async def _persist_results(state: dict, extraction_id: str) -> None:
     document_id = state["document_id"]
     now = datetime.now(timezone.utc)
 
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         # Step 1: Insert extraction record
         extraction = Extraction(
             id=uuid.UUID(extraction_id),

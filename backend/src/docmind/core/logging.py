@@ -1,8 +1,10 @@
 """
 docmind/core/logging.py
 
-structlog setup and logger factory.
+Structlog setup — beautiful colored output in dev, JSON in production.
+All logs within a request include request_id via contextvars.
 """
+
 import logging
 import sys
 
@@ -16,19 +18,33 @@ def setup_logging() -> None:
     settings = get_settings()
     log_level = getattr(logging, settings.LOG_LEVEL.upper(), logging.INFO)
 
-    # Standard library config
+    # Standard library base config
     logging.basicConfig(
         format="%(message)s",
         stream=sys.stdout,
         level=log_level,
     )
 
-    # Reduce noise from third-party loggers
-    for name in ("uvicorn", "uvicorn.access", "fastapi"):
+    # Silence noisy third-party loggers
+    noisy_loggers = [
+        "uvicorn",
+        "uvicorn.access",
+        "uvicorn.error",
+        "fastapi",
+        "sqlalchemy.engine.Engine",
+        "httpx",
+        "httpcore",
+        "watchfiles",
+    ]
+    for name in noisy_loggers:
         logging.getLogger(name).setLevel(logging.WARNING)
 
-    # structlog config
-    processors: list = [
+    # Keep SQLAlchemy SQL at DEBUG only if explicitly requested
+    if settings.LOG_LEVEL.upper() == "DEBUG":
+        logging.getLogger("sqlalchemy.engine.Engine").setLevel(logging.INFO)
+
+    # Shared processors (run in order)
+    shared_processors: list = [
         structlog.contextvars.merge_contextvars,
         structlog.stdlib.filter_by_level,
         structlog.stdlib.add_logger_name,
@@ -39,13 +55,22 @@ def setup_logging() -> None:
         structlog.processors.UnicodeDecoder(),
     ]
 
-    if settings.APP_ENVIRONMENT == "development":
-        processors.append(structlog.dev.ConsoleRenderer())
+    if settings.APP_ENVIRONMENT in ("development", "local"):
+        # Beautiful colored console output with aligned columns
+        shared_processors.append(
+            structlog.dev.ConsoleRenderer(
+                colors=True,
+                pad_event_to=42,
+            )
+        )
     else:
-        processors.append(structlog.processors.JSONRenderer())
+        # JSON for production log aggregators
+        shared_processors.append(
+            structlog.processors.JSONRenderer()
+        )
 
     structlog.configure(
-        processors=processors,
+        processors=shared_processors,
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),

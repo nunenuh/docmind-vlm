@@ -52,11 +52,32 @@ backend/                             # Independent Python service
 │       │   │   ├── __init__.py
 │       │   │   ├── client.py        # Supabase client init (Auth + Storage only)
 │       │   │   └── storage.py       # File upload, download, signed-URL helpers
-│       │   └── sqlalchemy/
-│       │       ├── __init__.py
-│       │       ├── engine.py        # Async engine + session factory
-│       │       ├── base.py          # DeclarativeBase
-│       │       └── models.py        # ORM models (Document, Extraction, etc.)
+│       │   └── psql/
+│       │       ├── __init__.py      # Re-exports: Base, engine, session, models
+│       │       ├── core/
+│       │       │   ├── __init__.py   # Re-exports: Base, engine, session, init_db
+│       │       │   ├── base.py       # DeclarativeBase
+│       │       │   ├── engine.py     # Async engine (NullPool) + lru_cache factory
+│       │       │   ├── session.py    # async_sessionmaker + get_async_db_session()
+│       │       │   └── init_db.py    # Programmatic create_all / drop_all
+│       │       ├── models/
+│       │       │   ├── __init__.py   # Re-exports all 6 ORM models
+│       │       │   ├── document.py
+│       │       │   ├── extraction.py
+│       │       │   ├── extracted_field.py
+│       │       │   ├── audit_entry.py
+│       │       │   ├── chat_message.py
+│       │       │   ├── citation.py
+│       │       │   ├── project.py
+│       │       │   ├── persona.py
+│       │       │   ├── project_conversation.py
+│       │       │   ├── project_message.py
+│       │       │   └── page_chunk.py
+│       │       ├── services/
+│       │       │   ├── __init__.py
+│       │       │   └── migrate.py    # Programmatic Alembic runner (upgrade/downgrade/generate CLI)
+│       │       └── langgraph/
+│       │           └── __init__.py   # Placeholder for LangGraph checkpointer
 │       ├── library/                 # Reusable logic (can use frameworks, NOT tied to modules/DB)
 │       │   ├── __init__.py
 │       │   ├── cv/                  # Classical computer vision (pure functions)
@@ -72,57 +93,34 @@ backend/                             # Independent Python service
 │       │   │   ├── openai.py        # GPT-4o via OpenAI API
 │       │   │   ├── google.py        # Gemini via Google AI API
 │       │   │   └── ollama.py        # Local models via Ollama
+│       │   ├── rag/                 # RAG pipeline (text extraction, chunking, embedding, retrieval)
+│       │   │   ├── __init__.py      # Re-exports: index_document_for_rag, retrieve_chunks
+│       │   │   ├── text_extract.py  # extract_text_from_pdf(), extract_text_from_image()
+│       │   │   ├── chunker.py       # chunk_text() — recursive character splitting
+│       │   │   ├── embedder.py      # EmbeddingProvider protocol, DashScopeEmbedder, get_embedder()
+│       │   │   ├── retriever.py     # retrieve_chunks() — cosine similarity search
+│       │   │   └── indexer.py       # index_document_for_rag() — orchestrates extract → chunk → embed → store
 │       │   └── pipeline/            # LangGraph workflow definitions
 │       │       ├── __init__.py      # Re-exports: run_processing_pipeline, run_chat_pipeline
 │       │       ├── processing.py    # Document processing StateGraph
 │       │       │                    #   nodes: preprocess → extract → postprocess → store
 │       │       └── chat.py          # Chat agent StateGraph
 │       │                            #   nodes: router → retrieve → reason → cite
-│       ├── modules/                 # Feature modules (Handler → UseCase → Service → Repository)
+│       ├── modules/                 # Feature modules — SOLID architecture
+│       │   │                        # Each module has: protocols.py, dependencies.py,
+│       │   │                        # schemas.py, usecase.py (or usecases/), services/,
+│       │   │                        # repositories.py (or repositories/), apiv1/handler.py
 │       │   ├── __init__.py
-│       │   ├── health/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # HealthResponse, ComponentStatus
-│       │   │   ├── services.py      # Check Supabase, Redis, VLM provider connectivity
-│       │   │   ├── usecase.py       # Orchestrates health checks
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # GET /api/v1/health
-│       │   ├── documents/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # DocumentUpload, DocumentResponse, DocumentList
-│       │   │   ├── services.py      # File validation, metadata extraction, trigger processing
-│       │   │   ├── repositories.py  # Supabase documents table CRUD + storage upload
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # POST upload, GET list, GET /{id}, DELETE /{id}, POST /{id}/process
-│       │   ├── extractions/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # ExtractionResult, ExtractedField, AuditEntry, OverlayRegion, ComparisonResult
-│       │   │   ├── services.py      # Get results, build audit trail, generate overlay, compute comparison
-│       │   │   ├── repositories.py  # extraction_results, extracted_fields, audit_log, raw_baselines tables
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # GET /{doc_id}/extraction, /audit, /overlay, /compare
-│       │   ├── chat/
-│       │   │   ├── __init__.py
-│       │   │   ├── schemas.py       # ChatRequest, ChatResponse, ChatMessage, Citation
-│       │   │   ├── services.py      # Invoke chat pipeline, persist messages, load context
-│       │   │   ├── repositories.py  # chat_messages table CRUD
-│       │   │   ├── usecase.py       # Orchestrates service + repository
-│       │   │   └── apiv1/
-│       │   │       ├── __init__.py
-│       │   │       └── handler.py   # POST /api/v1/documents/{doc_id}/chat (SSE), GET chat/history
-│       │   └── templates/
-│       │       ├── __init__.py
-│       │       ├── schemas.py       # TemplateResponse, TemplateListResponse
-│       │       ├── services.py      # Load templates from data/templates/*.json
-│       │       ├── usecase.py       # Orchestrates service
-│       │       └── apiv1/
-│       │           ├── __init__.py
-│       │           └── handler.py   # GET /api/v1/templates
+│       │   ├── auth/                # Authentication (proxies GoTrue REST)
+│       │   ├── health/              # Health checks
+│       │   ├── documents/           # Document CRUD + file serving
+│       │   ├── extractions/         # Extraction pipeline trigger + results (usecases/ split)
+│       │   ├── chat/                # Per-document VLM chat
+│       │   ├── templates/           # Extraction template CRUD (seeded from JSON)
+│       │   ├── projects/            # Knowledge base projects (usecases/ split into 4)
+│       │   ├── personas/            # AI persona CRUD (seeded from JSON)
+│       │   ├── rag/                 # Independent RAG module (indexing, retrieval, search)
+│       │   └── analytics/           # Dashboard stats
 │       └── shared/
 │           ├── __init__.py
 │           ├── exceptions.py        # Exception hierarchy
@@ -185,6 +183,7 @@ frontend/                            # Independent React app
     ├── index.css                    # Tailwind + CSS variables (light/dark themes)
     ├── components/
     │   ├── ui/                      # shadcn/ui generated components
+    │   ├── project/                 # Project dashboard, document list, persona selector
     │   ├── workspace/               # Document viewer, extraction panel, chat
     │   │   ├── UploadArea.tsx
     │   │   ├── DocumentViewer.tsx
@@ -203,12 +202,16 @@ frontend/                            # Independent React app
     ├── pages/
     │   ├── LandingPage.tsx
     │   ├── Dashboard.tsx
-    │   └── Workspace.tsx
+    │   ├── Workspace.tsx
+    │   ├── ProjectDashboard.tsx
+    │   └── ProjectWorkspace.tsx
     ├── hooks/                       # React Query hooks
     │   ├── useDocuments.ts
     │   ├── useExtraction.ts
     │   ├── useChat.ts
-    │   └── useTemplates.ts
+    │   ├── useTemplates.ts
+    │   ├── useProjects.ts
+    │   └── usePersonas.ts
     ├── lib/
     │   ├── supabase.ts              # Supabase client init + OAuth helpers
     │   ├── api.ts                   # Backend API client (JWT-attached fetch + SSE)
@@ -264,8 +267,12 @@ SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
-# Database (Supabase Postgres via SQLAlchemy)
-DATABASE_URL=postgresql+asyncpg://postgres.[project-ref]:[password]@aws-0-[region].pooler.supabase.com:6543/postgres
+# Database (Supabase Postgres via SQLAlchemy — individual vars)
+DB_HOST=aws-0-[region].pooler.supabase.com
+DB_PORT=6543
+DB_USER=postgres.[project-ref]
+DB_PASSWORD=your-password
+DB_NAME=postgres
 
 # Redis (optional — for job queue)
 REDIS_URL=redis://redis:6379/0
@@ -284,6 +291,15 @@ ALLOWED_ORIGINS_STR=http://localhost:5173,http://localhost:3000
 
 # Data
 DATA_DIR=data
+
+# RAG
+EMBEDDING_PROVIDER=dashscope
+EMBEDDING_MODEL=text-embedding-v3
+EMBEDDING_DIMENSIONS=1024
+RAG_CHUNK_SIZE=512
+RAG_CHUNK_OVERLAP=64
+RAG_TOP_K=8
+RAG_SIMILARITY_THRESHOLD=0.3
 ```
 
 ### `frontend/.env`
@@ -342,17 +358,38 @@ class Settings(BaseSettings):
 
     # Supabase (Auth + Storage)
     SUPABASE_URL: str = Field(default="")
-    SUPABASE_ANON_KEY: str = Field(default="")
-    SUPABASE_SERVICE_ROLE_KEY: str = Field(default="")
+    SUPABASE_PUBLISHABLE_KEY: str = Field(default="")
+    SUPABASE_SECRET_KEY: str = Field(default="")
 
-    # Database (Supabase Postgres via SQLAlchemy)
-    DATABASE_URL: str = Field(default="postgresql+asyncpg://localhost:5432/docmind")
+    # Database (Supabase Postgres via SQLAlchemy — individual vars)
+    DB_HOST: str = Field(default="localhost")
+    DB_PORT: int = Field(default=5432)
+    DB_USER: str = Field(default="postgres")
+    DB_PASSWORD: str = Field(default="")
+    DB_NAME: str = Field(default="postgres")
+
+    @property
+    def database_url(self) -> str:
+        """Build async database URL from individual components."""
+        return (
+            f"postgresql+asyncpg://{self.DB_USER}:{self.DB_PASSWORD}"
+            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+        )
 
     # Redis
     REDIS_URL: str = Field(default="redis://localhost:6379/0")
 
     # Data
     DATA_DIR: str = Field(default="data")
+
+    # RAG
+    EMBEDDING_PROVIDER: str = Field(default="dashscope")
+    EMBEDDING_MODEL: str = Field(default="text-embedding-v3")
+    EMBEDDING_DIMENSIONS: int = Field(default=1024)
+    RAG_CHUNK_SIZE: int = Field(default=512)
+    RAG_CHUNK_OVERLAP: int = Field(default=64)
+    RAG_TOP_K: int = Field(default=8)
+    RAG_SIMILARITY_THRESHOLD: float = Field(default=0.3)
 
     @property
     def allowed_origins(self) -> list[str]:
@@ -517,26 +554,50 @@ logger.error("Provider call failed", error=str(e), provider=provider_name)
 | Database schema & queries | SQLAlchemy + Alembic |
 | Auth (JWT) | Supabase Auth |
 | File storage | Supabase Storage SDK |
-| Connection | `DATABASE_URL` → async SQLAlchemy engine |
+| Connection | `DB_HOST/DB_PORT/DB_USER/DB_PASSWORD/DB_NAME` → computed `database_url` property → async SQLAlchemy engine |
 
-**Supabase is the managed Postgres host.** SQLAlchemy connects to it via the standard connection string from Supabase dashboard. Supabase RLS is bypassed because the backend connects as `postgres` (superuser) — ownership is enforced in the repository layer by filtering on `user_id`.
+**Supabase is the managed Postgres host.** SQLAlchemy connects to it via a URL built from individual `DB_*` env vars. Supabase RLS is bypassed because the backend connects as `postgres` (superuser) — ownership is enforced in the repository layer by filtering on `user_id`.
 
 ```python
-# dbase/sqlalchemy/engine.py
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# dbase/psql/core/engine.py
+from functools import lru_cache
+from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine as sa_create
+from sqlalchemy.pool import NullPool
 from docmind.core.config import get_settings
 
-settings = get_settings()
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.APP_DEBUG)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+def create_async_engine() -> AsyncEngine:
+    settings = get_settings()
+    return sa_create(settings.database_url, poolclass=NullPool, echo=settings.APP_DEBUG)
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
-    async with async_session() as session:
-        yield session
+@lru_cache()
+def get_async_engine() -> AsyncEngine:
+    return create_async_engine()
 ```
 
 ```python
-# dbase/sqlalchemy/base.py
+# dbase/psql/core/session.py
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+from .engine import get_async_engine
+
+AsyncSessionLocal = async_sessionmaker(
+    bind=get_async_engine(), class_=AsyncSession,
+    expire_on_commit=False, autocommit=False, autoflush=False,
+)
+
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
+    async with AsyncSessionLocal() as session:
+        try:
+            yield session
+            await session.commit()
+        except Exception:
+            await session.rollback()
+            raise
+        finally:
+            await session.close()
+```
+
+```python
+# dbase/psql/core/base.py
 from sqlalchemy.orm import DeclarativeBase
 
 class Base(DeclarativeBase):
@@ -545,11 +606,11 @@ class Base(DeclarativeBase):
 
 ```python
 # Repository usage
-from docmind.dbase.sqlalchemy.engine import get_session
+from docmind.dbase.psql.core.session import get_async_db_session
 
 class DocumentRepository:
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,  # ownership enforcement
@@ -637,13 +698,16 @@ Note: `--cov=docmind` measures coverage of the package.
 
 **Alembic migrations (from `backend/`):**
 ```bash
-# Create a new migration
+# Via programmatic CLI (preferred — uses docmind.dbase.psql.services.migrate)
+poetry run python -m docmind.dbase.psql.services.migrate upgrade
+poetry run python -m docmind.dbase.psql.services.migrate downgrade
+poetry run python -m docmind.dbase.psql.services.migrate generate "add new column"
+poetry run python -m docmind.dbase.psql.services.migrate current
+poetry run python -m docmind.dbase.psql.services.migrate history
+
+# Or via Alembic directly
 cd backend && poetry run alembic revision --autogenerate -m "add documents table"
-
-# Apply migrations
 poetry run alembic upgrade head
-
-# Rollback one step
 poetry run alembic downgrade -1
 ```
 

@@ -1,1 +1,7 @@
-{}
+{
+  "type": "receipt",
+  "name": "Receipt",
+  "description": "Purchase receipts with itemized costs",
+  "required_fields": ["date", "total_amount", "merchant_name"],
+  "optional_fields": ["tax_amount", "payment_method", "line_items"]
+}

@@ -1,0 +1,196 @@
+# Dev stack — builds images, runs full stack
+# Usage: make docker-dev
+#
+# Requires: .env.dev in repo root (copy from .env.dev.example)
+# Frontend: http://localhost:5178
+# Backend:  http://localhost:8010
+# Supabase: http://localhost:54322
+# Ports offset from local dev (5177/8009/54321) to avoid conflicts
+
+services:
+  # ── Application ──────────────────────────────────────
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: ../docker/images/Dockerfile.frontend
+      args:
+        VITE_API_URL: "http://localhost:8010"
+    container_name: docmind-dev-frontend
+    ports:
+      - "5178:5177"
+    depends_on:
+      - backend
+    networks:
+      - docmind-dev
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../docker/images/Dockerfile.backend
+    container_name: docmind-dev-backend
+    ports:
+      - "8010:8009"
+    env_file:
+      - ../.env.dev
+    environment:
+      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      - SUPABASE_URL=http://supabase-kong:8000
+      - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SECRET_KEY=${SUPABASE_SERVICE_ROLE_KEY}
+      - REDIS_URL=redis://redis:6379/0
+      - ALLOWED_ORIGINS_STR=http://localhost:5178,http://localhost:3000
+    volumes:
+      - ../data:/app/data
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    networks:
+      - docmind-dev
+
+  # ── Infrastructure ──────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: docmind-dev-redis
+    volumes:
+      - dev_redis_data:/data
+    networks:
+      - docmind-dev
+
+  supabase-db:
+    image: supabase/postgres:15.8.1.060
+    container_name: docmind-dev-supabase-db
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: postgres
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXP: 3600
+    volumes:
+      - dev_supabase_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks:
+      - docmind-dev
+
+  supabase-init:
+    image: supabase/postgres:15.8.1.060
+    container_name: docmind-dev-supabase-init
+    entrypoint: ["/bin/bash", "/init/01-roles.sh"]
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      DB_HOST: supabase-db
+    volumes:
+      - ./init/01-roles.sh:/init/01-roles.sh:ro
+    depends_on:
+      supabase-db:
+        condition: service_healthy
+    networks:
+      - docmind-dev
+    restart: "no"
+
+  supabase-auth:
+    image: supabase/gotrue:v2.170.0
+    container_name: docmind-dev-supabase-auth
+    environment:
+      GOTRUE_API_HOST: 0.0.0.0
+      GOTRUE_API_PORT: 9999
+      API_EXTERNAL_URL: http://localhost:54322
+      GOTRUE_DB_DRIVER: postgres
+      GOTRUE_DB_DATABASE_URL: postgres://supabase_auth_admin:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      GOTRUE_SITE_URL: http://localhost:5178
+      GOTRUE_URI_ALLOW_LIST: ""
+      GOTRUE_DISABLE_SIGNUP: "false"
+      GOTRUE_JWT_ADMIN_ROLES: service_role
+      GOTRUE_JWT_AUD: authenticated
+      GOTRUE_JWT_DEFAULT_GROUP_NAME: authenticated
+      GOTRUE_JWT_EXP: 3600
+      GOTRUE_JWT_SECRET: ${JWT_SECRET}
+      GOTRUE_EXTERNAL_EMAIL_ENABLED: "true"
+      GOTRUE_MAILER_AUTOCONFIRM: "true"
+      GOTRUE_SMTP_ADMIN_EMAIL: admin@docmind.local
+      GOTRUE_SMTP_HOST: "localhost"
+      GOTRUE_SMTP_PORT: 587
+      GOTRUE_SMTP_PASS: "unused"
+      GOTRUE_SMTP_SENDER_NAME: DocMind
+      GOTRUE_RATE_LIMIT_EMAIL_SENT: 100
+    depends_on:
+      supabase-init:
+        condition: service_completed_successfully
+    networks:
+      - docmind-dev
+
+  supabase-rest:
+    image: postgrest/postgrest:v12.2.3
+    container_name: docmind-dev-supabase-rest
+    environment:
+      PGRST_DB_URI: postgres://authenticator:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      PGRST_DB_SCHEMAS: public,storage,graphql_public
+      PGRST_DB_ANON_ROLE: anon
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      PGRST_DB_USE_LEGACY_GUCS: "false"
+    depends_on:
+      supabase-init:
+        condition: service_completed_successfully
+    networks:
+      - docmind-dev
+
+  supabase-storage:
+    image: supabase/storage-api:v1.11.13
+    container_name: docmind-dev-supabase-storage
+    environment:
+      ANON_KEY: ${SUPABASE_ANON_KEY}
+      SERVICE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
+      POSTGREST_URL: http://supabase-rest:3000
+      PGRST_JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: postgres://supabase_storage_admin:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      FILE_SIZE_LIMIT: 52428800
+      STORAGE_BACKEND: file
+      FILE_STORAGE_BACKEND_PATH: /var/lib/storage
+      TENANT_ID: stub
+      REGION: stub
+      GLOBAL_S3_BUCKET: stub
+      ENABLE_IMAGE_TRANSFORMATION: "true"
+      IMGPROXY_URL: ""
+    volumes:
+      - dev_storage_data:/var/lib/storage
+    depends_on:
+      supabase-init:
+        condition: service_completed_successfully
+      supabase-rest:
+        condition: service_started
+    networks:
+      - docmind-dev
+
+  supabase-kong:
+    image: kong:2.8.1
+    container_name: docmind-dev-supabase-kong
+    environment:
+      KONG_DATABASE: "off"
+      KONG_DECLARATIVE_CONFIG: /var/lib/kong/kong.yml
+      KONG_DNS_ORDER: LAST,A,CNAME
+      KONG_PLUGINS: request-transformer,cors,key-auth,acl
+      KONG_NGINX_PROXY_PROXY_BUFFER_SIZE: 160k
+      KONG_NGINX_PROXY_PROXY_BUFFERS: 64 160k
+    volumes:
+      - ./kong.yml:/var/lib/kong/kong.yml:ro
+    ports:
+      - "54322:8000"
+    depends_on:
+      - supabase-auth
+      - supabase-rest
+      - supabase-storage
+    networks:
+      - docmind-dev
+
+networks:
+  docmind-dev:
+    driver: bridge
+
+volumes:
+  dev_redis_data:
+  dev_supabase_db:
+  dev_storage_data:

@@ -7,8 +7,8 @@ from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import async_engine_from_config
 
 from docmind.core.config import get_settings
-from docmind.dbase.sqlalchemy.base import Base
-from docmind.dbase.sqlalchemy import models  # noqa: F401 — register models
+from docmind.dbase.psql.core.base import Base
+from docmind.dbase.psql import models  # noqa: F401 — register models
 
 config = context.config
 if config.config_file_name is not None:
@@ -17,7 +17,7 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+config.set_main_option("sqlalchemy.url", settings.database_url)
 
 
 def run_migrations_offline() -> None:

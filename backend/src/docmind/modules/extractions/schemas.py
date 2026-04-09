@@ -1,5 +1,7 @@
 """docmind/modules/extractions/schemas.py"""
+
 from datetime import datetime
+
 from pydantic import BaseModel, Field
 
 
@@ -51,3 +53,25 @@ class ComparisonResponse(BaseModel):
     raw_fields: list[dict]
     corrected: list[str]
     added: list[str]
+
+
+# ── API Request Schemas ───────────────────────────────────
+
+
+class ProcessRequest(BaseModel):
+    """Request body for triggering extraction pipeline."""
+
+    template_type: str | None = None
+
+
+class ClassifyRequest(BaseModel):
+    """Request body for auto-detecting document type."""
+
+    document_id: str = Field(..., min_length=1)
+
+
+class ClassifyResponse(BaseModel):
+    """Response from document type classification."""
+
+    document_type: str | None
+    confidence: float = 0.0

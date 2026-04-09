@@ -108,16 +108,77 @@ export interface ChatHistoryResponse {
   limit: number;
 }
 
-export interface TemplateResponse {
+export interface TemplateFieldDef {
+  key: string;
+  label: string;
+  label_en?: string;
+  type: string;
+  validation?: string | null;
+  values?: string[] | null;
+  required: boolean;
+}
+
+export interface TemplateSummary {
+  id: string;
   type: string;
   name: string;
-  description: string;
-  required_fields: string[];
-  optional_fields: string[];
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category: string;
+  is_preset: boolean;
+  required_field_count: number;
+  optional_field_count: number;
+  total_field_count: number;
+}
+
+export interface TemplateDetail {
+  id: string;
+  type: string;
+  name: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category: string;
+  is_preset: boolean;
+  fields: TemplateFieldDef[];
+  extraction_prompt: string;
 }
 
 export interface TemplateListResponse {
-  items: TemplateResponse[];
+  items: TemplateSummary[];
+}
+
+export interface AutoDetectResponse {
+  document_type: string;
+  document_name: string;
+  language: string;
+  confidence: number;
+  detected_fields: TemplateFieldDef[];
+  suggested_template: Record<string, unknown>;
+}
+
+export type TemplateResponse = TemplateSummary;
+
+export interface TemplateCreateRequest {
+  type: string;
+  name: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category?: string;
+  fields?: TemplateFieldDef[];
+  extraction_prompt?: string;
+}
+
+export interface TemplateUpdateRequest {
+  name?: string;
+  name_en?: string;
+  description?: string;
+  description_en?: string;
+  category?: string;
+  fields?: TemplateFieldDef[];
+  extraction_prompt?: string;
 }
 
 export interface HealthComponentResponse {
@@ -133,6 +194,68 @@ export interface HealthResponse {
   version: string;
   components: HealthComponentResponse[];
   uptime_seconds: number;
+}
+
+// Projects
+export interface ProjectResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  persona_id: string | null;
+  document_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectListResponse {
+  items: ProjectResponse[];
+  total: number;
+  page: number;
+  limit: number;
+}
+
+export interface ProjectDocumentResponse {
+  id: string;
+  filename: string;
+  file_type: string;
+  file_size: number;
+  page_count: number;
+  status: string;
+  created_at: string;
+}
+
+export interface PersonaResponse {
+  id: string;
+  name: string;
+  description: string | null;
+  system_prompt: string;
+  tone: string;
+  rules: string | null;
+  boundaries: string | null;
+  is_preset: boolean;
+  created_at: string;
+}
+
+export interface ConversationResponse {
+  id: string;
+  title: string | null;
+  message_count: number;
+  created_at: string;
+}
+
+export interface MessageResponse {
+  id: string;
+  role: string;
+  content: string;
+  citations: string | null;
+  created_at: string;
+}
+
+export interface ConversationDetailResponse {
+  id: string;
+  title: string | null;
+  messages: MessageResponse[];
+  created_at: string;
 }
 
 export class ApiError extends Error {

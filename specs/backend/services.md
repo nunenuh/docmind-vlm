@@ -20,7 +20,7 @@ modules/{module}/
 └── repositories.py      # DB operations only — SQLAlchemy queries
 ```
 
-**Dependency direction:** `handler.py` -> `usecase.py` -> `services.py` + `repositories.py` -> `library/` + `dbase/sqlalchemy/` + `dbase/supabase/` (storage only)
+**Dependency direction:** `handler.py` -> `usecase.py` -> `services.py` + `repositories.py` -> `library/` + `dbase/psql/` + `dbase/supabase/` (storage only)
 
 **Key constraint:** Services never import from `modules/{other_module}/`. Cross-module coordination happens through `shared/` or at the usecase level.
 
@@ -35,6 +35,8 @@ modules/{module}/
 | **extractions** | `ExtractionUseCase` | `ExtractionService` | `ExtractionRepository` |
 | **chat** | `ChatUseCase` | `ChatService` | `ChatRepository` |
 | **templates** | — (static data) | — | — |
+| **projects** | `ProjectUseCase` | `ProjectService` | `ProjectRepository` |
+| **personas** | — (thin CRUD) | — | `PersonaRepository` |
 
 ---
 
@@ -56,8 +58,8 @@ from docmind.library.cv import convert_to_page_images
 
 # Repository imports (DB only — SQLAlchemy)
 from sqlalchemy import select, update, delete
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document, Extraction, ExtractedField
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document, Extraction, ExtractedField
 from docmind.shared.exceptions import RepositoryException
 ```
 
@@ -79,8 +81,8 @@ from sqlalchemy import delete as sa_delete
 from sqlalchemy import func, select, update
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import (
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import (
     AuditEntry,
     ChatMessage,
     Document,
@@ -103,7 +105,7 @@ class DocumentRepository:
         storage_path: str,
     ) -> Document:
         """Insert a new document record. Returns the created ORM instance."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             doc = Document(
                 user_id=user_id,
                 filename=filename,
@@ -118,7 +120,7 @@ class DocumentRepository:
 
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
         """Get a single document by ID, scoped to user."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,
@@ -135,7 +137,7 @@ class DocumentRepository:
         """Get paginated documents for a user. Returns (items, total_count)."""
         offset = (page - 1) * limit
 
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Count total
             count_stmt = select(func.count()).select_from(Document).where(
                 Document.user_id == user_id
@@ -157,7 +159,7 @@ class DocumentRepository:
 
     async def delete(self, document_id: str, user_id: str) -> str | None:
         """Delete a document and cascaded records. Returns storage_path if found."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Get document first
             stmt = select(Document).where(
                 Document.id == document_id,
@@ -202,7 +204,7 @@ class DocumentRepository:
         **kwargs,
     ) -> None:
         """Update document status and optional fields."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 update(Document)
                 .where(Document.id == document_id)
@@ -426,8 +428,8 @@ Extraction database operations via SQLAlchemy.
 from sqlalchemy import select
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import AuditEntry, ExtractedField, Extraction
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import AuditEntry, ExtractedField, Extraction
 
 logger = get_logger(__name__)
 
@@ -437,7 +439,7 @@ class ExtractionRepository:
 
     async def get_latest_extraction(self, document_id: str) -> Extraction | None:
         """Get the most recent extraction record for a document."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(Extraction)
                 .where(Extraction.document_id == document_id)
@@ -449,7 +451,7 @@ class ExtractionRepository:
 
     async def get_fields(self, extraction_id: str) -> list[ExtractedField]:
         """Get all extracted fields for an extraction."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(ExtractedField)
                 .where(ExtractedField.extraction_id == extraction_id)
@@ -460,7 +462,7 @@ class ExtractionRepository:
 
     async def get_audit_trail(self, extraction_id: str) -> list[AuditEntry]:
         """Get audit trail entries for an extraction."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(AuditEntry)
                 .where(AuditEntry.extraction_id == extraction_id)
@@ -653,8 +655,8 @@ Chat message database operations via SQLAlchemy.
 from sqlalchemy import func, select
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import ChatMessage, ExtractedField, Extraction
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import ChatMessage, ExtractedField, Extraction
 
 logger = get_logger(__name__)
 
@@ -671,7 +673,7 @@ class ChatRepository:
         citations: list[dict] | None = None,
     ) -> str:
         """Save a chat message. Returns the message ID."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             msg = ChatMessage(
                 document_id=document_id,
                 user_id=user_id,
@@ -694,7 +696,7 @@ class ChatRepository:
         """Get paginated chat history. Returns (items, total_count)."""
         offset = (page - 1) * limit
 
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Count total
             count_stmt = (
                 select(func.count())
@@ -729,7 +731,7 @@ class ChatRepository:
         limit: int = 20,
     ) -> list[ChatMessage]:
         """Get recent messages for conversation context."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 select(ChatMessage)
                 .where(
@@ -744,7 +746,7 @@ class ChatRepository:
 
     async def get_extracted_fields(self, document_id: str) -> list[ExtractedField]:
         """Get extracted fields for a document (for chat context)."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             # Get latest extraction ID
             ext_stmt = (
                 select(Extraction.id)
@@ -806,8 +808,8 @@ import json
 from typing import AsyncGenerator
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document
 from docmind.library.pipeline import run_chat_pipeline
 from sqlalchemy import select
 
@@ -917,7 +919,7 @@ class ChatUseCase:
     ) -> tuple[list, list, list[dict]]:
         """Load document context: page images, extracted fields, conversation history."""
         # Load document metadata via SQLAlchemy
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(Document.id == document_id)
             result = await session.execute(stmt)
             doc = result.scalar_one_or_none()
@@ -985,7 +987,7 @@ import time
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
+from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.library.providers import get_vlm_provider
 from sqlalchemy import text
 
@@ -1011,7 +1013,7 @@ class HealthUseCase:
         # Check Database (Supabase Postgres via SQLAlchemy)
         try:
             t0 = time.time()
-            async with async_session() as session:
+            async with AsyncSessionLocal() as session:
                 await session.execute(text("SELECT 1"))
             ms = (time.time() - t0) * 1000
             components.append(ComponentHealth(
@@ -1072,10 +1074,560 @@ class RepositoryException(Exception):
 
 ---
 
+## Projects Module
+
+### `modules/projects/repositories.py`
+
+```python
+"""
+docmind/modules/projects/repositories.py
+
+Project database operations via SQLAlchemy.
+"""
+from datetime import datetime, timezone
+
+from sqlalchemy import delete as sa_delete
+from sqlalchemy import func, select, update
+
+from docmind.core.logging import get_logger
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import (
+    Document,
+    PageChunk,
+    Project,
+    ProjectConversation,
+    ProjectMessage,
+)
+
+logger = get_logger(__name__)
+
+
+class ProjectRepository:
+    """Repository for project CRUD operations via SQLAlchemy."""
+
+    async def create(
+        self,
+        user_id: str,
+        name: str,
+        description: str | None = None,
+        persona_id: str | None = None,
+    ) -> Project:
+        """Insert a new project record. Returns the created ORM instance."""
+        async with AsyncSessionLocal() as session:
+            project = Project(
+                user_id=user_id,
+                name=name,
+                description=description,
+                persona_id=persona_id,
+            )
+            session.add(project)
+            await session.commit()
+            await session.refresh(project)
+            return project
+
+    async def get_by_id(self, project_id: str, user_id: str) -> Project | None:
+        """Get a single project by ID, scoped to user."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Project).where(
+                Project.id == project_id,
+                Project.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            return result.scalar_one_or_none()
+
+    async def list_for_user(
+        self,
+        user_id: str,
+        page: int,
+        limit: int,
+    ) -> tuple[list[Project], int]:
+        """Get paginated projects for a user. Returns (items, total_count)."""
+        offset = (page - 1) * limit
+        async with AsyncSessionLocal() as session:
+            count_stmt = select(func.count()).select_from(Project).where(
+                Project.user_id == user_id
+            )
+            total = (await session.execute(count_stmt)).scalar() or 0
+
+            stmt = (
+                select(Project)
+                .where(Project.user_id == user_id)
+                .order_by(Project.updated_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
+            result = await session.execute(stmt)
+            items = list(result.scalars().all())
+            return items, total
+
+    async def update(
+        self,
+        project_id: str,
+        user_id: str,
+        **kwargs,
+    ) -> Project | None:
+        """Update project fields. Returns updated instance or None."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Project).where(
+                Project.id == project_id,
+                Project.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            project = result.scalar_one_or_none()
+            if project is None:
+                return None
+
+            for key, value in kwargs.items():
+                setattr(project, key, value)
+            project.updated_at = datetime.now(timezone.utc)
+            await session.commit()
+            await session.refresh(project)
+            return project
+
+    async def delete(self, project_id: str, user_id: str) -> bool:
+        """Delete a project and cascade: docs association, chunks, conversations, messages."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Project).where(
+                Project.id == project_id,
+                Project.user_id == user_id,
+            )
+            result = await session.execute(stmt)
+            project = result.scalar_one_or_none()
+            if project is None:
+                return False
+
+            # Delete page chunks for project documents
+            await session.execute(
+                sa_delete(PageChunk).where(PageChunk.project_id == project_id)
+            )
+
+            # Delete conversation messages, then conversations
+            conv_stmt = select(ProjectConversation.id).where(
+                ProjectConversation.project_id == project_id
+            )
+            conv_result = await session.execute(conv_stmt)
+            conv_ids = [row[0] for row in conv_result.all()]
+            if conv_ids:
+                await session.execute(
+                    sa_delete(ProjectMessage).where(
+                        ProjectMessage.conversation_id.in_(conv_ids)
+                    )
+                )
+            await session.execute(
+                sa_delete(ProjectConversation).where(
+                    ProjectConversation.project_id == project_id
+                )
+            )
+
+            await session.delete(project)
+            await session.commit()
+            return True
+
+    async def add_document(self, project_id: str, document_id: str) -> None:
+        """Associate a document with a project (via project_id FK on Document)."""
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                update(Document)
+                .where(Document.id == document_id)
+                .values(project_id=project_id)
+            )
+            await session.execute(stmt)
+            await session.commit()
+
+    async def remove_document(self, project_id: str, document_id: str) -> bool:
+        """Remove document association and delete its chunks."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Document).where(
+                Document.id == document_id,
+                Document.project_id == project_id,
+            )
+            result = await session.execute(stmt)
+            doc = result.scalar_one_or_none()
+            if doc is None:
+                return False
+
+            # Delete chunks for this document in this project
+            await session.execute(
+                sa_delete(PageChunk).where(
+                    PageChunk.document_id == document_id,
+                    PageChunk.project_id == project_id,
+                )
+            )
+
+            # Clear project association
+            doc.project_id = None
+            await session.commit()
+            return True
+```
+
+### `modules/projects/services.py`
+
+```python
+"""
+docmind/modules/projects/services.py
+
+Project business logic — validates project names, orchestrates RAG indexing.
+"""
+from docmind.core.logging import get_logger
+from docmind.library.rag import index_document_for_rag
+from docmind.shared.exceptions import ServiceException
+
+logger = get_logger(__name__)
+
+
+class ProjectService:
+    """Business logic for project operations (no DB)."""
+
+    @staticmethod
+    def validate_project_name(name: str) -> str:
+        """Validate and normalize project name."""
+        name = name.strip()
+        if not name:
+            raise ServiceException("Project name cannot be empty")
+        if len(name) > 255:
+            raise ServiceException("Project name too long")
+        return name
+
+    async def index_document(
+        self,
+        project_id: str,
+        document_id: str,
+        storage_path: str,
+        file_type: str,
+    ) -> int:
+        """
+        Index a document for RAG retrieval.
+
+        Orchestrates: text extraction → chunking → embedding → storage.
+        Returns the number of chunks created.
+        """
+        return await index_document_for_rag(
+            project_id=project_id,
+            document_id=document_id,
+            storage_path=storage_path,
+            file_type=file_type,
+        )
+```
+
+### `modules/projects/usecase.py`
+
+```python
+"""
+docmind/modules/projects/usecase.py
+
+Orchestrates project operations — wires service + repository + RAG pipeline.
+"""
+from docmind.core.logging import get_logger
+
+from .repositories import ProjectRepository
+from .services import ProjectService
+
+logger = get_logger(__name__)
+
+
+class ProjectUseCase:
+    """Orchestrates the full project lifecycle."""
+
+    def __init__(self):
+        self.repo = ProjectRepository()
+        self.service = ProjectService()
+
+    # Project CRUD methods: create_project, get_project, list_projects,
+    # update_project, delete_project
+
+    # Document management: add_document (creates doc + triggers RAG indexing),
+    # list_documents, remove_document (removes doc + deletes chunks)
+
+    # Chat: send_message (retrieves relevant chunks via RAG retriever,
+    # builds prompt with persona system prompt, streams VLM response,
+    # persists conversation + messages)
+
+    # Conversations: list_conversations, get_conversation, delete_conversation
+```
+
+---
+
+## Personas Module
+
+Personas are thin CRUD — no service layer needed, repository handles everything directly.
+
+### `modules/personas/repositories.py`
+
+```python
+"""
+docmind/modules/personas/repositories.py
+
+Persona database operations via SQLAlchemy.
+"""
+from sqlalchemy import delete as sa_delete, select
+
+from docmind.core.logging import get_logger
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Persona
+
+logger = get_logger(__name__)
+
+
+class PersonaRepository:
+    """Repository for persona CRUD operations via SQLAlchemy."""
+
+    async def list_for_user(self, user_id: str) -> list[Persona]:
+        """List all personas: built-in defaults + user's custom personas."""
+        async with AsyncSessionLocal() as session:
+            stmt = (
+                select(Persona)
+                .where(
+                    (Persona.user_id == user_id) | (Persona.is_default == True)
+                )
+                .order_by(Persona.is_default.desc(), Persona.name)
+            )
+            result = await session.execute(stmt)
+            return list(result.scalars().all())
+
+    async def create(self, user_id: str, data) -> Persona:
+        """Create a custom persona."""
+        async with AsyncSessionLocal() as session:
+            persona = Persona(
+                user_id=user_id,
+                name=data.name,
+                system_prompt=data.system_prompt,
+                description=data.description,
+                is_default=False,
+            )
+            session.add(persona)
+            await session.commit()
+            await session.refresh(persona)
+            return persona
+
+    async def update(self, user_id: str, persona_id: str, data) -> Persona | None:
+        """Update a custom persona. Cannot update built-in defaults."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Persona).where(
+                Persona.id == persona_id,
+                Persona.user_id == user_id,
+                Persona.is_default == False,
+            )
+            result = await session.execute(stmt)
+            persona = result.scalar_one_or_none()
+            if persona is None:
+                return None
+
+            if data.name is not None:
+                persona.name = data.name
+            if data.system_prompt is not None:
+                persona.system_prompt = data.system_prompt
+            if data.description is not None:
+                persona.description = data.description
+
+            await session.commit()
+            await session.refresh(persona)
+            return persona
+
+    async def delete(self, user_id: str, persona_id: str) -> bool:
+        """Delete a custom persona. Cannot delete built-in defaults."""
+        async with AsyncSessionLocal() as session:
+            stmt = select(Persona).where(
+                Persona.id == persona_id,
+                Persona.user_id == user_id,
+                Persona.is_default == False,
+            )
+            result = await session.execute(stmt)
+            persona = result.scalar_one_or_none()
+            if persona is None:
+                return False
+
+            await session.delete(persona)
+            await session.commit()
+            return True
+```
+
+---
+
+## RAG Library
+
+Files: `backend/src/docmind/library/rag/`
+
+The RAG library provides reusable functions for indexing documents into vector-searchable chunks and retrieving relevant context at query time. It is used by the Projects module but lives in `library/` because it has no database-layer dependency (chunk storage is handled by the caller via repository).
+
+### `library/rag/text_extract.py`
+
+```python
+"""
+docmind/library/rag/text_extract.py
+
+Extract plain text from documents for RAG chunking.
+"""
+
+def extract_text_from_pdf(file_bytes: bytes) -> list[tuple[int, str]]:
+    """
+    Extract text from a PDF file.
+
+    Returns:
+        List of (page_number, page_text) tuples.
+        Page numbers are 1-indexed.
+    """
+    ...
+
+def extract_text_from_image(file_bytes: bytes) -> str:
+    """
+    Extract text from an image file using OCR (via VLM provider).
+
+    Returns:
+        Extracted text content.
+    """
+    ...
+```
+
+### `library/rag/chunker.py`
+
+```python
+"""
+docmind/library/rag/chunker.py
+
+Split text into overlapping chunks for embedding.
+Uses recursive character splitting with configurable size and overlap.
+"""
+
+def chunk_text(
+    text: str,
+    chunk_size: int = 512,
+    chunk_overlap: int = 64,
+) -> list[str]:
+    """
+    Split text into overlapping chunks.
+
+    Args:
+        text: Input text to chunk.
+        chunk_size: Maximum characters per chunk (from RAG_CHUNK_SIZE setting).
+        chunk_overlap: Overlap between consecutive chunks (from RAG_CHUNK_OVERLAP setting).
+
+    Returns:
+        List of text chunks.
+    """
+    ...
+```
+
+### `library/rag/embedder.py`
+
+```python
+"""
+docmind/library/rag/embedder.py
+
+Embedding provider abstraction for RAG.
+"""
+from typing import Protocol
+
+
+class EmbeddingProvider(Protocol):
+    """Protocol for embedding providers."""
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        """Embed a batch of texts. Returns list of embedding vectors."""
+        ...
+
+    async def embed_query(self, query: str) -> list[float]:
+        """Embed a single query. Returns embedding vector."""
+        ...
+
+
+class DashScopeEmbedder:
+    """DashScope text-embedding-v3 implementation."""
+
+    def __init__(self, api_key: str, model: str, dimensions: int):
+        ...
+
+    async def embed_texts(self, texts: list[str]) -> list[list[float]]:
+        ...
+
+    async def embed_query(self, query: str) -> list[float]:
+        ...
+
+
+def get_embedder() -> EmbeddingProvider:
+    """
+    Factory: create embedder from settings.
+
+    Reads EMBEDDING_PROVIDER, EMBEDDING_MODEL, EMBEDDING_DIMENSIONS from config.
+    Currently supports: dashscope.
+    """
+    ...
+```
+
+### `library/rag/retriever.py`
+
+```python
+"""
+docmind/library/rag/retriever.py
+
+Retrieve relevant chunks for a query using cosine similarity.
+"""
+
+async def retrieve_chunks(
+    query: str,
+    project_id: str,
+    top_k: int = 8,
+    similarity_threshold: float = 0.3,
+) -> list[dict]:
+    """
+    Retrieve the most relevant chunks for a query within a project.
+
+    Args:
+        query: User's question.
+        project_id: Project to search within.
+        top_k: Maximum number of chunks to return (from RAG_TOP_K setting).
+        similarity_threshold: Minimum cosine similarity (from RAG_SIMILARITY_THRESHOLD setting).
+
+    Returns:
+        List of dicts: [{chunk_text, document_id, page_number, similarity_score}]
+        Sorted by similarity_score descending.
+    """
+    ...
+```
+
+### `library/rag/indexer.py`
+
+```python
+"""
+docmind/library/rag/indexer.py
+
+Orchestrates the full RAG indexing pipeline for a document:
+    text extraction → chunking → embedding → storage.
+"""
+
+async def index_document_for_rag(
+    project_id: str,
+    document_id: str,
+    storage_path: str,
+    file_type: str,
+) -> int:
+    """
+    Index a document for RAG retrieval.
+
+    Pipeline:
+        1. Download file bytes from Supabase Storage
+        2. Extract text (PDF → per-page text, image → OCR text)
+        3. Chunk text with overlap
+        4. Generate embeddings via configured provider
+        5. Store chunks + embeddings in page_chunks table
+
+    Args:
+        project_id: Project this document belongs to.
+        document_id: Document ID.
+        storage_path: Supabase Storage path.
+        file_type: File type (pdf, png, jpg, etc.).
+
+    Returns:
+        Number of chunks created and stored.
+    """
+    ...
+```
+
+---
+
 ## Rules
 
 - **Services never import from `docmind/modules/{other_module}/`**. Cross-module coordination happens at the usecase level or through `shared/`.
-- **Repositories use SQLAlchemy async sessions** — all database queries go through `async_session()`. Supabase client is only for Auth + Storage.
+- **Repositories use SQLAlchemy async sessions** — all database queries go through `AsyncSessionLocal()`. Supabase client is only for Auth + Storage.
 - **UseCase is the orchestration layer** — it wires service (library calls) + repository (DB) + pipeline (LangGraph). Handlers create UseCase instances and delegate.
 - **Services contain business logic but NO database access**. They call `library/` functions and `dbase/supabase/storage.py` helpers.
 - **Repositories contain database queries but NO business logic**. They return ORM model instances. Mapping to Pydantic schemas happens in the UseCase.

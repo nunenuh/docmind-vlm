@@ -1,0 +1,25 @@
+{
+  "type": "bpkb",
+  "name": "BPKB (Buku Pemilik Kendaraan Bermotor)",
+  "name_en": "Vehicle Ownership Book",
+  "description": "Buku bukti kepemilikan kendaraan bermotor",
+  "description_en": "Indonesian vehicle ownership certificate/book",
+  "category": "vehicle",
+  "required_fields": [
+    {"key": "no_bpkb", "label": "No. BPKB", "label_en": "BPKB Number", "type": "string"},
+    {"key": "no_polisi", "label": "No. Polisi", "label_en": "License Plate", "type": "string"},
+    {"key": "nama_pemilik", "label": "Nama Pemilik", "label_en": "Owner Name", "type": "string"},
+    {"key": "no_rangka", "label": "No. Rangka", "label_en": "Chassis Number", "type": "string"},
+    {"key": "no_mesin", "label": "No. Mesin", "label_en": "Engine Number", "type": "string"},
+    {"key": "merk_type", "label": "Merk/Type", "label_en": "Brand/Model", "type": "string"}
+  ],
+  "optional_fields": [
+    {"key": "alamat_pemilik", "label": "Alamat Pemilik", "label_en": "Owner Address", "type": "string"},
+    {"key": "tahun_pembuatan", "label": "Tahun Pembuatan", "label_en": "Year of Manufacture", "type": "string"},
+    {"key": "warna", "label": "Warna", "label_en": "Color", "type": "string"},
+    {"key": "isi_silinder", "label": "Isi Silinder", "label_en": "Engine Displacement", "type": "string"},
+    {"key": "jenis", "label": "Jenis", "label_en": "Vehicle Type", "type": "string"},
+    {"key": "model", "label": "Model", "label_en": "Model", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian BPKB (Vehicle Ownership Book). Extract the BPKB number, license plate, owner name and address, chassis number (No. Rangka), engine number (No. Mesin), and vehicle brand/model/year."
+}

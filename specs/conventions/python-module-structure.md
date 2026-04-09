@@ -154,7 +154,7 @@ modules/documents/services.py        ← Business logic
     ↓ calls                ↓ calls
 library/                   modules/documents/repositories.py
   ├── pipeline/              ↓ queries
-  ├── providers/           dbase/sqlalchemy/ (ORM models + async sessions)
+  ├── providers/           dbase/psql/ (ORM models + async sessions)
   └── cv/
 ```
 
@@ -165,7 +165,7 @@ library/                   modules/documents/repositories.py
 | `handler.py` | `usecase.py`, `schemas.py`, `core/` | `services.py`, `repositories.py`, `library/`, `dbase/` |
 | `usecase.py` | `services.py`, `repositories.py`, `schemas.py`, `core/`, `shared/` | `handler.py`, `library/` (use services) |
 | `services.py` | `library/`, `schemas.py`, `core/`, `shared/` | `handler.py`, `usecase.py`, `repositories.py`, `dbase/` |
-| `repositories.py` | `dbase/sqlalchemy/`, `schemas.py`, `core/` | Everything else |
+| `repositories.py` | `dbase/psql/`, `schemas.py`, `core/` | Everything else |
 | `library/` | `core/`, `dbase/` (for pipeline store node) | `modules/`, `shared/` |
 
 **Key principle:** Handlers know about usecases. Usecases know about services and repositories. Services know about library. Repositories know about database. No layer reaches upward.
@@ -326,8 +326,8 @@ from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from docmind.core.logging import get_logger
-from docmind.dbase.sqlalchemy.engine import async_session
-from docmind.dbase.sqlalchemy.models import Document
+from docmind.dbase.psql.core.session import AsyncSessionLocal
+from docmind.dbase.psql.models import Document
 
 logger = get_logger(__name__)
 
@@ -337,7 +337,7 @@ class DocumentRepository:
 
     async def get_by_id(self, document_id: str, user_id: str) -> Document | None:
         """Get document by ID, scoped to user."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = select(Document).where(
                 Document.id == document_id,
                 Document.user_id == user_id,
@@ -347,7 +347,7 @@ class DocumentRepository:
 
     async def update_status(self, document_id: str, status: str) -> None:
         """Update document processing status."""
-        async with async_session() as session:
+        async with AsyncSessionLocal() as session:
             stmt = (
                 update(Document)
                 .where(Document.id == document_id)
@@ -427,7 +427,7 @@ class DocumentResponse(BaseModel):
 - Return ORM model instances (or None)
 - One repository class per module
 - Never contain business logic
-- Use `async with async_session() as session:` for each operation
+- Use `async with AsyncSessionLocal() as session:` for each operation
 
 ### `modules/*/schemas.py` — Pydantic Models
 
@@ -444,9 +444,9 @@ class DocumentResponse(BaseModel):
 - Never imports from `modules/` — communicates through state and callbacks
 - Can import from `core/` and `dbase/` (for pipeline store node)
 
-### `dbase/sqlalchemy/` — Database Layer (SQL)
+### `dbase/psql/` — Database Layer (SQL)
 
-- `engine.py`: Async engine + session factory (`async_session`)
+- `engine.py`: Async engine + session factory (`AsyncSessionLocal`)
 - `base.py`: `DeclarativeBase` for all ORM models
 - `models.py`: ORM model definitions (Document, Extraction, ExtractedField, AuditEntry, ChatMessage)
 - Used by all repositories and the pipeline store node

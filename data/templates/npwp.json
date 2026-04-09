@@ -1,0 +1,19 @@
+{
+  "type": "npwp",
+  "name": "NPWP (Nomor Pokok Wajib Pajak)",
+  "name_en": "Tax ID Number",
+  "description": "Nomor identitas wajib pajak Indonesia",
+  "description_en": "Indonesian taxpayer identification number",
+  "category": "tax",
+  "required_fields": [
+    {"key": "npwp_number", "label": "NPWP", "label_en": "Tax ID Number", "type": "string", "validation": "^\\d{2}\\.\\d{3}\\.\\d{3}\\.\\d{1}-\\d{3}\\.\\d{3}$"},
+    {"key": "nama", "label": "Nama", "label_en": "Name", "type": "string"},
+    {"key": "alamat", "label": "Alamat", "label_en": "Address", "type": "string"}
+  ],
+  "optional_fields": [
+    {"key": "tanggal_terdaftar", "label": "Tanggal Terdaftar", "label_en": "Registration Date", "type": "date"},
+    {"key": "kpp", "label": "KPP", "label_en": "Tax Office", "type": "string"},
+    {"key": "nik", "label": "NIK", "label_en": "National ID Number", "type": "string"}
+  ],
+  "extraction_prompt": "This is an Indonesian NPWP (Nomor Pokok Wajib Pajak / Tax ID). The NPWP number follows the format XX.XXX.XXX.X-XXX.XXX. Extract the NPWP number, taxpayer name, and address."
+}

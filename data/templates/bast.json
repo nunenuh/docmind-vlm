@@ -1,0 +1,22 @@
+{
+  "type": "bast",
+  "name": "BAST (Berita Acara Serah Terima)",
+  "name_en": "Handover Report",
+  "description": "Berita acara serah terima barang/jasa/pekerjaan",
+  "description_en": "Official handover/acceptance report for goods, services, or work",
+  "category": "legal",
+  "required_fields": [
+    {"key": "pihak_pertama", "label": "Pihak Pertama", "label_en": "First Party", "type": "string"},
+    {"key": "pihak_kedua", "label": "Pihak Kedua", "label_en": "Second Party", "type": "string"},
+    {"key": "objek_serah_terima", "label": "Objek Serah Terima", "label_en": "Subject of Handover", "type": "string"},
+    {"key": "tanggal", "label": "Tanggal", "label_en": "Date", "type": "date"}
+  ],
+  "optional_fields": [
+    {"key": "nomor_bast", "label": "Nomor BAST", "label_en": "Report Number", "type": "string"},
+    {"key": "kondisi", "label": "Kondisi Barang", "label_en": "Condition", "type": "string"},
+    {"key": "lokasi", "label": "Lokasi", "label_en": "Location", "type": "string"},
+    {"key": "catatan", "label": "Catatan", "label_en": "Notes", "type": "string"},
+    {"key": "items", "label": "Daftar Barang", "label_en": "Item List", "type": "table", "columns": ["no", "nama_barang", "jumlah", "kondisi"]}
+  ],
+  "extraction_prompt": "This is an Indonesian BAST (Berita Acara Serah Terima / Handover Report). Extract the first party, second party, subject of handover, date, condition, and any item list if present."
+}

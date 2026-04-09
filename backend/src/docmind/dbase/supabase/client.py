@@ -3,9 +3,10 @@ docmind/dbase/supabase/client.py
 
 Supabase client initialization and singleton.
 Used for Auth (JWT verification) and Storage (file upload/download) ONLY.
-All database queries go through SQLAlchemy (dbase/sqlalchemy/).
+All database queries go through SQLAlchemy (dbase/psql/).
 """
-from supabase import create_client, Client
+
+from supabase import Client, create_client
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
@@ -22,7 +23,7 @@ def get_supabase_client() -> Client:
         settings = get_settings()
         _supabase_client = create_client(
             settings.SUPABASE_URL,
-            settings.SUPABASE_SERVICE_ROLE_KEY,
+            settings.SUPABASE_SECRET_KEY,
         )
         logger.info("Supabase client initialized", url=settings.SUPABASE_URL)
     return _supabase_client

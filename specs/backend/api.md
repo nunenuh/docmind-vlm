@@ -20,8 +20,8 @@ See also: [[projects/docmind-vlm/specs/backend/services]]
 | `docmind/core/logging.py` | structlog setup via `setup_logging()`, `get_logger(__name__)` |
 | `docmind/dbase/supabase/client.py` | Supabase client init (Auth + Storage only) |
 | `docmind/dbase/supabase/storage.py` | File upload/download/signed-URL helpers |
-| `docmind/dbase/sqlalchemy/engine.py` | Async SQLAlchemy engine + session factory |
-| `docmind/dbase/sqlalchemy/models.py` | ORM models (Document, Extraction, etc.) |
+| `docmind/dbase/psql/core/engine.py` | Async SQLAlchemy engine + session factory |
+| `docmind/dbase/psql/models/` | ORM models (Document, Extraction, etc.) |
 
 The API layer is **thin**: validate -> delegate to `usecase` -> serialize response. No business logic in handlers.
 
@@ -126,6 +126,11 @@ api_router.include_router(documents_router, prefix="/v1/documents", tags=["Docum
 api_router.include_router(extractions_router, prefix="/v1/extractions", tags=["Extractions"])
 api_router.include_router(chat_router, prefix="/v1/chat", tags=["Chat"])
 api_router.include_router(templates_router, prefix="/v1/templates", tags=["Templates"])
+
+from .modules.projects.apiv1.handler import router as projects_router
+from .modules.personas.apiv1.handler import router as personas_router
+api_router.include_router(projects_router, prefix="/v1/projects", tags=["Projects"])
+api_router.include_router(personas_router, prefix="/v1/personas", tags=["Personas"])
 ```
 
 There is **no monolithic router** with all endpoints. Each module owns its own `apiv1/handler.py`. The aggregating `router.py` only wires them together.
@@ -150,6 +155,37 @@ There is **no monolithic router** with all endpoints. Each module owns its own `
 | `POST` | `/api/v1/chat/{document_id}` | chat | JWT | `modules/chat/apiv1/handler.py` |
 | `GET` | `/api/v1/chat/{document_id}/history` | chat | JWT | `modules/chat/apiv1/handler.py` |
 | `GET` | `/api/v1/templates` | templates | JWT | `modules/templates/apiv1/handler.py` |
+| `POST` | `/api/v1/projects` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/projects` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/projects/{id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `PUT` | `/api/v1/projects/{id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `DELETE` | `/api/v1/projects/{id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `POST` | `/api/v1/projects/{id}/documents` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/projects/{id}/documents` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `DELETE` | `/api/v1/projects/{id}/documents/{doc_id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `POST` | `/api/v1/projects/{id}/chat` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/projects/{id}/conversations` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/projects/{id}/conversations/{conv_id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `DELETE` | `/api/v1/projects/{id}/conversations/{conv_id}` | projects | JWT | `modules/projects/apiv1/handler.py` |
+| `GET` | `/api/v1/personas` | personas | JWT | `modules/personas/apiv1/handler.py` |
+| `POST` | `/api/v1/personas` | personas | JWT | `modules/personas/apiv1/handler.py` |
+| `PUT` | `/api/v1/personas/{id}` | personas | JWT | `modules/personas/apiv1/handler.py` |
+| `DELETE` | `/api/v1/personas/{id}` | personas | JWT | `modules/personas/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/signup` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/login` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/logout` | auth | JWT | `modules/auth/apiv1/handler.py` |
+| `GET` | `/api/v1/auth/session` | auth | JWT | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/auth/refresh` | auth | None | `modules/auth/apiv1/handler.py` |
+| `POST` | `/api/v1/rag/search` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/chunks` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/chunks/{chunk_id}` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/rag/stats` | rag | JWT | `modules/rag/apiv1/handler.py` |
+| `GET` | `/api/v1/analytics/summary` | analytics | JWT | `modules/analytics/apiv1/handler.py` |
+| `GET` | `/api/v1/documents/{id}/file` | documents | JWT | `modules/documents/apiv1/handler.py` |
+| `GET` | `/api/v1/documents/search` | documents | JWT | `modules/documents/apiv1/handler.py` |
+| `POST` | `/api/v1/extractions/{document_id}/process` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
+| `POST` | `/api/v1/extractions/classify` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
+| `GET` | `/api/v1/extractions/{document_id}/export` | extractions | JWT | `modules/extractions/apiv1/handler.py` |
 
 ---
 
@@ -310,6 +346,110 @@ class TemplateResponse(BaseModel):
 class TemplateListResponse(BaseModel):
     """List of available templates."""
     items: list[TemplateResponse]
+```
+
+### Projects Module — `modules/projects/schemas.py`
+
+```python
+class ProjectCreate(BaseModel):
+    """Request body for creating a project."""
+    name: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    persona_id: str | None = None
+
+class ProjectUpdate(BaseModel):
+    """Request body for updating a project."""
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = None
+    persona_id: str | None = None
+
+class ProjectResponse(BaseModel):
+    """Single project in API responses."""
+    id: str
+    name: str
+    description: str | None
+    persona_id: str | None
+    document_count: int
+    created_at: datetime
+    updated_at: datetime
+
+class ProjectListResponse(BaseModel):
+    """Paginated list of projects."""
+    items: list[ProjectResponse]
+    total: int
+    page: int
+    limit: int
+
+class ProjectDocumentUpload(BaseModel):
+    """Request body for uploading a document to a project."""
+    filename: str = Field(..., min_length=1, max_length=255)
+    file_type: str = Field(..., pattern="^(pdf|png|jpg|jpeg|tiff|webp)$")
+    file_size: int = Field(..., gt=0, le=20_971_520)
+    storage_path: str
+
+class ProjectChatRequest(BaseModel):
+    """Request body for project-level RAG chat."""
+    message: str = Field(..., min_length=1)
+    conversation_id: str | None = None  # None = start new conversation
+    persona_id: str | None = None       # Override project default persona
+
+class ConversationResponse(BaseModel):
+    """Single conversation summary."""
+    id: str
+    project_id: str
+    title: str | None
+    message_count: int
+    created_at: datetime
+    updated_at: datetime
+
+class ConversationListResponse(BaseModel):
+    """List of conversations."""
+    items: list[ConversationResponse]
+    total: int
+
+class ProjectMessageResponse(BaseModel):
+    """Single message in a project conversation."""
+    id: str
+    role: str  # user, assistant
+    content: str
+    citations: list[dict]  # [{document_id, page, chunk_text}]
+    created_at: datetime
+
+class ConversationDetailResponse(BaseModel):
+    """Conversation with its messages."""
+    id: str
+    project_id: str
+    title: str | None
+    messages: list[ProjectMessageResponse]
+```
+
+### Personas Module — `modules/personas/schemas.py`
+
+```python
+class PersonaCreate(BaseModel):
+    """Request body for creating a custom persona."""
+    name: str = Field(..., min_length=1, max_length=100)
+    system_prompt: str = Field(..., min_length=1)
+    description: str | None = None
+
+class PersonaUpdate(BaseModel):
+    """Request body for updating a persona."""
+    name: str | None = Field(default=None, min_length=1, max_length=100)
+    system_prompt: str | None = None
+    description: str | None = None
+
+class PersonaResponse(BaseModel):
+    """Single persona in API responses."""
+    id: str
+    name: str
+    system_prompt: str
+    description: str | None
+    is_default: bool
+    created_at: datetime
+
+class PersonaListResponse(BaseModel):
+    """List of personas."""
+    items: list[PersonaResponse]
 ```
 
 **Model Rules:**
@@ -660,6 +800,241 @@ async def list_templates(
     return TemplateListResponse(items=TEMPLATES)
 ```
 
+### Projects Handler — `modules/projects/apiv1/handler.py`
+
+```python
+from docmind.core.auth import get_current_user
+from docmind.core.logging import get_logger
+
+from ..schemas import (
+    ConversationDetailResponse,
+    ConversationListResponse,
+    ProjectChatRequest,
+    ProjectCreate,
+    ProjectDocumentUpload,
+    ProjectListResponse,
+    ProjectResponse,
+    ProjectUpdate,
+)
+from ..usecase import ProjectUseCase
+
+logger = get_logger(__name__)
+router = APIRouter()
+
+@router.post("", response_model=ProjectResponse, status_code=201)
+async def create_project(
+    body: ProjectCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    return await usecase.create_project(user_id=current_user["id"], data=body)
+
+@router.get("", response_model=ProjectListResponse)
+async def list_projects(
+    page: int = Query(default=1, ge=1),
+    limit: int = Query(default=20, ge=1, le=100),
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    return await usecase.list_projects(user_id=current_user["id"], page=page, limit=limit)
+
+@router.get("/{project_id}", response_model=ProjectResponse)
+async def get_project(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    project = await usecase.get_project(user_id=current_user["id"], project_id=project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+@router.put("/{project_id}", response_model=ProjectResponse)
+async def update_project(
+    project_id: str,
+    body: ProjectUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    project = await usecase.update_project(
+        user_id=current_user["id"], project_id=project_id, data=body,
+    )
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project
+
+@router.delete("/{project_id}", status_code=204)
+async def delete_project(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    deleted = await usecase.delete_project(user_id=current_user["id"], project_id=project_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+@router.post("/{project_id}/documents", response_model=DocumentResponse, status_code=201)
+async def upload_project_document(
+    project_id: str,
+    body: ProjectDocumentUpload,
+    current_user: dict = Depends(get_current_user),
+):
+    """Upload a document to a project. Triggers RAG indexing automatically."""
+    usecase = ProjectUseCase()
+    return await usecase.add_document(
+        user_id=current_user["id"], project_id=project_id, data=body,
+    )
+
+@router.get("/{project_id}/documents", response_model=DocumentListResponse)
+async def list_project_documents(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    return await usecase.list_documents(user_id=current_user["id"], project_id=project_id)
+
+@router.delete("/{project_id}/documents/{document_id}", status_code=204)
+async def remove_project_document(
+    project_id: str,
+    document_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    removed = await usecase.remove_document(
+        user_id=current_user["id"], project_id=project_id, document_id=document_id,
+    )
+    if not removed:
+        raise HTTPException(status_code=404, detail="Document not found in project")
+
+@router.post("/{project_id}/chat")
+async def project_chat(
+    project_id: str,
+    body: ProjectChatRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Project-level RAG chat across all project documents.
+
+    Returns an SSE stream:
+        data: {"type": "token", "content": "The"}
+        data: {"type": "citation", "citation": {"document_id": "...", "page": 1, "chunk_text": "..."}}
+        data: {"type": "done", "conversation_id": "uuid", "message_id": "uuid"}
+    """
+    usecase = ProjectUseCase()
+    project = await usecase.get_project(user_id=current_user["id"], project_id=project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    event_stream = usecase.send_message(
+        user_id=current_user["id"],
+        project_id=project_id,
+        message=body.message,
+        conversation_id=body.conversation_id,
+        persona_id=body.persona_id,
+    )
+
+    return StreamingResponse(
+        event_stream,
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+@router.get("/{project_id}/conversations", response_model=ConversationListResponse)
+async def list_conversations(
+    project_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    return await usecase.list_conversations(
+        user_id=current_user["id"], project_id=project_id,
+    )
+
+@router.get("/{project_id}/conversations/{conversation_id}", response_model=ConversationDetailResponse)
+async def get_conversation(
+    project_id: str,
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    conv = await usecase.get_conversation(
+        user_id=current_user["id"], project_id=project_id, conversation_id=conversation_id,
+    )
+    if conv is None:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    return conv
+
+@router.delete("/{project_id}/conversations/{conversation_id}", status_code=204)
+async def delete_conversation(
+    project_id: str,
+    conversation_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    usecase = ProjectUseCase()
+    deleted = await usecase.delete_conversation(
+        user_id=current_user["id"], project_id=project_id, conversation_id=conversation_id,
+    )
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+```
+
+### Personas Handler — `modules/personas/apiv1/handler.py`
+
+```python
+from docmind.core.auth import get_current_user
+from docmind.core.logging import get_logger
+
+from ..schemas import PersonaCreate, PersonaListResponse, PersonaResponse, PersonaUpdate
+from ..repositories import PersonaRepository
+
+logger = get_logger(__name__)
+router = APIRouter()
+
+@router.get("", response_model=PersonaListResponse)
+async def list_personas(
+    current_user: dict = Depends(get_current_user),
+):
+    """List all personas (built-in defaults + user's custom personas)."""
+    repo = PersonaRepository()
+    items = await repo.list_for_user(user_id=current_user["id"])
+    return PersonaListResponse(items=items)
+
+@router.post("", response_model=PersonaResponse, status_code=201)
+async def create_persona(
+    body: PersonaCreate,
+    current_user: dict = Depends(get_current_user),
+):
+    repo = PersonaRepository()
+    return await repo.create(user_id=current_user["id"], data=body)
+
+@router.put("/{persona_id}", response_model=PersonaResponse)
+async def update_persona(
+    persona_id: str,
+    body: PersonaUpdate,
+    current_user: dict = Depends(get_current_user),
+):
+    repo = PersonaRepository()
+    persona = await repo.update(
+        user_id=current_user["id"], persona_id=persona_id, data=body,
+    )
+    if persona is None:
+        raise HTTPException(status_code=404, detail="Persona not found")
+    return persona
+
+@router.delete("/{persona_id}", status_code=204)
+async def delete_persona(
+    persona_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    repo = PersonaRepository()
+    deleted = await repo.delete(user_id=current_user["id"], persona_id=persona_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Persona not found")
+```
+
 ---
 
 ## SSE Streaming Pattern
@@ -746,11 +1121,11 @@ docmind/core/dependencies.py
 FastAPI dependency functions for auth and database clients.
 """
 from docmind.core.auth import get_current_user  # re-export
-from docmind.dbase.sqlalchemy.engine import get_session  # re-export
+from docmind.dbase.psql.core.session import get_async_db_session  # re-export
 from docmind.dbase.supabase.client import get_supabase_client  # re-export (Auth + Storage)
 ```
 
-Handlers inject dependencies via `Depends(get_current_user)` and `Depends(get_session)`.
+Handlers inject dependencies via `Depends(get_current_user)` and `Depends(get_async_db_session)`.
 
 ---
 
@@ -762,7 +1137,7 @@ docmind/dbase/supabase/client.py
 
 Supabase client initialization and singleton.
 Used for Auth (JWT verification) and Storage (file upload/download) ONLY.
-All database queries go through SQLAlchemy (dbase/sqlalchemy/).
+All database queries go through SQLAlchemy (dbase/psql/).
 """
 from supabase import create_client, Client
 
@@ -787,39 +1162,55 @@ def get_supabase_client() -> Client:
     return _supabase_client
 ```
 
-## `dbase/sqlalchemy/engine.py`
+## `dbase/psql/core/engine.py`
 
 ```python
 """
-docmind/dbase/sqlalchemy/engine.py
+docmind/dbase/psql/core/engine.py
 
-Async SQLAlchemy engine and session factory.
+Async SQLAlchemy engine.
 Connects to Supabase Postgres via DATABASE_URL.
 """
-from typing import AsyncGenerator
-
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import create_async_engine
 
 from docmind.core.config import get_settings
 
 settings = get_settings()
 engine = create_async_engine(settings.DATABASE_URL, echo=settings.APP_DEBUG)
-async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
+```
+
+---
+
+## `dbase/psql/core/session.py`
+
+```python
+"""
+docmind/dbase/psql/core/session.py
+
+Async session factory and FastAPI dependency.
+"""
+from typing import AsyncGenerator
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from docmind.dbase.psql.core.engine import engine
+
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
-async def get_session() -> AsyncGenerator[AsyncSession, None]:
+async def get_async_db_session() -> AsyncGenerator[AsyncSession, None]:
     """FastAPI dependency: yield an async session."""
-    async with async_session() as session:
+    async with AsyncSessionLocal() as session:
         yield session
 ```
 
 ---
 
-## `dbase/sqlalchemy/base.py`
+## `dbase/psql/core/base.py`
 
 ```python
 """
-docmind/dbase/sqlalchemy/base.py
+docmind/dbase/psql/core/base.py
 
 SQLAlchemy declarative base. All ORM models inherit from Base.
 """
@@ -832,14 +1223,14 @@ class Base(DeclarativeBase):
 
 ---
 
-## `dbase/sqlalchemy/models.py`
+## `dbase/psql/models/`
 
 All models use `uuid4` primary keys and define `__tablename__` explicitly.
 `user_id` is stored as a plain `String` (Supabase Auth UUID — no FK to an `auth.users` ORM model).
 
 ```python
 """
-docmind/dbase/sqlalchemy/models.py
+docmind/dbase/psql/models/
 
 ORM models for DocMind-VLM.
 All tables are owned per-user; every query MUST filter by user_id.
@@ -978,7 +1369,7 @@ class Citation(Base):
 - `bounding_box` fields use PostgreSQL `JSON` column — stored as `{x, y, width, height}` dict
 - `status` and `role` use plain `String` columns — validated at the Pydantic/handler layer, not DB-level constraints
 - `_now()` always uses `UTC` — no naive datetimes anywhere
-- Import path: `from docmind.dbase.sqlalchemy.models import Document, Extraction, ExtractedField, AuditEntry, ChatMessage, Citation`
+- Import path: `from docmind.dbase.psql.models import Document, Extraction, ExtractedField, AuditEntry, ChatMessage, Citation`
 
 ---
 
