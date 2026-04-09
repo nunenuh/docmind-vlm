@@ -166,6 +166,90 @@ class OpenRouterProvider:
 
         return await self._call_api(messages)
 
+    async def chat_stream(
+        self,
+        images: list[np.ndarray],
+        message: str,
+        history: list[dict],
+        system_prompt: str,
+        enable_thinking: bool = False,
+    ):
+        """Stream chat response using OpenRouter SSE streaming.
+
+        Yields dicts with type "thinking", "answer", or "done".
+        """
+        image_contents = [
+            {
+                "type": "image_url",
+                "image_url": {
+                    "url": f"data:image/jpeg;base64,{encode_image_base64(img)}"
+                },
+            }
+            for img in images
+        ]
+
+        messages: list[dict[str, Any]] = [
+            {"role": "system", "content": system_prompt},
+        ]
+
+        if history:
+            first_user_content: list[dict[str, Any]] = image_contents + [
+                {"type": "text", "text": history[0]["content"]}
+            ]
+            messages.append({"role": "user", "content": first_user_content})
+            for msg in history[1:]:
+                messages.append({
+                    "role": msg["role"],
+                    "content": msg["content"],
+                })
+            messages.append({"role": "user", "content": message})
+        else:
+            if image_contents:
+                current_content: list[dict[str, Any]] = image_contents + [
+                    {"type": "text", "text": message}
+                ]
+                messages.append({"role": "user", "content": current_content})
+            else:
+                messages.append({"role": "user", "content": message})
+
+        payload = {
+            "model": self._model,
+            "messages": messages,
+            "max_tokens": self._max_tokens,
+            "temperature": self._temperature,
+            "stream": True,
+        }
+
+        headers = self._build_headers()
+
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            async with client.stream(
+                "POST",
+                f"{self._base_url}/chat/completions",
+                headers=headers,
+                json=payload,
+            ) as response:
+                response.raise_for_status()
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data_str = line[5:].strip()
+                    if data_str == "[DONE]":
+                        yield {"type": "done", "usage": {}}
+                        return
+                    try:
+                        data = json.loads(data_str)
+                    except json.JSONDecodeError:
+                        continue
+                    choices = data.get("choices", [])
+                    if not choices:
+                        continue
+                    delta = choices[0].get("delta", {})
+                    content = delta.get("content", "")
+                    if content:
+                        yield {"type": "answer", "content": content}
+
     async def health_check(self) -> bool:
         """Check OpenRouter API connectivity."""
         try:

@@ -42,6 +42,9 @@ class ProjectPromptService:
             "Cite sources using [Source N] notation. "
             "If the context doesn't contain relevant information, say so clearly. "
             "When asked about files or documents, refer to the PROJECT DOCUMENTS list above."
+            "\n\nLANGUAGE: Always respond in the same language the user writes in. "
+            "If the user writes in Indonesian, respond in Indonesian. "
+            "If in English, respond in English. Match the user's language exactly."
         )
         return base
 

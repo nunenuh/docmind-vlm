@@ -28,7 +28,7 @@ class Settings(BaseSettings):
 
     # OpenRouter
     OPENROUTER_API_KEY: str = Field(default="")
-    OPENROUTER_MODEL: str = Field(default="qwen/qwen3-vl-plus")
+    OPENROUTER_MODEL: str = Field(default="qwen/qwen-vl-plus")
     OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
     OPENROUTER_MAX_RETRIES: int = Field(default=3)
     OPENROUTER_RETRY_DELAY: float = Field(default=2.0)
