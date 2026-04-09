@@ -24,7 +24,17 @@ class Settings(BaseSettings):
     )
 
     # VLM Provider
-    VLM_PROVIDER: str = Field(default="dashscope")
+    VLM_PROVIDER: str = Field(default="openrouter")
+
+    # OpenRouter
+    OPENROUTER_API_KEY: str = Field(default="")
+    OPENROUTER_MODEL: str = Field(default="qwen/qwen3-vl-plus")
+    OPENROUTER_BASE_URL: str = Field(default="https://openrouter.ai/api/v1")
+    OPENROUTER_MAX_RETRIES: int = Field(default=3)
+    OPENROUTER_RETRY_DELAY: float = Field(default=2.0)
+    OPENROUTER_TIMEOUT: float = Field(default=120.0)
+    OPENROUTER_MAX_TOKENS: int = Field(default=4096)
+    OPENROUTER_TEMPERATURE: float = Field(default=0.1)
 
     # DashScope
     DASHSCOPE_API_KEY: str = Field(default="")

@@ -51,6 +51,10 @@ def get_vlm_provider() -> VLMProvider:
         )
 
     # Lazy imports to avoid loading unused provider dependencies
+    if provider_name == "openrouter" and "openrouter" not in _PROVIDER_REGISTRY:
+        from docmind.library.providers.openrouter import OpenRouterProvider
+
+        register_provider("openrouter", OpenRouterProvider)
     if provider_name == "dashscope" and "dashscope" not in _PROVIDER_REGISTRY:
         from docmind.library.providers.dashscope import DashScopeProvider
 
