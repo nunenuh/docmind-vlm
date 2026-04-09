@@ -11,7 +11,7 @@ class TestSettings:
 
     def test_default_vlm_provider(self):
         s = Settings()
-        assert s.VLM_PROVIDER == "dashscope"
+        assert s.VLM_PROVIDER == "openrouter"
 
     def test_database_url_property(self):
         s = Settings(DB_USER="u", DB_PASSWORD="p", DB_HOST="h", DB_PORT=5432, DB_NAME="d")
