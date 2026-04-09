@@ -34,6 +34,7 @@ services:
       sh -c "pip install poetry &&
              poetry config virtualenvs.in-project true &&
              poetry install --no-root &&
+             .venv/bin/alembic upgrade head &&
              .venv/bin/uvicorn docmind.main:app --reload --host 0.0.0.0 --port 8009"
     ports:
       - "8010:8009"
@@ -41,7 +42,11 @@ services:
       - ../.env.dev
     environment:
       - PYTHONPATH=/app/src
-      - DATABASE_URL=postgresql+asyncpg://postgres:${POSTGRES_PASSWORD:-postgres}@supabase-db:5432/postgres
+      - DB_HOST=supabase-db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      - DB_NAME=postgres
       - SUPABASE_URL=http://supabase-kong:8000
       - SUPABASE_PUBLISHABLE_KEY=${SUPABASE_ANON_KEY}
       - SUPABASE_SECRET_KEY=${SUPABASE_SERVICE_ROLE_KEY}
@@ -51,6 +56,8 @@ services:
       - ../backend/src:/app/src
       - ../backend/pyproject.toml:/app/pyproject.toml
       - ../backend/poetry.lock:/app/poetry.lock
+      - ../backend/alembic.ini:/app/alembic.ini
+      - ../backend/alembic:/app/alembic
       - ../data:/app/data
       - run_backend_venv:/app/.venv
     depends_on:

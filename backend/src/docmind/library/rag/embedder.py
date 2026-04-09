@@ -1,6 +1,7 @@
 """Embedding provider abstraction.
 
-Supports DashScope text-embedding-v4 and OpenAI text-embedding-3-small.
+Supports OpenRouter (Qwen3-Embedding), DashScope text-embedding-v4,
+and OpenAI text-embedding-3-small.
 Provider is selected via EMBEDDING_PROVIDER setting.
 Handles batching to respect API limits.
 """
@@ -19,6 +20,7 @@ logger = logging.getLogger(__name__)
 # but we use a conservative batch size to avoid 400 errors.
 DASHSCOPE_BATCH_SIZE = 10
 OPENAI_BATCH_SIZE = 100
+OPENROUTER_BATCH_SIZE = 50
 
 
 async def embed_texts(texts: list[str]) -> list[list[float]]:
@@ -40,7 +42,9 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
         return []
 
     settings = get_settings()
-    if settings.EMBEDDING_PROVIDER == "dashscope":
+    if settings.EMBEDDING_PROVIDER == "openrouter":
+        return await _embed_batched(texts, settings, _embed_openrouter_batch, OPENROUTER_BATCH_SIZE)
+    elif settings.EMBEDDING_PROVIDER == "dashscope":
         return await _embed_batched(texts, settings, _embed_dashscope_batch, DASHSCOPE_BATCH_SIZE)
     elif settings.EMBEDDING_PROVIDER == "openai":
         return await _embed_batched(texts, settings, _embed_openai_batch, OPENAI_BATCH_SIZE)
@@ -109,6 +113,34 @@ async def _embed_dashscope_batch(texts: list[str], settings) -> list[list[float]
             e["embedding"]
             for e in sorted(embeddings, key=lambda x: x["text_index"])
         ]
+
+
+async def _embed_openrouter_batch(texts: list[str], settings) -> list[list[float]]:
+    """Embed a single batch using OpenRouter embeddings API (OpenAI-compatible).
+
+    Args:
+        texts: Texts to embed.
+        settings: Application settings with OpenRouter credentials.
+
+    Returns:
+        List of embedding vectors.
+    """
+    base_url = settings.OPENROUTER_BASE_URL.rstrip("/")
+    async with httpx.AsyncClient(timeout=settings.EMBEDDING_TIMEOUT) as client:
+        response = await client.post(
+            f"{base_url}/embeddings",
+            headers={
+                "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+                "Content-Type": "application/json",
+            },
+            json={
+                "model": settings.EMBEDDING_MODEL,
+                "input": texts,
+            },
+        )
+        response.raise_for_status()
+        data = response.json()
+        return [item["embedding"] for item in data["data"]]
 
 
 async def _embed_openai_batch(texts: list[str], settings) -> list[list[float]]:

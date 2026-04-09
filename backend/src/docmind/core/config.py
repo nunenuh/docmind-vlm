@@ -106,8 +106,8 @@ class Settings(BaseSettings):
     CONFIDENCE_LOW_THRESHOLD: float = Field(default=0.5)
 
     # RAG
-    EMBEDDING_PROVIDER: str = Field(default="dashscope")
-    EMBEDDING_MODEL: str = Field(default="text-embedding-v4")
+    EMBEDDING_PROVIDER: str = Field(default="openrouter")
+    EMBEDDING_MODEL: str = Field(default="qwen/qwen3-embedding-8b")
     EMBEDDING_DIMENSIONS: int = Field(default=1024)
     RAG_CHUNK_SIZE: int = Field(default=1200)
     RAG_CHUNK_OVERLAP: int = Field(default=200)
