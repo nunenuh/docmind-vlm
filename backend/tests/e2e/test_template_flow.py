@@ -4,17 +4,17 @@ from unittest.mock import patch
 
 import pytest
 
-from docmind.modules.templates.schemas import TemplateResponse
+from docmind.modules.templates.schemas import TemplateSummary
 
 FAKE_TEMPLATES = [
-    TemplateResponse(
+    TemplateSummary(
         type="invoice",
         name="Invoice",
         description="Extract invoice fields",
         required_fields=["invoice_number", "total_amount", "date"],
         optional_fields=["vendor_name", "tax_amount"],
     ),
-    TemplateResponse(
+    TemplateSummary(
         type="receipt",
         name="Receipt",
         description="Extract receipt fields",
