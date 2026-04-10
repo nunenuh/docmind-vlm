@@ -8,6 +8,7 @@ from docmind.modules.templates.schemas import TemplateSummary
 
 FAKE_TEMPLATES = [
     TemplateSummary(
+        id="tmpl-invoice",
         type="invoice",
         name="Invoice",
         description="Extract invoice fields",
@@ -15,6 +16,7 @@ FAKE_TEMPLATES = [
         optional_fields=["vendor_name", "tax_amount"],
     ),
     TemplateSummary(
+        id="tmpl-receipt",
         type="receipt",
         name="Receipt",
         description="Extract receipt fields",
