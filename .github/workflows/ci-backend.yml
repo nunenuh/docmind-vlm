@@ -74,7 +74,7 @@ jobs:
       - run: poetry run pytest tests/unit/ -v --tb=short
 
       - name: Tests with coverage
-        run: poetry run pytest tests/ --cov=docmind --cov-report=term-missing --cov-report=xml:coverage.xml
+        run: poetry run pytest tests/unit/ tests/e2e/ --cov=docmind --cov-report=term-missing --cov-report=xml:coverage.xml
 
       - uses: actions/upload-artifact@v4
         if: always()
