@@ -291,3 +291,34 @@ export async function deletePersona(id: string): Promise<void> {
 export async function duplicatePersona(id: string): Promise<PersonaResponse> {
   return apiFetch<PersonaResponse>(`/api/v1/personas/${id}/duplicate`, { method: "POST" });
 }
+
+// API Tokens
+import type {
+  TokenListResponse,
+  TokenCreatedResponse,
+  TokenResponse,
+  CreateTokenRequest,
+  UpdateTokenRequest,
+} from "@/types/api-token";
+
+export async function listTokens(): Promise<TokenListResponse> {
+  return apiFetch<TokenListResponse>("/api/v1/tokens");
+}
+
+export async function createToken(data: CreateTokenRequest): Promise<TokenCreatedResponse> {
+  return apiFetch<TokenCreatedResponse>("/api/v1/tokens", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateToken(id: string, data: UpdateTokenRequest): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>(`/api/v1/tokens/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function revokeToken(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/tokens/${id}`, { method: "DELETE" });
+}

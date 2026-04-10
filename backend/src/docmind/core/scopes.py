@@ -27,7 +27,8 @@ def _check_scopes(current_user: dict, required_scopes: list[str]) -> dict:
     for scope in required_scopes:
         if scope not in user_scopes:
             raise AuthorizationException(
-                f"Missing required scope: {scope}"
+                f"Missing required scope: {scope}",
+                detail={"missing_scope": scope},
             )
 
     return current_user

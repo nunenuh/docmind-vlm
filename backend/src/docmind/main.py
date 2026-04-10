@@ -70,9 +70,12 @@ def create_app() -> FastAPI:
     async def app_exception_handler(request: Request, exc: BaseAppException):
         """Catch any custom exception not handled by the endpoint."""
         logger.error("%s [%s]: %s", exc.__class__.__name__, exc.code, exc.message)
+        body: dict = {"detail": exc.message}
+        if hasattr(exc, "detail") and exc.detail:
+            body.update(exc.detail)
         return JSONResponse(
             status_code=exc.status_code,
-            content={"detail": exc.message},
+            content=body,
         )
 
     @application.exception_handler(Exception)
