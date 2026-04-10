@@ -10,7 +10,7 @@ import asyncio
 from fastapi import APIRouter, Depends, File, Query, Request, UploadFile
 from fastapi.responses import Response
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import (
     AppException,
@@ -78,7 +78,7 @@ def _sanitize_filename(raw: str | None) -> str:
 @router.post("", response_model=DocumentResponse, status_code=201)
 async def create_document(
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:write")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Upload a document file."""
@@ -110,7 +110,7 @@ async def list_documents(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
     standalone: bool = Query(default=False, description="If true, only return documents not linked to a project"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """List documents with pagination."""
@@ -127,7 +127,7 @@ async def search_documents(
     standalone: bool = Query(default=True, description="Only standalone documents (not in projects)"),
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Search documents by filename, file type, and/or status."""
@@ -151,7 +151,7 @@ async def search_documents(
 @router.get("/{document_id}", response_model=DocumentResponse)
 async def get_document(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Get a single document by ID."""
@@ -168,7 +168,7 @@ async def get_document(
 async def get_document_url(
     document_id: str,
     request: Request,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Get a URL for viewing the document file (proxied through backend)."""
@@ -187,7 +187,7 @@ async def get_document_url(
 @router.get("/{document_id}/file")
 async def get_document_file(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Serve the document file bytes directly (proxied from Supabase Storage)."""
@@ -223,7 +223,7 @@ async def get_document_file(
 @router.delete("/{document_id}", status_code=204)
 async def delete_document(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:write")),
     usecase: DocumentUseCase = Depends(get_document_usecase),
 ):
     """Delete a document and all associated data."""

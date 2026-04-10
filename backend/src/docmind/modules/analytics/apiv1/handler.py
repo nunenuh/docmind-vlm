@@ -5,7 +5,7 @@ Analytics endpoint. All logic through AnalyticsUseCase.
 
 from fastapi import APIRouter, Depends
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 
 from ..dependencies import get_analytics_usecase
@@ -18,7 +18,7 @@ router = APIRouter()
 
 @router.get("/summary", response_model=AnalyticsSummaryResponse)
 async def get_analytics_summary(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     usecase: AnalyticsUseCase = Depends(get_analytics_usecase),
 ):
     """Get analytics summary for the dashboard."""
