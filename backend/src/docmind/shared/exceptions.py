@@ -56,8 +56,9 @@ class ValidationException(UseCaseException):
 class AuthorizationException(UseCaseException):
     """User not authorized for this action."""
 
-    def __init__(self, message: str = "Not authorized") -> None:
+    def __init__(self, message: str = "Not authorized", detail: dict | None = None) -> None:
         super().__init__(message, code="FORBIDDEN", status_code=403)
+        self.detail = detail or {}
 
 
 class AuthenticationException(UseCaseException):

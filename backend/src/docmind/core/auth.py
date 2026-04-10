@@ -146,9 +146,19 @@ async def get_current_user(request: Request) -> dict:
 
     # API token path
     if _is_api_token(token):
+        from docmind.core.rate_limit import get_token_rate_limiter
+
+        prefix = token[:12]
+        limiter = get_token_rate_limiter()
+        if limiter.is_blocked(prefix):
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Too many failed attempts. Try again later.",
+            )
         try:
             service = ApiTokenService()
             user_data = await service.validate_token(token)
+            limiter.reset(prefix)
             return {
                 "id": user_data["user_id"],
                 "email": "",
@@ -157,6 +167,7 @@ async def get_current_user(request: Request) -> dict:
                 "token_id": user_data["token_id"],
             }
         except AuthenticationException:
+            limiter.record_failure(prefix)
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid or expired API token",

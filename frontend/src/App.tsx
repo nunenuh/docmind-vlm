@@ -19,6 +19,11 @@ import { Settings } from "@/pages/Settings";
 import { TemplatesPage } from "@/pages/TemplatesPage";
 import { PersonasPage } from "@/pages/PersonasPage";
 import { AnalyticsPage } from "@/pages/AnalyticsPage";
+import { ApiKeysSettings } from "@/pages/ApiKeysSettings";
+import { ApiReference } from "@/pages/ApiReference";
+import { ProfileSettings } from "@/pages/ProfileSettings";
+import { PreferencesSettings } from "@/pages/PreferencesSettings";
+import { AboutSettings } from "@/pages/AboutSettings";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth, setIsLoading } = useAuthStore();
@@ -56,7 +61,13 @@ export function App() {
                   <Route path="/projects" element={<ProjectDashboard />} />
                   <Route path="/projects/:projectId" element={<ProjectWorkspace />} />
                   <Route path="/workspace/:documentId" element={<Workspace />} />
-                  <Route path="/settings" element={<Settings />} />
+                  <Route path="/settings" element={<Settings />}>
+                    <Route path="api-keys" element={<ApiKeysSettings />} />
+                    <Route path="api-reference" element={<ApiReference />} />
+                    <Route path="profile" element={<ProfileSettings />} />
+                    <Route path="preferences" element={<PreferencesSettings />} />
+                    <Route path="about" element={<AboutSettings />} />
+                  </Route>
                 </Route>
               </Route>
             </Routes>
