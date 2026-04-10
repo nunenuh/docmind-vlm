@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import (
     AppException,
@@ -45,7 +45,7 @@ router = APIRouter()
 @router.post("", response_model=ProjectResponse, status_code=201)
 async def create_project(
     body: ProjectCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
     try:
@@ -68,7 +68,7 @@ async def create_project(
 async def list_projects(
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=20, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
     return await usecase.get_projects(
@@ -79,7 +79,7 @@ async def list_projects(
 @router.get("/{project_id}", response_model=ProjectResponse)
 async def get_project(
     project_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
     try:
@@ -97,7 +97,7 @@ async def get_project(
 async def update_project(
     project_id: str,
     body: ProjectUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
     try:
@@ -118,7 +118,7 @@ async def update_project(
 @router.delete("/{project_id}", status_code=204)
 async def delete_project(
     project_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectCRUDUseCase = Depends(get_project_crud_usecase),
 ):
     try:
@@ -145,7 +145,7 @@ async def delete_project(
 async def add_document_to_project(
     project_id: str,
     document_id: str = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     try:
@@ -181,7 +181,7 @@ async def add_document_to_project(
 )
 async def list_project_documents(
     project_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     try:
@@ -199,7 +199,7 @@ async def list_project_documents(
 async def remove_document_from_project(
     project_id: str,
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     try:
@@ -219,7 +219,7 @@ async def remove_document_from_project(
 async def reindex_document(
     project_id: str,
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     """Re-index a document's RAG chunks (delete old + re-extract + re-embed)."""
@@ -244,7 +244,7 @@ async def reindex_document(
 async def project_chat(
     project_id: str,
     body: ProjectChatRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:chat")),
     usecase: ProjectChatUseCase = Depends(get_project_chat_usecase),
 ):
     """SSE endpoint for project-level RAG chat."""
@@ -274,7 +274,7 @@ async def project_chat(
 )
 async def list_conversations(
     project_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
     try:
@@ -295,7 +295,7 @@ async def list_conversations(
 async def get_conversation(
     project_id: str,
     conversation_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
     try:
@@ -318,7 +318,7 @@ async def get_conversation(
 async def delete_conversation(
     project_id: str,
     conversation_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:write")),
     usecase: ProjectConversationUseCase = Depends(get_project_conversation_usecase),
 ):
     try:
@@ -341,7 +341,7 @@ async def delete_conversation(
 async def list_chunks(
     project_id: str,
     document_id: str | None = Query(default=None),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("projects:read")),
     usecase: ProjectDocumentUseCase = Depends(get_project_document_usecase),
 ):
     """List RAG chunks for a project, optionally filtered by document."""

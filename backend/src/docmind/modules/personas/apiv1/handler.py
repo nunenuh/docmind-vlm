@@ -5,7 +5,7 @@ Persona CRUD + duplicate. All logic through PersonaUseCase.
 
 from fastapi import APIRouter, Depends
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import (
     AppException,
@@ -37,7 +37,7 @@ def _to_response(persona: object) -> PersonaResponse:
 
 @router.get("", response_model=list[PersonaResponse])
 async def list_personas(
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("personas:read")),
     usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     try:
@@ -53,7 +53,7 @@ async def list_personas(
 @router.post("", response_model=PersonaResponse, status_code=201)
 async def create_persona(
     body: PersonaCreate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("personas:write")),
     usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     try:
@@ -73,7 +73,7 @@ async def create_persona(
 async def update_persona(
     persona_id: str,
     body: PersonaUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("personas:write")),
     usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     try:
@@ -98,7 +98,7 @@ async def update_persona(
 @router.delete("/{persona_id}", status_code=204)
 async def delete_persona(
     persona_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("personas:write")),
     usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     try:
@@ -115,7 +115,7 @@ async def delete_persona(
 @router.post("/{persona_id}/duplicate", response_model=PersonaResponse)
 async def duplicate_persona(
     persona_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("personas:write")),
     usecase: PersonaUseCase = Depends(get_persona_usecase),
 ):
     """Duplicate a persona (preset or custom) as user's custom persona."""

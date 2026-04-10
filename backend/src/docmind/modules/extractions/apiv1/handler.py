@@ -11,7 +11,7 @@ import json
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response, StreamingResponse
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import AppException, BaseAppException
 
@@ -41,7 +41,7 @@ router = APIRouter()
 async def process_document(
     document_id: str,
     body: ProcessRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:write")),
     usecase: ExtractionProcessUseCase = Depends(get_extraction_process_usecase),
 ):
     """Trigger extraction pipeline for a document (SSE stream)."""
@@ -64,7 +64,7 @@ async def process_document(
 @router.post("/classify", response_model=ClassifyResponse)
 async def classify_document(
     body: ClassifyRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:write")),
     usecase: ExtractionProcessUseCase = Depends(get_extraction_process_usecase),
 ):
     """Auto-detect document type without running extraction."""
@@ -87,7 +87,7 @@ async def classify_document(
 @router.get("/{document_id}", response_model=ExtractionResponse)
 async def get_extraction(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:read")),
     usecase: ExtractionResultsUseCase = Depends(get_extraction_results_usecase),
 ):
     """Get the latest extraction results for a document."""
@@ -103,7 +103,7 @@ async def get_extraction(
 @router.get("/{document_id}/audit", response_model=list[AuditEntryResponse])
 async def get_audit_trail(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:read")),
     usecase: ExtractionResultsUseCase = Depends(get_extraction_results_usecase),
 ):
     """Get pipeline audit trail for a document's extraction."""
@@ -119,7 +119,7 @@ async def get_audit_trail(
 @router.get("/{document_id}/overlay", response_model=list[OverlayRegion])
 async def get_overlay_data(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:read")),
     usecase: ExtractionResultsUseCase = Depends(get_extraction_results_usecase),
 ):
     """Get confidence overlay bounding boxes for UI visualization."""
@@ -135,7 +135,7 @@ async def get_overlay_data(
 @router.get("/{document_id}/comparison", response_model=ComparisonResponse)
 async def get_comparison(
     document_id: str,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:read")),
     usecase: ExtractionResultsUseCase = Depends(get_extraction_results_usecase),
 ):
     """Get raw vs enhanced field comparison."""
@@ -152,7 +152,7 @@ async def get_comparison(
 async def export_extraction(
     document_id: str,
     format: str = Query(default="json", pattern="^(json|csv)$"),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("extractions:read")),
     usecase: ExtractionResultsUseCase = Depends(get_extraction_results_usecase),
 ):
     """Export extracted fields as JSON or CSV."""

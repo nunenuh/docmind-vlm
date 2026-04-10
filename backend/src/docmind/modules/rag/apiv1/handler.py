@@ -7,7 +7,7 @@ All endpoints are JWT-authenticated.
 
 from fastapi import APIRouter, Depends, Query
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.shared.exceptions import AppException, BaseAppException
 
@@ -28,7 +28,7 @@ router = APIRouter()
 @router.post("/search", response_model=RetrievalResult)
 async def rag_search(
     body: RAGSearchRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("rag:read")),
     usecase: RAGUseCase = Depends(get_rag_usecase),
 ):
     """Semantic search across a project's indexed documents."""
@@ -60,7 +60,7 @@ async def list_chunks(
     document_id: str | None = Query(default=None),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("rag:read")),
     usecase: RAGUseCase = Depends(get_rag_usecase),
 ):
     """List RAG chunks for a project, optionally filtered by document."""
@@ -82,7 +82,7 @@ async def list_chunks(
 async def get_chunk(
     chunk_id: str,
     project_id: str = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("rag:read")),
     usecase: RAGUseCase = Depends(get_rag_usecase),
 ):
     """Get a single chunk with full content."""
@@ -98,7 +98,7 @@ async def get_chunk(
 @router.get("/stats", response_model=RAGStatsResponse)
 async def rag_stats(
     project_id: str = Query(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("rag:read")),
     usecase: RAGUseCase = Depends(get_rag_usecase),
 ):
     """Get chunk statistics for a project."""
