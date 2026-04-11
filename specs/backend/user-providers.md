@@ -548,6 +548,122 @@ The RAG pipeline calls `get_embedding_provider()`. Same pattern applies:
 3. If found, passes `UserProviderOverride` to the embedding factory
 4. If not found, uses system default
 
+### Provider Override Wiring
+
+The override is resolved **once** in the usecase layer, then passed through the pipeline state dict as a plain field. No DB access happens in the library layer.
+
+#### Shared Resolver
+
+```python
+# shared/provider_resolver.py
+
+from docmind.core.encryption import decrypt
+from docmind.library.providers.factory import UserProviderOverride
+from docmind.modules.settings.repositories import UserProviderRepository
+
+
+async def resolve_provider_override(
+    user_id: str, provider_type: str
+) -> UserProviderOverride | None:
+    """Resolve user's provider config from DB into a UserProviderOverride.
+
+    Returns None if user has no validated config for the given type.
+    Called by usecases before entering pipeline/service code.
+    """
+    repo = UserProviderRepository()
+    config = await repo.get_by_user_and_type(user_id, provider_type)
+    if config is None or not config.is_validated:
+        return None
+    return UserProviderOverride(
+        provider_name=config.provider_name,
+        api_key=decrypt(config.encrypted_api_key),
+        model_name=config.model_name,
+        base_url=config.base_url,
+    )
+```
+
+#### Usecase Injection
+
+Each usecase resolves the override and injects it into the pipeline state or service call:
+
+```python
+# modules/documents/usecase.py — processing pipeline
+class DocumentUseCase:
+    async def _processing_stream(self, document_id, template_type, user_id):
+        from docmind.shared.provider_resolver import resolve_provider_override
+        
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+        initial_state = {
+            ...,
+            "provider_override": vlm_override,  # UserProviderOverride | None
+        }
+        # Pipeline nodes read state.get("provider_override")
+
+# modules/chat/usecase.py — chat pipeline
+class ChatUseCase:
+    async def _chat_stream(self, document_id, message, user_id):
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+        # Pass to chat service or pipeline state
+
+# modules/projects/usecase.py — project chat
+class ProjectUseCase:
+    async def _project_chat_stream(self, project_id, message, user_id):
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+        embedding_override = await resolve_provider_override(user_id, "embedding")
+        # Pass both to RAG + VLM pipelines
+```
+
+#### Pipeline Nodes — Read Override from State
+
+Each pipeline node reads the override from the state dict and passes it to the factory:
+
+```python
+# library/pipeline/extraction/extract.py
+def extract_node(state: dict) -> dict:
+    override = state.get("provider_override")
+    provider = get_vlm_provider(override=override)
+    # ... rest of extraction logic
+
+# library/pipeline/extraction/postprocess.py
+def postprocess_node(state: dict) -> dict:
+    override = state.get("provider_override")
+    provider = get_vlm_provider(override=override)
+    # ... rest of postprocess logic
+```
+
+#### Services — Accept Override Parameter
+
+Services that call `get_vlm_provider()` accept an optional override parameter:
+
+```python
+# modules/extractions/services/classification.py
+class ClassificationService:
+    async def classify(self, image, categories, override=None):
+        provider = get_vlm_provider(override=override)
+
+# modules/chat/services.py
+class ChatService:
+    async def chat(self, document_id, message, override=None):
+        provider = get_vlm_provider(override=override)
+
+# modules/templates/services/detection.py
+class DetectionService:
+    async def detect(self, image, override=None):
+        provider = get_vlm_provider(override=override)
+```
+
+#### Call Sites Summary
+
+| File | How Override is Received |
+|------|------------------------|
+| `library/pipeline/extraction/extract.py` | `state.get("provider_override")` |
+| `library/pipeline/extraction/postprocess.py` | `state.get("provider_override")` |
+| `library/rag/query_rewriter.py` | `override` parameter |
+| `modules/extractions/services/classification.py` | `override` parameter |
+| `modules/chat/services.py` | `override` parameter |
+| `modules/projects/services/vlm.py` | `override` parameter |
+| `modules/templates/services/detection.py` | `override` parameter |
+
 ### Existing Callers
 
 All existing callers of `get_vlm_provider()` and `get_embedding_provider()` continue to work without changes because the `override` parameter defaults to `None`, preserving the current system-default behavior.
