@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
-import { useTokens, useRevokeToken, useRegenerateToken } from "@/hooks/useApiTokens";
+import { useTokens, useRevokeToken } from "@/hooks/useApiTokens";
 import { TokenList } from "@/components/settings/TokenList";
 import { CreateTokenModal } from "@/components/settings/CreateTokenModal";
 import { TokenCreatedView } from "@/components/settings/TokenCreatedView";
@@ -11,8 +11,6 @@ import type { TokenResponse, TokenCreatedResponse } from "@/types/api-token";
 export function ApiKeysSettings() {
   const { data, isLoading, isError, error } = useTokens();
   const revokeToken = useRevokeToken();
-  const regenerateToken = useRegenerateToken();
-
   const [showCreate, setShowCreate] = useState(false);
   const [createdToken, setCreatedToken] = useState<TokenCreatedResponse | null>(null);
   const [editingToken, setEditingToken] = useState<TokenResponse | null>(null);
@@ -70,13 +68,6 @@ export function ApiKeysSettings() {
             tokens={tokens}
             onEdit={setEditingToken}
             onRevoke={setRevokingToken}
-            onRegenerate={(token) => {
-              if (confirm(`Regenerate "${token.name}"? The old key will be revoked immediately.`)) {
-                regenerateToken.mutate(token.id, {
-                  onSuccess: (newToken) => setCreatedToken(newToken),
-                });
-              }
-            }}
           />
         </div>
       )}
