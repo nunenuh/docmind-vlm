@@ -322,3 +322,9 @@ export async function updateToken(id: string, data: UpdateTokenRequest): Promise
 export async function revokeToken(id: string): Promise<void> {
   await apiFetch<void>(`/api/v1/auth/tokens/${id}`, { method: "DELETE" });
 }
+
+export async function regenerateToken(id: string): Promise<TokenCreatedResponse> {
+  return apiFetch<TokenCreatedResponse>(`/api/v1/auth/tokens/${id}/regenerate`, {
+    method: "POST",
+  });
+}

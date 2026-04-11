@@ -153,6 +153,22 @@ async def revoke_token(
         raise AppException(message="Internal server error") from exc
 
 
+@router.post("/tokens/{token_id}/regenerate", response_model=TokenCreatedResponse)
+async def regenerate_token(
+    token_id: str,
+    request: Request,
+    usecase: ApiTokenUseCase = Depends(get_api_token_usecase),
+) -> TokenCreatedResponse:
+    current_user = await get_current_user(request)
+    try:
+        return await usecase.regenerate_token(token_id, current_user["id"])
+    except BaseAppException:
+        raise
+    except Exception as exc:
+        logger.error("regenerate_token error: %s", exc, exc_info=True)
+        raise AppException(message="Internal server error") from exc
+
+
 @router.patch("/tokens/{token_id}", response_model=TokenResponse)
 async def update_token(
     token_id: str,

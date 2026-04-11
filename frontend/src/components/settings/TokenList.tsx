@@ -1,10 +1,11 @@
-import { Edit, Trash2, Key } from "lucide-react";
+import { Edit, Trash2, Key, RefreshCw } from "lucide-react";
 import type { TokenResponse } from "@/types/api-token";
 
 interface TokenListProps {
   tokens: TokenResponse[];
   onEdit: (token: TokenResponse) => void;
   onRevoke: (token: TokenResponse) => void;
+  onRegenerate: (token: TokenResponse) => void;
 }
 
 function formatDate(dateStr: string | null): string {
@@ -52,7 +53,7 @@ function TypeBadge({ type }: { type: string }) {
   );
 }
 
-export function TokenList({ tokens, onEdit, onRevoke }: TokenListProps) {
+export function TokenList({ tokens, onEdit, onRevoke, onRegenerate }: TokenListProps) {
   if (tokens.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-4">
@@ -144,6 +145,13 @@ export function TokenList({ tokens, onEdit, onRevoke }: TokenListProps) {
                 <td className="py-3 px-4">
                   {!isRevoked && (
                     <div className="flex items-center justify-end gap-1">
+                      <button
+                        onClick={() => onRegenerate(token)}
+                        className="p-1.5 text-gray-500 hover:text-blue-400 rounded-lg hover:bg-white/5 transition-colors"
+                        title="Regenerate"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
                       <button
                         onClick={() => onEdit(token)}
                         className="p-1.5 text-gray-500 hover:text-gray-300 rounded-lg hover:bg-white/5 transition-colors"

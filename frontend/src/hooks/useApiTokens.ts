@@ -1,6 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { listTokens, createToken, updateToken, revokeToken } from "@/lib/api";
+import { listTokens, createToken, updateToken, revokeToken, regenerateToken } from "@/lib/api";
 import type { CreateTokenRequest, UpdateTokenRequest } from "@/types/api-token";
 
 export function useTokens() {
@@ -34,6 +34,19 @@ export function useUpdateToken() {
     },
     onError: (error: Error) => {
       toast.error(`Failed to update token: ${error.message}`);
+    },
+  });
+}
+
+export function useRegenerateToken() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => regenerateToken(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["api-tokens"] });
+    },
+    onError: (error: Error) => {
+      toast.error(`Failed to regenerate token: ${error.message}`);
     },
   });
 }
