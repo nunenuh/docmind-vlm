@@ -302,23 +302,23 @@ import type {
 } from "@/types/api-token";
 
 export async function listTokens(): Promise<TokenListResponse> {
-  return apiFetch<TokenListResponse>("/api/v1/tokens");
+  return apiFetch<TokenListResponse>("/api/v1/auth/tokens");
 }
 
 export async function createToken(data: CreateTokenRequest): Promise<TokenCreatedResponse> {
-  return apiFetch<TokenCreatedResponse>("/api/v1/tokens", {
+  return apiFetch<TokenCreatedResponse>("/api/v1/auth/tokens", {
     method: "POST",
     body: JSON.stringify(data),
   });
 }
 
 export async function updateToken(id: string, data: UpdateTokenRequest): Promise<TokenResponse> {
-  return apiFetch<TokenResponse>(`/api/v1/tokens/${id}`, {
+  return apiFetch<TokenResponse>(`/api/v1/auth/tokens/${id}`, {
     method: "PATCH",
     body: JSON.stringify(data),
   });
 }
 
 export async function revokeToken(id: string): Promise<void> {
-  await apiFetch<void>(`/api/v1/tokens/${id}`, { method: "DELETE" });
+  await apiFetch<void>(`/api/v1/auth/tokens/${id}`, { method: "DELETE" });
 }
