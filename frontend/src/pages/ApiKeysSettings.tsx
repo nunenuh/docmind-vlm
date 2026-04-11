@@ -99,6 +99,10 @@ export function ApiKeysSettings() {
         isOpen={!!editingToken}
         token={editingToken}
         onClose={() => setEditingToken(null)}
+        onRegenerated={(newToken) => {
+          setEditingToken(null);
+          setCreatedToken(newToken);
+        }}
       />
 
       <RevokeTokenDialog

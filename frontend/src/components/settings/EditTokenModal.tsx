@@ -1,27 +1,42 @@
 import { useState, useEffect } from "react";
-import { X, Loader2 } from "lucide-react";
-import { useUpdateToken } from "@/hooks/useApiTokens";
+import { X, Loader2, RefreshCw } from "lucide-react";
+import { useUpdateToken, useRegenerateToken } from "@/hooks/useApiTokens";
 import { ScopeCheckboxGrid } from "./ScopeCheckboxGrid";
-import type { TokenResponse } from "@/types/api-token";
+import type { TokenResponse, TokenCreatedResponse } from "@/types/api-token";
 
 interface EditTokenModalProps {
   isOpen: boolean;
   token: TokenResponse | null;
   onClose: () => void;
+  onRegenerated?: (newToken: TokenCreatedResponse) => void;
 }
 
-export function EditTokenModal({ isOpen, token, onClose }: EditTokenModalProps) {
+export function EditTokenModal({ isOpen, token, onClose, onRegenerated }: EditTokenModalProps) {
   const [name, setName] = useState("");
   const [scopes, setScopes] = useState<string[]>([]);
+  const [showRegenerateConfirm, setShowRegenerateConfirm] = useState(false);
 
   const updateToken = useUpdateToken();
+  const regenerateToken = useRegenerateToken();
 
   useEffect(() => {
     if (token) {
       setName(token.name);
       setScopes([...token.scopes]);
+      setShowRegenerateConfirm(false);
     }
   }, [token]);
+
+  const handleRegenerate = async () => {
+    if (!token) return;
+    try {
+      const newToken = await regenerateToken.mutateAsync(token.id);
+      onClose();
+      onRegenerated?.(newToken);
+    } catch {
+      // Error handled by the hook
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -88,6 +103,49 @@ export function EditTokenModal({ isOpen, token, onClose }: EditTokenModalProps) 
               Permissions
             </label>
             <ScopeCheckboxGrid selectedScopes={scopes} onChange={setScopes} />
+          </div>
+
+          {/* Regenerate */}
+          <div className="border border-amber-500/20 bg-amber-500/5 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-sm font-medium text-amber-300 flex items-center gap-1.5">
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Regenerate Key
+                </h4>
+                <p className="text-xs text-gray-400 mt-1">
+                  Create a new secret key. The current key will be revoked immediately.
+                </p>
+              </div>
+              {!showRegenerateConfirm ? (
+                <button
+                  type="button"
+                  onClick={() => setShowRegenerateConfirm(true)}
+                  className="px-3 py-1.5 text-xs font-medium text-amber-300 border border-amber-500/30 hover:bg-amber-500/10 rounded-lg transition-colors shrink-0"
+                >
+                  Regenerate
+                </button>
+              ) : (
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setShowRegenerateConfirm(false)}
+                    className="px-3 py-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleRegenerate}
+                    disabled={regenerateToken.isPending}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-lg transition-colors"
+                  >
+                    {regenerateToken.isPending && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Confirm Regenerate
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Actions */}
