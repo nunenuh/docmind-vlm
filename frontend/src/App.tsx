@@ -24,6 +24,7 @@ import { ApiReference } from "@/pages/ApiReference";
 import { ProfileSettings } from "@/pages/ProfileSettings";
 import { PreferencesSettings } from "@/pages/PreferencesSettings";
 import { AboutSettings } from "@/pages/AboutSettings";
+import { AiProvidersSettings } from "@/pages/AiProvidersSettings";
 
 function AuthProvider({ children }: { children: React.ReactNode }) {
   const { setAuth, clearAuth, setIsLoading } = useAuthStore();
@@ -63,6 +64,7 @@ export function App() {
                   <Route path="/workspace/:documentId" element={<Workspace />} />
                   <Route path="/settings" element={<Settings />}>
                     <Route path="api-keys" element={<ApiKeysSettings />} />
+                    <Route path="ai-providers" element={<AiProvidersSettings />} />
                     <Route path="api-reference" element={<ApiReference />} />
                     <Route path="profile" element={<ProfileSettings />} />
                     <Route path="preferences" element={<PreferencesSettings />} />

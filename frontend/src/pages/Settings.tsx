@@ -1,8 +1,9 @@
 import { NavLink, Outlet, Navigate, useLocation } from "react-router-dom";
-import { Key, Book, ArrowLeft, User, Palette, Info } from "lucide-react";
+import { Key, Book, ArrowLeft, User, Palette, Info, Cpu } from "lucide-react";
 
 const SIDEBAR_ITEMS = [
   { to: "/settings/api-keys", label: "API Keys", icon: Key },
+  { to: "/settings/ai-providers", label: "AI Providers", icon: Cpu },
   { to: "/settings/api-reference", label: "API Reference", icon: Book },
   { to: "/settings/profile", label: "Profile", icon: User },
   { to: "/settings/preferences", label: "Preferences", icon: Palette },

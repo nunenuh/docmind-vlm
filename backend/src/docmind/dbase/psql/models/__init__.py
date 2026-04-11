@@ -13,6 +13,7 @@ from .project import Project
 from .project_conversation import ProjectConversation
 from .project_message import ProjectMessage
 from .template import Template
+from .user_provider_config import UserProviderConfig
 
 __all__ = [
     "ApiToken",
@@ -28,4 +29,5 @@ __all__ = [
     "ProjectConversation",
     "ProjectMessage",
     "Template",
+    "UserProviderConfig",
 ]

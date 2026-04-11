@@ -142,6 +142,12 @@ class Settings(BaseSettings):
     ENABLE_THINKING: bool = Field(default=True)
     THINKING_BUDGET: int = Field(default=10000)
 
+    # Encryption
+    ENCRYPTION_KEY: str = Field(
+        default="",
+        description="Fernet key for encrypting user API keys. Generate with Fernet.generate_key()",
+    )
+
     # CV Processing
     CV_DESKEW_THRESHOLD: float = Field(default=2.0)
     CV_QUALITY_GRID_SIZE: int = Field(default=4)

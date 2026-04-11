@@ -292,6 +292,45 @@ export async function duplicatePersona(id: string): Promise<PersonaResponse> {
   return apiFetch<PersonaResponse>(`/api/v1/personas/${id}/duplicate`, { method: "POST" });
 }
 
+// Provider Settings
+import type {
+  ProviderType,
+  ProvidersResponse,
+  ProviderConfigResponse,
+  SetProviderRequest,
+  ValidateProviderRequest,
+  ValidateProviderResponse,
+} from "@/types/provider";
+
+export async function getProviders(): Promise<ProvidersResponse> {
+  return apiFetch<ProvidersResponse>("/api/v1/settings/providers");
+}
+
+export async function setProvider(
+  type: ProviderType,
+  data: SetProviderRequest,
+): Promise<ProviderConfigResponse> {
+  return apiFetch<ProviderConfigResponse>(
+    `/api/v1/settings/providers/${type}`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteProvider(type: ProviderType): Promise<void> {
+  await apiFetch<void>(`/api/v1/settings/providers/${type}`, {
+    method: "DELETE",
+  });
+}
+
+export async function testProvider(
+  data: ValidateProviderRequest,
+): Promise<ValidateProviderResponse> {
+  return apiFetch<ValidateProviderResponse>(
+    "/api/v1/settings/providers/test",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
 // API Tokens
 import type {
   TokenListResponse,
