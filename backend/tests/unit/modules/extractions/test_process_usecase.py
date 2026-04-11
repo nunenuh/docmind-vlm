@@ -10,7 +10,7 @@ Moved from documents module — extraction processing now lives in extractions.
 import json
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 
 @pytest.fixture
@@ -78,8 +78,9 @@ class TestProcessingStream:
     """Tests for _processing_stream SSE events."""
 
     @pytest.mark.asyncio
+    @patch("docmind.shared.provider_resolver.resolve_provider_override", new_callable=AsyncMock, return_value=None)
     async def test_yields_sse_events(
-        self, mock_doc_repo, mock_storage_service, mock_pipeline_service, mock_template_repo
+        self, _mock_resolve, mock_doc_repo, mock_storage_service, mock_pipeline_service, mock_template_repo
     ):
         """SSE events follow the format: data: {JSON}\\n\\n"""
 

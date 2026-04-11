@@ -3,7 +3,7 @@
 from collections.abc import AsyncGenerator
 
 from docmind.core.config import get_settings
-from docmind.library.providers.factory import get_vlm_provider
+from docmind.library.providers.factory import UserProviderOverride, get_vlm_provider
 
 
 class ProjectVLMService:
@@ -17,9 +17,10 @@ class ProjectVLMService:
         message: str,
         system_prompt: str,
         history: list[dict],
+        override: UserProviderOverride | None = None,
     ) -> AsyncGenerator[dict, None]:
         """Stream VLM response with thinking."""
-        provider = get_vlm_provider()
+        provider = get_vlm_provider(override=override)
         async for event in provider.chat_stream(
             images=[],
             message=message,

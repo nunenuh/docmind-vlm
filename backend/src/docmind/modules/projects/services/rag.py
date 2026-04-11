@@ -1,6 +1,7 @@
 """Project RAG service — embedding, retrieval, query rewriting."""
 
 from docmind.core.config import get_settings
+from docmind.library.providers.factory import UserProviderOverride
 from docmind.library.rag.embedder import embed_texts
 from docmind.library.rag.query_rewriter import rewrite_query_with_context
 from docmind.library.rag.retriever import retrieve_similar_chunks
@@ -32,6 +33,11 @@ class ProjectRAGService:
             query_text=query_text,
         )
 
-    async def rewrite_query(self, message: str, history: list[dict]) -> str:
+    async def rewrite_query(
+        self,
+        message: str,
+        history: list[dict],
+        override: UserProviderOverride | None = None,
+    ) -> str:
         """Rewrite query with conversation context."""
-        return await rewrite_query_with_context(message, history)
+        return await rewrite_query_with_context(message, history, override=override)

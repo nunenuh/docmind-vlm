@@ -109,6 +109,11 @@ class ChatUseCase:
             )
         history_slice = self.service.get_history_slice(conversation_history)
 
+        # Resolve user provider override
+        from docmind.shared.provider_resolver import resolve_provider_override
+
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+
         yield _sse("status", {"message": "Generating response..."})
 
         # Delegate VLM streaming to service (with image if available)
@@ -119,6 +124,7 @@ class ChatUseCase:
                 system_prompt=system_prompt,
                 history=history_slice,
                 document_image=document_image,
+                override=vlm_override,
             ):
                 if event["type"] == "thinking":
                     yield _sse("thinking", {"content": event["content"]})

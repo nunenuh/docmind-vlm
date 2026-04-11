@@ -9,7 +9,7 @@ from typing import AsyncGenerator
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.library.providers.factory import get_vlm_provider
+from docmind.library.providers.factory import UserProviderOverride, get_vlm_provider
 
 logger = get_logger(__name__)
 
@@ -62,6 +62,7 @@ class ChatService:
         system_prompt: str,
         history: list[dict],
         document_image=None,
+        override: UserProviderOverride | None = None,
     ) -> AsyncGenerator[dict, None]:
         """Stream VLM chat response with thinking.
 
@@ -73,7 +74,7 @@ class ChatService:
 
         Yields dicts: {"type": "thinking"|"answer"|"done", "content": "..."}
         """
-        provider = get_vlm_provider()
+        provider = get_vlm_provider(override=override)
         images = [document_image] if document_image is not None else []
 
         async for event in provider.chat_stream(
