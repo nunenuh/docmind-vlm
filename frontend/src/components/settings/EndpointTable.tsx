@@ -1,4 +1,4 @@
-import { ENDPOINT_DEFINITIONS, ENDPOINT_MODULES } from "@/data/endpoints";
+import { useEffect, useState } from "react";
 
 const METHOD_STYLES: Record<string, string> = {
   GET: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
@@ -7,6 +7,13 @@ const METHOD_STYLES: Record<string, string> = {
   PATCH: "bg-amber-500/10 text-amber-400 border-amber-500/20",
   DELETE: "bg-red-500/10 text-red-400 border-red-500/20",
 };
+
+interface OpenAPIEndpoint {
+  method: string;
+  path: string;
+  summary: string;
+  tags: string[];
+}
 
 function MethodBadge({ method }: { method: string }) {
   const style = METHOD_STYLES[method] ?? "bg-gray-500/10 text-gray-400 border-gray-500/20";
@@ -19,11 +26,80 @@ function MethodBadge({ method }: { method: string }) {
   );
 }
 
+function parseOpenAPI(schema: Record<string, unknown>): {
+  modules: string[];
+  endpoints: OpenAPIEndpoint[];
+} {
+  const paths = (schema.paths ?? {}) as Record<string, Record<string, unknown>>;
+  const endpoints: OpenAPIEndpoint[] = [];
+
+  for (const [path, methods] of Object.entries(paths)) {
+    for (const [method, detail] of Object.entries(methods)) {
+      if (["get", "post", "put", "patch", "delete"].includes(method)) {
+        const d = detail as Record<string, unknown>;
+        endpoints.push({
+          method: method.toUpperCase(),
+          path,
+          summary: (d.summary as string) ?? "",
+          tags: (d.tags as string[]) ?? ["Other"],
+        });
+      }
+    }
+  }
+
+  const moduleSet = new Set<string>();
+  for (const ep of endpoints) {
+    for (const tag of ep.tags) {
+      moduleSet.add(tag);
+    }
+  }
+
+  return { modules: Array.from(moduleSet), endpoints };
+}
+
 export function EndpointTable() {
+  const [data, setData] = useState<{ modules: string[]; endpoints: OpenAPIEndpoint[] } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+    fetch(`${apiBase}/openapi.json`)
+      .then((res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        return res.json();
+      })
+      .then((schema) => {
+        setData(parseOpenAPI(schema));
+        setLoading(false);
+      })
+      .catch((err) => {
+        setError(err.message);
+        setLoading(false);
+      });
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-12 text-gray-500 text-sm">
+        Loading endpoints from API...
+      </div>
+    );
+  }
+
+  if (error || !data) {
+    return (
+      <div className="text-center py-8">
+        <p className="text-red-400 text-sm">Failed to load API schema: {error}</p>
+        <p className="text-gray-500 text-xs mt-1">Make sure the backend is running</p>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
-      {ENDPOINT_MODULES.map((mod) => {
-        const endpoints = ENDPOINT_DEFINITIONS.filter((e) => e.module === mod);
+      {data.modules.map((mod) => {
+        const endpoints = data.endpoints.filter((e) => e.tags.includes(mod));
         if (endpoints.length === 0) return null;
         return (
           <div key={mod}>
@@ -37,9 +113,6 @@ export function EndpointTable() {
                     </th>
                     <th className="text-left py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Path
-                    </th>
-                    <th className="text-left py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider w-40">
-                      Scope
                     </th>
                     <th className="text-left py-2.5 px-4 text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Description
@@ -64,11 +137,8 @@ export function EndpointTable() {
                           {ep.path}
                         </code>
                       </td>
-                      <td className="py-2 px-4">
-                        <span className="text-xs text-indigo-400">{ep.scope}</span>
-                      </td>
                       <td className="py-2 px-4 text-gray-400 text-xs">
-                        {ep.description}
+                        {ep.summary}
                       </td>
                     </tr>
                   ))}
