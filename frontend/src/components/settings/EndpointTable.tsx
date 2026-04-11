@@ -63,7 +63,7 @@ export function EndpointTable() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const apiBase = import.meta.env.VITE_API_BASE_URL || "";
+    const apiBase = import.meta.env.VITE_API_URL || "http://localhost:8009";
     fetch(`${apiBase}/openapi.json`)
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
