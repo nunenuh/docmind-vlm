@@ -85,6 +85,11 @@ class ExtractionProcessUseCase:
             yield _sse("error", 0, "Failed to load document file")
             return
 
+        # Resolve user provider override
+        from docmind.shared.provider_resolver import resolve_provider_override
+
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+
         # Auto-classify if no template specified
         if not template_type:
             yield _sse("classify", 5, "Auto-detecting document type...")
@@ -92,7 +97,8 @@ class ExtractionProcessUseCase:
                 templates = await self.template_repo.list_all()
                 template_types = [t.type for t in templates]
                 detected_type = await self.classification_service.classify(
-                    file_bytes, getattr(doc, "file_type", "pdf"), template_types
+                    file_bytes, getattr(doc, "file_type", "pdf"), template_types,
+                    override=vlm_override,
                 )
                 if detected_type and detected_type != "unknown":
                     template_type = detected_type
@@ -132,6 +138,7 @@ class ExtractionProcessUseCase:
             "error_message": None,
             "audit_entries": [],
             "progress_callback": on_progress,
+            "provider_override": vlm_override,
         }
 
         pipeline_task = asyncio.create_task(
@@ -174,6 +181,8 @@ class ExtractionProcessUseCase:
         self, document_id: str, user_id: str
     ) -> dict:
         """Auto-detect document type without running extraction."""
+        from docmind.shared.provider_resolver import resolve_provider_override
+
         doc = await self.doc_repo.get_by_id(document_id, user_id)
         if doc is None:
             raise NotFoundException("Document not found")
@@ -185,8 +194,9 @@ class ExtractionProcessUseCase:
         templates = await self.template_repo.list_all()
         template_types = [t.type for t in templates]
 
+        vlm_override = await resolve_provider_override(user_id, "vlm")
         detected = await self.classification_service.classify(
-            file_bytes, doc.file_type, template_types
+            file_bytes, doc.file_type, template_types, override=vlm_override
         )
 
         return {

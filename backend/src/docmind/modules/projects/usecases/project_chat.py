@@ -100,6 +100,12 @@ class ProjectChatUseCase:
             )
             conversation_id = str(conv.id)
 
+        # Resolve user provider overrides
+        from docmind.shared.provider_resolver import resolve_provider_override
+
+        vlm_override = await resolve_provider_override(user_id, "vlm")
+        embedding_override = await resolve_provider_override(user_id, "embedding")
+
         yield _sse(
             "status",
             {"message": "Saving message...", "conversation_id": conversation_id},
@@ -111,7 +117,9 @@ class ProjectChatUseCase:
         # --- Query Rewriting (via service) ---
         search_query = message
         try:
-            rewritten = await self.rag_service.rewrite_query(message, history)
+            rewritten = await self.rag_service.rewrite_query(
+                message, history, override=vlm_override
+            )
             if rewritten != message:
                 search_query = rewritten
                 yield _sse(
@@ -162,6 +170,7 @@ class ProjectChatUseCase:
                 message=full_message,
                 system_prompt=system_prompt,
                 history=history,
+                override=vlm_override,
             ):
                 if event["type"] == "thinking":
                     yield _sse("thinking", {"content": event["content"]})

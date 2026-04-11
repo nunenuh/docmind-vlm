@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 
 from docmind.core.logging import get_logger
-from docmind.library.providers.factory import get_vlm_provider
+from docmind.library.providers.factory import UserProviderOverride, get_vlm_provider
 
 from .field import TemplateFieldService
 
@@ -14,7 +14,7 @@ logger = get_logger(__name__)
 class TemplateDetectionService:
     """Auto-detect document type and fields using VLM."""
 
-    async def detect(self, file_bytes: bytes) -> dict:
+    async def detect(self, file_bytes: bytes, override: UserProviderOverride | None = None) -> dict:
         """Auto-detect document type and fields from file bytes.
 
         Args:
@@ -35,7 +35,7 @@ class TemplateDetectionService:
                 "suggested_template": {},
             }
 
-        provider = get_vlm_provider()
+        provider = get_vlm_provider(override=override)
 
         classify_response = await provider.extract(
             images=[image],

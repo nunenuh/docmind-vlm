@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from docmind.core.config import get_settings
+from docmind.library.providers.factory import UserProviderOverride
 
 logger = logging.getLogger(__name__)
 
@@ -51,6 +52,7 @@ def _needs_rewrite(query: str) -> bool:
 async def rewrite_query_with_context(
     query: str,
     conversation_history: list[dict],
+    override: UserProviderOverride | None = None,
 ) -> str:
     """Rewrite an ambiguous query using conversation context.
 
@@ -90,7 +92,7 @@ async def rewrite_query_with_context(
     try:
         from docmind.library.providers.factory import get_vlm_provider
 
-        provider = get_vlm_provider()
+        provider = get_vlm_provider(override=override)
         response = await provider.chat(
             images=[],
             message=rewrite_prompt,

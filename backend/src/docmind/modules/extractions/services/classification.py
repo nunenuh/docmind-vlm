@@ -5,7 +5,7 @@ import numpy as np
 
 from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
-from docmind.library.providers.factory import get_vlm_provider
+from docmind.library.providers.factory import UserProviderOverride, get_vlm_provider
 
 logger = get_logger(__name__)
 
@@ -17,7 +17,11 @@ class ClassificationService:
         self._settings = settings or get_settings()
 
     async def classify(
-        self, file_bytes: bytes, file_type: str, template_types: list[str]
+        self,
+        file_bytes: bytes,
+        file_type: str,
+        template_types: list[str],
+        override: UserProviderOverride | None = None,
     ) -> str | None:
         """Classify a document image to detect its type.
 
@@ -34,7 +38,7 @@ class ClassificationService:
             return None
 
         types_str = ", ".join(template_types)
-        provider = get_vlm_provider()
+        provider = get_vlm_provider(override=override)
         prompt = (
             f"What type of document is this? Choose from: {types_str}, or 'unknown' if none match. "
             "Return ONLY the type name, nothing else."
