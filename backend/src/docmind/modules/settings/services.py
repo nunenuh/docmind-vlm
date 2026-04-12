@@ -23,6 +23,7 @@ class ProviderTestService:
         provider_name: ProviderName,
         api_key: str,
         base_url: str | None = None,
+        provider_type: str = "vlm",
     ) -> ValidateProviderResponse:
         """Test a provider connection and return available models."""
         try:
@@ -31,7 +32,7 @@ class ProviderTestService:
             elif provider_name == ProviderName.OPENAI:
                 return await self._test_openai(api_key, base_url)
             elif provider_name == ProviderName.OPENROUTER:
-                return await self._test_openrouter(api_key)
+                return await self._test_openrouter(api_key, provider_type)
             elif provider_name == ProviderName.GOOGLE:
                 return await self._test_google(api_key)
             elif provider_name == ProviderName.OLLAMA:
@@ -158,13 +159,36 @@ class ProviderTestService:
                 models=sorted(relevant) if relevant else sorted(all_models[:20]),
             )
 
-    async def _test_openrouter(self, api_key: str) -> ValidateProviderResponse:
-        """Test OpenRouter connection via /api/v1/models endpoint.
+    async def _test_openrouter(
+        self, api_key: str, provider_type: str = "vlm"
+    ) -> ValidateProviderResponse:
+        """Test OpenRouter connection.
 
-        Uses model metadata (input_modalities) to filter for vision
-        and embedding models instead of hardcoded keyword matching.
+        For VLM: uses /api/v1/models with input_modalities filtering.
+        For Embedding: uses /api/v1/embeddings/models (separate endpoint).
         """
         async with httpx.AsyncClient(timeout=_TEST_TIMEOUT) as client:
+            if provider_type == "embedding":
+                resp = await client.get(
+                    "https://openrouter.ai/api/v1/embeddings/models",
+                    headers={"Authorization": f"Bearer {api_key}"},
+                )
+                if resp.status_code != 200:
+                    return ValidateProviderResponse(
+                        success=False,
+                        error=f"Authentication failed (HTTP {resp.status_code})",
+                    )
+                data = resp.json()
+                models = [
+                    m.get("id", m.get("name", ""))
+                    for m in data.get("data", data.get("models", []))
+                ]
+                return ValidateProviderResponse(
+                    success=True,
+                    models=sorted(models),
+                )
+
+            # VLM: use main models endpoint with metadata filtering
             resp = await client.get(
                 "https://openrouter.ai/api/v1/models",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -179,10 +203,7 @@ class ProviderTestService:
             for m in data.get("data", []):
                 arch = m.get("architecture", {})
                 input_modalities = arch.get("input_modalities") or []
-                # Include models that accept image input (vision/VLM)
-                # or have embedding in their modality string
-                modality = arch.get("modality", "")
-                if "image" in input_modalities or "embedding" in modality:
+                if "image" in input_modalities:
                     models.append(m["id"])
             return ValidateProviderResponse(
                 success=True,

@@ -41,6 +41,7 @@ const VLM_PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
 const EMBEDDING_PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
   { value: "dashscope", label: "DashScope (Text Embedding)" },
   { value: "openai", label: "OpenAI (Embedding)" },
+  { value: "openrouter", label: "OpenRouter (Multi-Provider)" },
   { value: "google", label: "Google (Embedding)" },
   { value: "ollama", label: "Ollama (Local)" },
 ];
@@ -138,6 +139,7 @@ export function ProviderCard({
         provider_name: providerName,
         api_key: apiKey,
         base_url: providerName === "ollama" ? baseUrl : null,
+        provider_type: type,
       },
       {
         onSuccess: (result) => {

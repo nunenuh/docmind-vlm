@@ -40,6 +40,7 @@ class ValidateProviderRequest(BaseModel):
     provider_name: ProviderName
     api_key: str = Field(..., min_length=1, max_length=500)
     base_url: str | None = Field(default=None, max_length=500)
+    provider_type: ProviderType = Field(default=ProviderType.VLM)
 
 
 # ── Responses ────────────────────────────────────────────

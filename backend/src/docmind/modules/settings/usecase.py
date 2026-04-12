@@ -82,6 +82,7 @@ class ProviderSettingsUseCase:
             provider_name=request.provider_name,
             api_key=request.api_key,
             base_url=request.base_url,
+            provider_type=provider_type.value,
         )
         if not test_result.success:
             raise ValidationException(
@@ -128,4 +129,5 @@ class ProviderSettingsUseCase:
             provider_name=request.provider_name,
             api_key=request.api_key,
             base_url=request.base_url,
+            provider_type=request.provider_type.value,
         )

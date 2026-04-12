@@ -12,6 +12,7 @@ export interface ValidateProviderRequest {
   provider_name: ProviderName;
   api_key: string;
   base_url?: string | null;
+  provider_type?: ProviderType;
 }
 
 export interface ValidateProviderResponse {
