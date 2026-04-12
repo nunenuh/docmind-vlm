@@ -36,6 +36,7 @@ class RAGRetrievalService:
         try:
             return await retrieve_similar_chunks(
                 query_embedding=query_embedding, project_id=project_id,
+                model_name=self._settings.EMBEDDING_MODEL,
                 top_k=top_k or self._settings.RAG_TOP_K,
                 threshold=threshold or self._settings.RAG_SIMILARITY_THRESHOLD,
                 query_text=query_text,
