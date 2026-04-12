@@ -159,7 +159,11 @@ class ProviderTestService:
             )
 
     async def _test_openrouter(self, api_key: str) -> ValidateProviderResponse:
-        """Test OpenRouter connection via /api/v1/models endpoint."""
+        """Test OpenRouter connection via /api/v1/models endpoint.
+
+        Uses model metadata (input_modalities) to filter for vision
+        and embedding models instead of hardcoded keyword matching.
+        """
         async with httpx.AsyncClient(timeout=_TEST_TIMEOUT) as client:
             resp = await client.get(
                 "https://openrouter.ai/api/v1/models",
@@ -171,20 +175,18 @@ class ProviderTestService:
                     error=f"Authentication failed (HTTP {resp.status_code})",
                 )
             data = resp.json()
-            all_models = [m["id"] for m in data.get("data", [])]
-            # Filter for vision/multimodal and embedding models
-            vision_keywords = (
-                "gpt-4o", "claude-3", "claude-4", "gemini",
-                "qwen", "llava", "pixtral", "vision",
-            )
-            embedding_keywords = ("embedding",)
-            relevant = [
-                m for m in all_models
-                if any(k in m.lower() for k in vision_keywords + embedding_keywords)
-            ]
+            models = []
+            for m in data.get("data", []):
+                arch = m.get("architecture", {})
+                input_modalities = arch.get("input_modalities") or []
+                # Include models that accept image input (vision/VLM)
+                # or have embedding in their modality string
+                modality = arch.get("modality", "")
+                if "image" in input_modalities or "embedding" in modality:
+                    models.append(m["id"])
             return ValidateProviderResponse(
                 success=True,
-                models=sorted(relevant) if relevant else sorted(all_models[:30]),
+                models=sorted(models),
             )
 
     async def _test_google(self, api_key: str) -> ValidateProviderResponse:
