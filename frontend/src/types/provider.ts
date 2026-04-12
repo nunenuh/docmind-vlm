@@ -1,5 +1,5 @@
 export type ProviderType = "vlm" | "embedding";
-export type ProviderName = "dashscope" | "openai" | "google" | "ollama";
+export type ProviderName = "dashscope" | "openai" | "openrouter" | "google" | "ollama";
 
 export interface SetProviderRequest {
   provider_name: ProviderName;

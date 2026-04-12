@@ -33,6 +33,7 @@ interface ProviderCardProps {
 const PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
   { value: "dashscope", label: "DashScope (Qwen-VL)" },
   { value: "openai", label: "OpenAI (GPT-4o)" },
+  { value: "openrouter", label: "OpenRouter (Multi-Provider)" },
   { value: "google", label: "Google (Gemini)" },
   { value: "ollama", label: "Ollama (Local)" },
 ];

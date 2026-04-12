@@ -21,6 +21,7 @@ class ProviderType(str, Enum):
 class ProviderName(str, Enum):
     DASHSCOPE = "dashscope"
     OPENAI = "openai"
+    OPENROUTER = "openrouter"
     GOOGLE = "google"
     OLLAMA = "ollama"
 

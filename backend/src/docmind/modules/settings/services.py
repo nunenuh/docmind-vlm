@@ -30,6 +30,8 @@ class ProviderTestService:
                 return await self._test_dashscope(api_key, base_url)
             elif provider_name == ProviderName.OPENAI:
                 return await self._test_openai(api_key, base_url)
+            elif provider_name == ProviderName.OPENROUTER:
+                return await self._test_openrouter(api_key)
             elif provider_name == ProviderName.GOOGLE:
                 return await self._test_google(api_key)
             elif provider_name == ProviderName.OLLAMA:
@@ -154,6 +156,35 @@ class ProviderTestService:
             return ValidateProviderResponse(
                 success=True,
                 models=sorted(relevant) if relevant else sorted(all_models[:20]),
+            )
+
+    async def _test_openrouter(self, api_key: str) -> ValidateProviderResponse:
+        """Test OpenRouter connection via /api/v1/models endpoint."""
+        async with httpx.AsyncClient(timeout=_TEST_TIMEOUT) as client:
+            resp = await client.get(
+                "https://openrouter.ai/api/v1/models",
+                headers={"Authorization": f"Bearer {api_key}"},
+            )
+            if resp.status_code != 200:
+                return ValidateProviderResponse(
+                    success=False,
+                    error=f"Authentication failed (HTTP {resp.status_code})",
+                )
+            data = resp.json()
+            all_models = [m["id"] for m in data.get("data", [])]
+            # Filter for vision/multimodal and embedding models
+            vision_keywords = (
+                "gpt-4o", "claude-3", "claude-4", "gemini",
+                "qwen", "llava", "pixtral", "vision",
+            )
+            embedding_keywords = ("embedding",)
+            relevant = [
+                m for m in all_models
+                if any(k in m.lower() for k in vision_keywords + embedding_keywords)
+            ]
+            return ValidateProviderResponse(
+                success=True,
+                models=sorted(relevant) if relevant else sorted(all_models[:30]),
             )
 
     async def _test_google(self, api_key: str) -> ValidateProviderResponse:
