@@ -294,7 +294,6 @@ function CompactDocRow({
   onRemove: () => void;
 }) {
   const isImage = ["png", "jpg", "jpeg", "webp", "tiff"].includes(doc.file_type);
-  const [showActions, setShowActions] = useState(false);
 
   const statusDot = (() => {
     switch (doc.status) {
@@ -310,8 +309,6 @@ function CompactDocRow({
       className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer relative"
       style={{ animationDelay: `${index * 30}ms` }}
       onClick={onClick}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* File icon */}
       <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
@@ -332,27 +329,29 @@ function CompactDocRow({
         </p>
       </div>
 
-      {/* Status dot or action buttons */}
-      {showActions ? (
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onReindex(); }}
-            className="p-1 text-gray-600 hover:text-indigo-400 rounded transition-colors"
-            title="Re-index"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1 text-gray-600 hover:text-rose-400 rounded transition-colors"
-            title="Remove"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot}`} title={doc.status} />
-      )}
+      {/* Status + actions */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Status dot — always visible */}
+        <div className={`w-1.5 h-1.5 rounded-full ${statusDot}`} title={doc.status} />
+
+        {/* Index button — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onReindex(); }}
+          className="p-1 text-gray-600 hover:text-indigo-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Index with current embedding model"
+        >
+          <Database className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Remove — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="p-1 text-gray-600 hover:text-rose-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Remove from project"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }
