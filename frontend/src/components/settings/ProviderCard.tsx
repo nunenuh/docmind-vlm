@@ -30,13 +30,22 @@ interface ProviderCardProps {
   currentConfig: ProviderConfigResponse | null;
 }
 
-const ALL_PROVIDER_OPTIONS: { value: ProviderName; label: string; supportsEmbedding: boolean }[] = [
-  { value: "dashscope", label: "DashScope (Qwen-VL)", supportsEmbedding: true },
-  { value: "openai", label: "OpenAI (GPT-4o)", supportsEmbedding: true },
-  { value: "openrouter", label: "OpenRouter (Multi-Provider)", supportsEmbedding: false },
-  { value: "google", label: "Google (Gemini)", supportsEmbedding: true },
-  { value: "ollama", label: "Ollama (Local)", supportsEmbedding: true },
+const VLM_PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
+  { value: "dashscope", label: "DashScope (Qwen-VL)" },
+  { value: "openai", label: "OpenAI (GPT-4o)" },
+  { value: "openrouter", label: "OpenRouter (Multi-Provider)" },
+  { value: "google", label: "Google (Gemini)" },
+  { value: "ollama", label: "Ollama (Local)" },
 ];
+
+const EMBEDDING_PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
+  { value: "dashscope", label: "DashScope (Text Embedding)" },
+  { value: "openai", label: "OpenAI (Embedding)" },
+  { value: "google", label: "Google (Embedding)" },
+  { value: "ollama", label: "Ollama (Local)" },
+];
+
+const ALL_PROVIDER_OPTIONS = [...VLM_PROVIDER_OPTIONS, ...EMBEDDING_PROVIDER_OPTIONS];
 
 function formatDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-US", {
@@ -48,15 +57,13 @@ function formatDate(iso: string): string {
   });
 }
 
-function getProviderLabel(name: ProviderName): string {
-  return ALL_PROVIDER_OPTIONS.find((o) => o.value === name)?.label ?? name;
+function getProviderOptions(providerType: ProviderType) {
+  return providerType === "embedding" ? EMBEDDING_PROVIDER_OPTIONS : VLM_PROVIDER_OPTIONS;
 }
 
-function getProviderOptions(providerType: ProviderType) {
-  if (providerType === "embedding") {
-    return ALL_PROVIDER_OPTIONS.filter((o) => o.supportsEmbedding);
-  }
-  return ALL_PROVIDER_OPTIONS;
+function getProviderLabel(name: ProviderName, providerType?: ProviderType): string {
+  const options = providerType ? getProviderOptions(providerType) : ALL_PROVIDER_OPTIONS;
+  return options.find((o) => o.value === name)?.label ?? name;
 }
 
 export function ProviderCard({
