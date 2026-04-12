@@ -76,7 +76,9 @@ RAG Chat Pipeline (project-level):
 | `specs/frontend/components.md` | React components, shadcn/ui, TypeScript props |
 | `specs/frontend/state.md` | State management: React Query + Zustand |
 | `specs/frontend/api-client.md` | API client layer: fetch wrapper, types, errors (no Supabase) |
-| `specs/backend/auth.md` | Auth proxy module: endpoints, GoTrue integration, JWT strategy |
+| `specs/backend/auth.md` | Auth proxy module: endpoints, GoTrue integration, JWT + API keys |
+| `specs/backend/user-providers.md` | BYOK: user-configurable VLM + Embedding providers |
+| `specs/backend/embedding-storage.md` | Multi-model embedding storage: chunk_embeddings table, indexing flow |
 | `specs/conventions/deployment.md` | Docker, GHCR, ThinkCentre deployment, Cloudflare tunnels |
 | `specs/conventions/solid-refactor.md` | SOLID refactor: split usecases, protocols, DI factories |
 | `specs/backend/documents-extractions-refactor.md` | Document/extraction module separation |
