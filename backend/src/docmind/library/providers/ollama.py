@@ -17,10 +17,15 @@ DEFAULT_BASE_URL = "http://localhost:11434"
 
 
 class OllamaProvider:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         settings = get_settings()
-        self._base_url = settings.OLLAMA_BASE_URL or DEFAULT_BASE_URL
-        self._model = settings.OLLAMA_MODEL or DEFAULT_MODEL
+        self._base_url = base_url or settings.OLLAMA_BASE_URL or DEFAULT_BASE_URL
+        self._model = model_name or settings.OLLAMA_MODEL or DEFAULT_MODEL
 
     @property
     def provider_name(self) -> str:

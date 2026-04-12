@@ -27,15 +27,20 @@ class OpenRouterProvider:
     All configuration is read from get_settings().
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         settings = get_settings()
-        self._api_key = settings.OPENROUTER_API_KEY
+        self._api_key = api_key or settings.OPENROUTER_API_KEY
         if not self._api_key:
             raise RuntimeError(
                 "OPENROUTER_API_KEY is required when VLM_PROVIDER=openrouter"
             )
-        self._model = settings.OPENROUTER_MODEL
-        self._base_url = settings.OPENROUTER_BASE_URL.rstrip("/")
+        self._model = model_name or settings.OPENROUTER_MODEL
+        self._base_url = (base_url or settings.OPENROUTER_BASE_URL).rstrip("/")
         self._max_retries = settings.OPENROUTER_MAX_RETRIES
         self._retry_delay = settings.OPENROUTER_RETRY_DELAY
         self._timeout = settings.OPENROUTER_TIMEOUT

@@ -26,20 +26,27 @@ class DashScopeProvider:
     All configuration is read from get_settings().
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         """Initialize the DashScope provider.
 
-        Raises:
-            RuntimeError: If DASHSCOPE_API_KEY is not set.
+        Args:
+            api_key: Override API key (for BYOK). Falls back to settings.
+            model_name: Override model name. Falls back to settings.
+            base_url: Override base URL. Falls back to settings.
         """
         settings = get_settings()
-        self._api_key = settings.DASHSCOPE_API_KEY
+        self._api_key = api_key or settings.DASHSCOPE_API_KEY
         if not self._api_key:
             raise RuntimeError(
                 "DASHSCOPE_API_KEY is required when VLM_PROVIDER=dashscope"
             )
-        self._model = settings.DASHSCOPE_MODEL
-        self._base_url = settings.DASHSCOPE_BASE_URL
+        self._model = model_name or settings.DASHSCOPE_MODEL
+        self._base_url = base_url or settings.DASHSCOPE_BASE_URL
         self._max_retries = settings.DASHSCOPE_MAX_RETRIES
         self._retry_delay = settings.DASHSCOPE_RETRY_DELAY
         self._timeout = settings.DASHSCOPE_TIMEOUT

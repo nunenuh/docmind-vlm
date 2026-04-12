@@ -16,11 +16,17 @@ DEFAULT_MODEL = "gpt-4o"
 
 
 class OpenAIProvider:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         settings = get_settings()
-        if not settings.OPENAI_API_KEY:
+        self._api_key = api_key or settings.OPENAI_API_KEY
+        if not self._api_key:
             raise RuntimeError("OPENAI_API_KEY is required when VLM_PROVIDER=openai")
-        self._model = settings.OPENAI_MODEL or DEFAULT_MODEL
+        self._model = model_name or settings.OPENAI_MODEL or DEFAULT_MODEL
 
     @property
     def provider_name(self) -> str:

@@ -16,12 +16,17 @@ DEFAULT_MODEL = "gemini-2.0-flash"
 
 
 class GoogleProvider:
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        model_name: str | None = None,
+        base_url: str | None = None,
+    ) -> None:
         settings = get_settings()
-        if not settings.GOOGLE_API_KEY:
+        self._api_key = api_key or settings.GOOGLE_API_KEY
+        if not self._api_key:
             raise RuntimeError("GOOGLE_API_KEY is required when VLM_PROVIDER=google")
-        self._api_key = settings.GOOGLE_API_KEY
-        self._model = settings.GOOGLE_MODEL or DEFAULT_MODEL
+        self._model = model_name or settings.GOOGLE_MODEL or DEFAULT_MODEL
 
     @property
     def provider_name(self) -> str:
