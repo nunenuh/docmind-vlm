@@ -1,16 +1,21 @@
 """PageChunk Model.
 
-Stores chunked document text with embeddings for RAG retrieval.
+Stores chunked document text for RAG retrieval.
+Embeddings are stored separately in chunk_embeddings (multi-model support).
 All queries MUST filter by project_id.
 """
 
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..core.base import Base
+
+if TYPE_CHECKING:
+    from .chunk_embedding import ChunkEmbedding
 
 
 def _uuid() -> str:
@@ -40,12 +45,14 @@ class PageChunk(Base):
     content_hash: Mapped[str | None] = mapped_column(
         String(64), nullable=True
     )  # SHA-256 hash for duplicate detection
-    embedding: Mapped[str | None] = mapped_column(
-        Text, nullable=True
-    )  # Stored as pgvector-compatible string '[0.1,0.2,...]'; DB column is vector(1024)
     metadata_json: Mapped[str | None] = mapped_column(
         Text, nullable=True
     )  # JSON string for extra metadata
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=_now
+    )
+
+    # Relationships
+    embeddings: Mapped[list["ChunkEmbedding"]] = relationship(
+        "ChunkEmbedding", back_populates="chunk", cascade="all, delete-orphan"
     )

@@ -1,7 +1,6 @@
 """Tests for docmind.library.rag.retriever."""
 
 import json
-import math
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -37,28 +36,31 @@ class TestCosineSimilarity:
 
 
 class TestRetrieveSimilarChunks:
-    """Tests for retrieve_similar_chunks."""
+    """Tests for retrieve_similar_chunks with model_name parameter."""
 
     @pytest.mark.asyncio
     @patch("docmind.library.rag.retriever.AsyncSessionLocal")
     async def test_retrieve_filters_by_threshold(self, mock_session_cls):
-        # Create mock chunks: one similar, one not
+        # Create mock rows: (PageChunk, embedding_str)
         chunk_high = MagicMock()
         chunk_high.id = "chunk-1"
         chunk_high.document_id = "doc-1"
         chunk_high.page_number = 1
         chunk_high.content = "Relevant content"
-        chunk_high.embedding = json.dumps([1.0, 0.0, 0.0])
+        chunk_high.raw_content = "Relevant content"
 
         chunk_low = MagicMock()
         chunk_low.id = "chunk-2"
         chunk_low.document_id = "doc-1"
         chunk_low.page_number = 2
         chunk_low.content = "Irrelevant content"
-        chunk_low.embedding = json.dumps([0.0, 1.0, 0.0])
+        chunk_low.raw_content = "Irrelevant content"
 
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [chunk_high, chunk_low]
+        mock_result.all.return_value = [
+            (chunk_high, json.dumps([1.0, 0.0, 0.0])),
+            (chunk_low, json.dumps([0.0, 1.0, 0.0])),
+        ]
 
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_result
@@ -68,7 +70,11 @@ class TestRetrieveSimilarChunks:
 
         query_embedding = [1.0, 0.0, 0.0]  # Similar to chunk_high only
         results = await retrieve_similar_chunks(
-            query_embedding, project_id="proj-1", top_k=5, threshold=0.7
+            query_embedding,
+            project_id="proj-1",
+            model_name="test-model",
+            top_k=5,
+            threshold=0.7,
         )
 
         assert len(results) == 1
@@ -78,8 +84,8 @@ class TestRetrieveSimilarChunks:
     @pytest.mark.asyncio
     @patch("docmind.library.rag.retriever.AsyncSessionLocal")
     async def test_retrieve_returns_top_k(self, mock_session_cls):
-        # Create 3 chunks with varying similarity
-        chunks = []
+        # Create 3 rows with varying similarity
+        rows = []
         embeddings = [
             [1.0, 0.0, 0.0],
             [0.9, 0.1, 0.0],
@@ -91,11 +97,11 @@ class TestRetrieveSimilarChunks:
             chunk.document_id = "doc-1"
             chunk.page_number = i + 1
             chunk.content = f"Content {i}"
-            chunk.embedding = json.dumps(emb)
-            chunks.append(chunk)
+            chunk.raw_content = f"Content {i}"
+            rows.append((chunk, json.dumps(emb)))
 
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = chunks
+        mock_result.all.return_value = rows
 
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_result
@@ -105,7 +111,11 @@ class TestRetrieveSimilarChunks:
 
         query_embedding = [1.0, 0.0, 0.0]
         results = await retrieve_similar_chunks(
-            query_embedding, project_id="proj-1", top_k=2, threshold=0.0
+            query_embedding,
+            project_id="proj-1",
+            model_name="test-model",
+            top_k=2,
+            threshold=0.0,
         )
 
         assert len(results) == 2
@@ -116,7 +126,7 @@ class TestRetrieveSimilarChunks:
     @patch("docmind.library.rag.retriever.AsyncSessionLocal")
     async def test_retrieve_empty_project(self, mock_session_cls):
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = []
+        mock_result.all.return_value = []
 
         mock_session = AsyncMock()
         mock_session.execute.return_value = mock_result
@@ -125,7 +135,11 @@ class TestRetrieveSimilarChunks:
         mock_session_cls.return_value = mock_session
 
         results = await retrieve_similar_chunks(
-            [1.0, 0.0], project_id="proj-empty", top_k=5, threshold=0.7
+            [1.0, 0.0],
+            project_id="proj-empty",
+            model_name="test-model",
+            top_k=5,
+            threshold=0.7,
         )
 
         assert results == []

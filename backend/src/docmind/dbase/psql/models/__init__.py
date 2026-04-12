@@ -3,6 +3,7 @@
 from .api_token import ApiToken
 from .audit_entry import AuditEntry
 from .chat_message import ChatMessage
+from .chunk_embedding import ChunkEmbedding
 from .citation import Citation
 from .document import Document
 from .extracted_field import ExtractedField
@@ -17,6 +18,7 @@ from .user_provider_config import UserProviderConfig
 
 __all__ = [
     "ApiToken",
+    "ChunkEmbedding",
     "Document",
     "Extraction",
     "ExtractedField",

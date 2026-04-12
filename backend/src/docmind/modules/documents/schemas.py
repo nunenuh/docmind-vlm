@@ -44,3 +44,31 @@ class DocumentSearchParams(BaseModel):
     file_type: str | None = None
     status: str | None = None
     standalone: bool = True
+
+
+class EmbeddingModelInfo(BaseModel):
+    """Info about embeddings for a specific model."""
+
+    model: str
+    provider: str
+    chunks: int
+    last_embedded: datetime | None = None
+
+
+class EmbeddingStatusResponse(BaseModel):
+    """Embedding status for a document relative to the current model."""
+
+    current_model: str
+    status: str  # "indexed" | "partial" | "not_indexed" | "no_chunks"
+    indexed_chunks: int
+    total_chunks: int
+    available_models: list[EmbeddingModelInfo]
+
+
+class IndexDocumentResponse(BaseModel):
+    """Response after indexing a document with an embedding model."""
+
+    document_id: str
+    model: str
+    chunks_indexed: int
+    status: str

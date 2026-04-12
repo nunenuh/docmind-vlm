@@ -19,6 +19,7 @@ import type {
   ConversationDetailResponse,
 } from "@/types/api";
 import { ApiError, TemplateDetail } from "@/types/api";
+import type { EmbeddingStatusResponse, IndexDocumentResponse } from "@/types/document";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8009";
 
@@ -366,4 +367,13 @@ export async function regenerateToken(id: string): Promise<TokenCreatedResponse>
   return apiFetch<TokenCreatedResponse>(`/api/v1/auth/tokens/${id}/regenerate`, {
     method: "POST",
   });
+}
+
+// Embedding Status
+export async function getEmbeddingStatus(documentId: string): Promise<EmbeddingStatusResponse> {
+  return apiFetch<EmbeddingStatusResponse>(`/api/v1/documents/${documentId}/embedding-status`);
+}
+
+export async function indexDocument(documentId: string): Promise<IndexDocumentResponse> {
+  return apiFetch<IndexDocumentResponse>(`/api/v1/documents/${documentId}/index`, { method: "POST" });
 }

@@ -1,13 +1,14 @@
 """Hybrid retrieval: vector similarity + BM25 keyword search with RRF fusion.
 
 Two retrieval paths:
-1. Vector: cosine similarity on embeddings (semantic understanding)
+1. Vector: cosine similarity on chunk_embeddings (semantic understanding)
 2. BM25: PostgreSQL ts_vector full-text search (exact keyword matching)
 
 Results are fused using Reciprocal Rank Fusion (RRF) for best-of-both precision.
 Falls back to vector-only if BM25 columns are not available.
 
 All settings come from get_settings().
+Queries MUST filter by model_name — never mix vectors from different models.
 """
 
 from __future__ import annotations
@@ -20,7 +21,7 @@ from sqlalchemy import select
 
 from docmind.core.config import get_settings
 from docmind.dbase.psql.core.session import AsyncSessionLocal
-from docmind.dbase.psql.models import PageChunk
+from docmind.dbase.psql.models import ChunkEmbedding, PageChunk
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ RRF_K = 60
 async def retrieve_similar_chunks(
     query_embedding: list[float],
     project_id: str,
+    model_name: str,
     top_k: int | None = None,
     threshold: float | None = None,
     query_text: str = "",
@@ -43,6 +45,7 @@ async def retrieve_similar_chunks(
     Args:
         query_embedding: The query's embedding vector.
         project_id: Project ID to scope the search.
+        model_name: Embedding model name to filter by (required).
         top_k: Maximum number of chunks to return.
         threshold: Minimum similarity to include.
         query_text: Original query text for BM25 search.
@@ -59,14 +62,14 @@ async def retrieve_similar_chunks(
     if query_text:
         try:
             return await _retrieve_hybrid(
-                query_embedding, project_id, query_text,
+                query_embedding, project_id, model_name, query_text,
                 effective_top_k, effective_threshold,
             )
         except Exception as e:
             logger.warning("Hybrid retrieval failed, falling back to vector-only: %s", e)
 
     return await _retrieve_vector_only(
-        query_embedding, project_id,
+        query_embedding, project_id, model_name,
         effective_top_k, effective_threshold,
     )
 
@@ -74,14 +77,18 @@ async def retrieve_similar_chunks(
 async def _retrieve_vector_only(
     query_embedding: list[float],
     project_id: str,
+    model_name: str,
     top_k: int,
     threshold: float,
 ) -> list[dict]:
     """Vector-only retrieval using Python-side cosine similarity.
 
+    Joins page_chunks with chunk_embeddings, filtering by model_name.
+
     Args:
         query_embedding: Query embedding vector.
         project_id: Project scope.
+        model_name: Embedding model to filter by.
         top_k: Max results.
         threshold: Min similarity.
 
@@ -89,21 +96,26 @@ async def _retrieve_vector_only(
         Sorted list of chunk dicts.
     """
     async with AsyncSessionLocal() as session:
-        stmt = select(PageChunk).where(PageChunk.project_id == project_id)
+        stmt = (
+            select(PageChunk, ChunkEmbedding.embedding)
+            .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
+            .where(
+                PageChunk.project_id == project_id,
+                ChunkEmbedding.model_name == model_name,
+            )
+        )
         result = await session.execute(stmt)
-        chunks = result.scalars().all()
+        rows = result.all()
 
-    if not chunks:
+    if not rows:
         return []
 
     scored: list[dict] = []
-    for chunk in chunks:
-        if not chunk.embedding:
-            continue
+    for chunk, emb_str in rows:
         embedding = (
-            json.loads(chunk.embedding)
-            if isinstance(chunk.embedding, str)
-            else chunk.embedding
+            json.loads(emb_str)
+            if isinstance(emb_str, str)
+            else emb_str
         )
         sim = _cosine_similarity(query_embedding, embedding)
         if sim >= threshold:
@@ -123,6 +135,7 @@ async def _retrieve_vector_only(
 async def _retrieve_hybrid(
     query_embedding: list[float],
     project_id: str,
+    model_name: str,
     query_text: str,
     top_k: int,
     threshold: float,
@@ -138,6 +151,7 @@ async def _retrieve_hybrid(
     Args:
         query_embedding: Query embedding vector.
         project_id: Project scope.
+        model_name: Embedding model to filter by.
         query_text: Original query for BM25.
         top_k: Max results.
         threshold: Min similarity for vector results.
@@ -150,26 +164,41 @@ async def _retrieve_hybrid(
     bm25_weight = settings.RAG_BM25_WEIGHT
     retrieval_k = settings.RAG_RETRIEVAL_K
 
-    # 1. Get all chunks for this project
+    # 1. Get all chunks for this project with embeddings for the model
     async with AsyncSessionLocal() as session:
-        stmt = select(PageChunk).where(PageChunk.project_id == project_id)
+        stmt = (
+            select(PageChunk, ChunkEmbedding.embedding)
+            .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
+            .where(
+                PageChunk.project_id == project_id,
+                ChunkEmbedding.model_name == model_name,
+            )
+        )
         result = await session.execute(stmt)
-        all_chunks = result.scalars().all()
+        rows = result.all()
 
-    if not all_chunks:
+    if not rows:
         return []
+
+    # Build chunk objects and embeddings map
+    all_chunks = []
+    chunk_embeddings: dict[str, list[float]] = {}
+    for chunk, emb_str in rows:
+        all_chunks.append(chunk)
+        embedding = (
+            json.loads(emb_str)
+            if isinstance(emb_str, str)
+            else emb_str
+        )
+        chunk_embeddings[chunk.id] = embedding
 
     # 2. Score vector similarity
     vector_scored: list[tuple[str, float, object]] = []
     for chunk in all_chunks:
-        if not chunk.embedding:
+        emb = chunk_embeddings.get(chunk.id)
+        if not emb:
             continue
-        embedding = (
-            json.loads(chunk.embedding)
-            if isinstance(chunk.embedding, str)
-            else chunk.embedding
-        )
-        sim = _cosine_similarity(query_embedding, embedding)
+        sim = _cosine_similarity(query_embedding, emb)
         if sim >= threshold:
             vector_scored.append((chunk.id, sim, chunk))
 
