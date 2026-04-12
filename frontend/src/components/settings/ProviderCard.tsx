@@ -30,12 +30,12 @@ interface ProviderCardProps {
   currentConfig: ProviderConfigResponse | null;
 }
 
-const PROVIDER_OPTIONS: { value: ProviderName; label: string }[] = [
-  { value: "dashscope", label: "DashScope (Qwen-VL)" },
-  { value: "openai", label: "OpenAI (GPT-4o)" },
-  { value: "openrouter", label: "OpenRouter (Multi-Provider)" },
-  { value: "google", label: "Google (Gemini)" },
-  { value: "ollama", label: "Ollama (Local)" },
+const ALL_PROVIDER_OPTIONS: { value: ProviderName; label: string; supportsEmbedding: boolean }[] = [
+  { value: "dashscope", label: "DashScope (Qwen-VL)", supportsEmbedding: true },
+  { value: "openai", label: "OpenAI (GPT-4o)", supportsEmbedding: true },
+  { value: "openrouter", label: "OpenRouter (Multi-Provider)", supportsEmbedding: false },
+  { value: "google", label: "Google (Gemini)", supportsEmbedding: true },
+  { value: "ollama", label: "Ollama (Local)", supportsEmbedding: true },
 ];
 
 function formatDate(iso: string): string {
@@ -49,7 +49,14 @@ function formatDate(iso: string): string {
 }
 
 function getProviderLabel(name: ProviderName): string {
-  return PROVIDER_OPTIONS.find((o) => o.value === name)?.label ?? name;
+  return ALL_PROVIDER_OPTIONS.find((o) => o.value === name)?.label ?? name;
+}
+
+function getProviderOptions(providerType: ProviderType) {
+  if (providerType === "embedding") {
+    return ALL_PROVIDER_OPTIONS.filter((o) => o.supportsEmbedding);
+  }
+  return ALL_PROVIDER_OPTIONS;
 }
 
 export function ProviderCard({
@@ -285,7 +292,7 @@ export function ProviderCard({
                 }
                 className="w-full appearance-none bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-indigo-500 pr-10"
               >
-                {PROVIDER_OPTIONS.map((opt) => (
+                {getProviderOptions(type).map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
                   </option>
