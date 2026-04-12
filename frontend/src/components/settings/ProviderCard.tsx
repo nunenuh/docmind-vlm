@@ -184,14 +184,12 @@ export function ProviderCard({
   };
 
   const handleSave = () => {
-    if (type === "embedding" && currentConfig) {
-      // Switching embedding model — warn about re-indexing
-      const oldModel = currentConfig.model_name;
-      const newModel = modelName;
-      if (oldModel !== newModel || currentConfig.provider_name !== providerName) {
-        setShowEmbeddingWarning(true);
-        return;
-      }
+    if (type === "embedding") {
+      // Always show confirmation for embedding provider changes
+      // First save: inform about which model will be used
+      // Model change: warn about re-indexing
+      setShowEmbeddingWarning(true);
+      return;
     }
     doSave();
   };
@@ -496,11 +494,12 @@ export function ProviderCard({
                 </div>
                 <div>
                   <h3 className="text-lg font-semibold text-white">
-                    Embedding Model Change
+                    {currentConfig ? "Embedding Model Change" : "Set Embedding Model"}
                   </h3>
                   <p className="text-sm text-gray-400 mt-1">
-                    Changing the embedding model requires all documents to be
-                    re-indexed. Existing vectors are incompatible with the new model.
+                    {currentConfig
+                      ? "Changing the embedding model requires new documents to be indexed with the new model. Existing vectors from the old model are preserved."
+                      : "This embedding model will be used for all future document indexing. You can change it later, but documents will need to be re-indexed with the new model."}
                   </p>
                 </div>
               </div>
@@ -547,7 +546,7 @@ export function ProviderCard({
                   {setProviderMutation.isPending && (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   )}
-                  Change Model & Save
+                  {currentConfig ? "Change Model & Save" : "Confirm & Save"}
                 </button>
               </div>
             </div>
