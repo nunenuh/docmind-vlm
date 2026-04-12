@@ -16,12 +16,27 @@ export function AiProvidersSettings() {
       </div>
 
       {/* Info box */}
-      <div className="flex items-start gap-3 bg-indigo-600/5 border border-indigo-500/20 rounded-xl px-4 py-3">
-        <Info className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
-        <p className="text-sm text-indigo-300/80">
-          Not configured? The system default provider will be used
-          automatically.
-        </p>
+      <div className="bg-indigo-600/5 border border-indigo-500/20 rounded-xl px-4 py-3 space-y-2">
+        <div className="flex items-start gap-3">
+          <Info className="w-4 h-4 text-indigo-400 mt-0.5 flex-shrink-0" />
+          <p className="text-sm text-indigo-300/80">
+            Not configured? The system default provider will be used
+            automatically.
+          </p>
+        </div>
+        <div className="ml-7 text-xs text-gray-500 space-y-0.5">
+          <p>
+            <span className="text-gray-400">Default VLM:</span>{" "}
+            DashScope / qwen-vl-max (from server environment)
+          </p>
+          <p>
+            <span className="text-gray-400">Default Embedding:</span>{" "}
+            DashScope / text-embedding-v3 (from server environment)
+          </p>
+          <p className="text-amber-400/60 mt-1">
+            Changing the embedding model requires re-indexing all project documents.
+          </p>
+        </div>
       </div>
 
       {/* Content */}

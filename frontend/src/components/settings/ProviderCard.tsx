@@ -160,7 +160,9 @@ export function ProviderCard({
     );
   };
 
-  const handleSave = () => {
+  const [showEmbeddingWarning, setShowEmbeddingWarning] = useState(false);
+
+  const doSave = () => {
     setProviderMutation.mutate(
       {
         type,
@@ -173,11 +175,25 @@ export function ProviderCard({
       },
       {
         onSuccess: () => {
+          setShowEmbeddingWarning(false);
           setIsEditing(false);
           resetForm();
         },
       },
     );
+  };
+
+  const handleSave = () => {
+    if (type === "embedding" && currentConfig) {
+      // Switching embedding model — warn about re-indexing
+      const oldModel = currentConfig.model_name;
+      const newModel = modelName;
+      if (oldModel !== newModel || currentConfig.provider_name !== providerName) {
+        setShowEmbeddingWarning(true);
+        return;
+      }
+    }
+    doSave();
   };
 
   const handleRemove = () => {
@@ -461,6 +477,80 @@ export function ProviderCard({
                 Cancel
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Embedding model change warning dialog */}
+      {showEmbeddingWarning && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            onClick={() => setShowEmbeddingWarning(false)}
+          />
+          <div className="relative bg-[#12121a] border border-amber-500/30 rounded-xl w-full max-w-lg mx-4 shadow-2xl">
+            <div className="px-6 py-5 space-y-4">
+              <div className="flex items-start gap-3">
+                <div className="p-2 bg-amber-500/10 rounded-lg shrink-0 mt-0.5">
+                  <Info className="w-5 h-5 text-amber-400" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-white">
+                    Embedding Model Change
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-1">
+                    Changing the embedding model requires all documents to be
+                    re-indexed. Existing vectors are incompatible with the new model.
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-[#0a0a0f] border border-[#1e1e2e] rounded-lg p-4 space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">Current model</span>
+                  <span className="text-gray-300 font-mono text-xs">
+                    {currentConfig
+                      ? `${currentConfig.provider_name}/${currentConfig.model_name}`
+                      : "System default"}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-500">New model</span>
+                  <span className="text-white font-mono text-xs">
+                    {providerName}/{modelName}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-amber-500/5 border border-amber-500/10 rounded-lg px-4 py-3">
+                <p className="text-xs text-gray-400 leading-relaxed">
+                  <span className="text-amber-400 font-medium">What happens: </span>
+                  All project documents will need to be re-indexed with the new embedding
+                  model. Until re-indexing is complete, RAG search results may be
+                  inaccurate or unavailable. You can trigger re-indexing from each
+                  project's settings.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-1">
+                <button
+                  onClick={() => setShowEmbeddingWarning(false)}
+                  className="px-4 py-2 text-sm text-gray-400 hover:text-white hover:bg-white/5 rounded-lg transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={doSave}
+                  disabled={setProviderMutation.isPending}
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-amber-600 hover:bg-amber-500 disabled:opacity-50 rounded-lg transition-colors"
+                >
+                  {setProviderMutation.isPending && (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  )}
+                  Change Model & Save
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
