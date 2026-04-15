@@ -41,7 +41,7 @@ jobs:
         with:
           node-version: 22
 
-      - run: npm ci
+      - run: npm install --no-fund --no-audit
 
       - name: Run semantic-release
         id: semantic
