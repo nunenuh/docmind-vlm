@@ -26,11 +26,12 @@ def upgrade() -> None:
         "page_chunks",
         sa.Column("content_hash", sa.String(64), nullable=True),
     )
-    # Unique index on project_id + content_hash for dedup
+    # Unique index on document_id + content_hash for dedup
+    # Scoped per-document (not per-project) so different docs can have same content
     op.create_index(
         "idx_page_chunks_content_hash",
         "page_chunks",
-        ["project_id", "content_hash"],
+        ["document_id", "content_hash"],
         unique=True,
     )
     # Backfill raw_content from content for existing rows
