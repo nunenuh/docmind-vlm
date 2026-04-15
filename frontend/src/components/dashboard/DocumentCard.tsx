@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
-import { FileText, Image, Trash2, Clock, CheckCircle, AlertCircle, Loader2 } from "lucide-react";
+import { FileText, Image, Trash2, Clock, CheckCircle, AlertCircle, Loader2, Database } from "lucide-react";
 import type { DocumentResponse, DocumentStatus } from "@/types/api";
+import { useIndexDocument } from "@/hooks/useEmbedding";
 
 const statusConfig: Record<DocumentStatus, { icon: React.ReactNode; label: string; dotClass: string }> = {
   uploaded: { icon: <Clock className="w-3 h-3" />, label: "Uploaded", dotClass: "bg-gray-400" },
@@ -36,6 +37,12 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
   const navigate = useNavigate();
   const status = statusConfig[document.status];
   const isImage = isImageType(document.file_type);
+  const indexDoc = useIndexDocument();
+
+  const handleIndex = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    indexDoc.mutate(document.id);
+  };
 
   return (
     <div
@@ -62,16 +69,31 @@ export function DocumentCard({ document, onDelete }: DocumentCardProps) {
             <p className="text-xs text-gray-500 mt-0.5">{formatDate(document.created_at)}</p>
           </div>
         </div>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(document.id);
-          }}
-          className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-rose-500/10 text-gray-500 hover:text-rose-400 transition-all duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-rose-500"
-          aria-label="Delete document"
-        >
-          <Trash2 className="w-4 h-4" />
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={handleIndex}
+            disabled={indexDoc.isPending}
+            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-indigo-500/10 text-gray-500 hover:text-indigo-400 transition-all duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-indigo-500 disabled:opacity-50"
+            aria-label="Index document for RAG"
+            title="Index for RAG search"
+          >
+            {indexDoc.isPending ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Database className="w-4 h-4" />
+            )}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(document.id);
+            }}
+            className="opacity-0 group-hover:opacity-100 p-1.5 rounded-md hover:bg-rose-500/10 text-gray-500 hover:text-rose-400 transition-all duration-200 focus:outline-none focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-rose-500"
+            aria-label="Delete document"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

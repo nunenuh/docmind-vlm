@@ -86,7 +86,7 @@ CAPTION_PROMPT = """Describe this image in detail. Include:
 Be thorough and specific. Return only the description, no JSON."""
 
 
-def _generate_image_caption(image) -> str | None:
+def _generate_image_caption(image, override=None) -> str | None:
     """Generate a detailed caption for an image using VLM.
 
     Args:
@@ -98,7 +98,7 @@ def _generate_image_caption(image) -> str | None:
     import asyncio
     from docmind.library.providers import get_vlm_provider
 
-    provider = get_vlm_provider()
+    provider = get_vlm_provider(override=override)
 
     loop = asyncio.new_event_loop()
     try:
@@ -179,7 +179,8 @@ def postprocess_node(state: dict) -> dict:
         if file_type in ("png", "jpg", "jpeg", "webp", "tiff") and page_images:
             _notify(0.90, "Generating image caption")
             try:
-                caption = _generate_image_caption(page_images[0])
+                override = state.get("provider_override")
+                caption = _generate_image_caption(page_images[0], override=override)
                 if caption:
                     final_fields.append({
                         "id": str(uuid.uuid4()),

@@ -132,6 +132,40 @@ class ApiTokenService:
         logger.info("api_token_revoked", user_id=user_id, token_id=token_id)
         return True
 
+    async def regenerate_token(
+        self,
+        token_id: str,
+        user_id: str,
+    ) -> dict:
+        """Regenerate a token: revoke old, create new with same name/scopes/type.
+
+        Returns the new token dict with plain_token (shown once).
+        """
+        old_token = await self._repo.get_by_id(token_id, user_id)
+        if old_token is None or old_token.revoked_at is not None:
+            raise NotFoundException("Token not found")
+
+        # Revoke old
+        await self._repo.revoke(token_id, user_id)
+        logger.info("api_token_revoked_for_rotation", user_id=user_id, old_token_id=token_id)
+
+        # Create new with same settings
+        result = await self.create_token(
+            user_id=user_id,
+            name=old_token.name,
+            scopes=old_token.scopes,
+            token_type=old_token.token_type,
+            expires_in_days=None,  # new token gets no expiry; user can edit later
+        )
+
+        logger.info(
+            "api_token_regenerated",
+            user_id=user_id,
+            old_token_id=token_id,
+            new_token_id=result["id"],
+        )
+        return result
+
     async def update_token(
         self,
         token_id: str,

@@ -40,6 +40,12 @@ class ApiTokenUseCase:
     async def revoke_token(self, token_id: str, user_id: str) -> None:
         await self._service.revoke_token(token_id, user_id)
 
+    async def regenerate_token(
+        self, token_id: str, user_id: str
+    ) -> TokenCreatedResponse:
+        result = await self._service.regenerate_token(token_id, user_id)
+        return TokenCreatedResponse(**result)
+
     async def update_token(
         self, token_id: str, user_id: str, request: UpdateTokenRequest
     ) -> TokenResponse:

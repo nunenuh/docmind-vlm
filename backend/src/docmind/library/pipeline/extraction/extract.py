@@ -146,7 +146,8 @@ def extract_node(state: dict) -> dict:
         template_type = state.get("template_type")
 
         _notify(0.1, "Initializing VLM provider")
-        provider = get_vlm_provider()
+        override = state.get("provider_override")
+        provider = get_vlm_provider(override=override)
 
         # Build prompt and determine mode
         is_summarize = False

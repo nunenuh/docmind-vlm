@@ -19,6 +19,7 @@ import type {
   ConversationDetailResponse,
 } from "@/types/api";
 import { ApiError, TemplateDetail } from "@/types/api";
+import type { EmbeddingStatusResponse, IndexDocumentResponse } from "@/types/document";
 
 const BASE_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8009";
 
@@ -290,4 +291,89 @@ export async function deletePersona(id: string): Promise<void> {
 
 export async function duplicatePersona(id: string): Promise<PersonaResponse> {
   return apiFetch<PersonaResponse>(`/api/v1/personas/${id}/duplicate`, { method: "POST" });
+}
+
+// Provider Settings
+import type {
+  ProviderType,
+  ProvidersResponse,
+  ProviderConfigResponse,
+  SetProviderRequest,
+  ValidateProviderRequest,
+  ValidateProviderResponse,
+} from "@/types/provider";
+
+export async function getProviders(): Promise<ProvidersResponse> {
+  return apiFetch<ProvidersResponse>("/api/v1/settings/providers");
+}
+
+export async function setProvider(
+  type: ProviderType,
+  data: SetProviderRequest,
+): Promise<ProviderConfigResponse> {
+  return apiFetch<ProviderConfigResponse>(
+    `/api/v1/settings/providers/${type}`,
+    { method: "PUT", body: JSON.stringify(data) },
+  );
+}
+
+export async function deleteProvider(type: ProviderType): Promise<void> {
+  await apiFetch<void>(`/api/v1/settings/providers/${type}`, {
+    method: "DELETE",
+  });
+}
+
+export async function testProvider(
+  data: ValidateProviderRequest,
+): Promise<ValidateProviderResponse> {
+  return apiFetch<ValidateProviderResponse>(
+    "/api/v1/settings/providers/test",
+    { method: "POST", body: JSON.stringify(data) },
+  );
+}
+
+// API Tokens
+import type {
+  TokenListResponse,
+  TokenCreatedResponse,
+  TokenResponse,
+  CreateTokenRequest,
+  UpdateTokenRequest,
+} from "@/types/api-token";
+
+export async function listTokens(): Promise<TokenListResponse> {
+  return apiFetch<TokenListResponse>("/api/v1/auth/tokens");
+}
+
+export async function createToken(data: CreateTokenRequest): Promise<TokenCreatedResponse> {
+  return apiFetch<TokenCreatedResponse>("/api/v1/auth/tokens", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateToken(id: string, data: UpdateTokenRequest): Promise<TokenResponse> {
+  return apiFetch<TokenResponse>(`/api/v1/auth/tokens/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+export async function revokeToken(id: string): Promise<void> {
+  await apiFetch<void>(`/api/v1/auth/tokens/${id}`, { method: "DELETE" });
+}
+
+export async function regenerateToken(id: string): Promise<TokenCreatedResponse> {
+  return apiFetch<TokenCreatedResponse>(`/api/v1/auth/tokens/${id}/regenerate`, {
+    method: "POST",
+  });
+}
+
+// Embedding Status
+export async function getEmbeddingStatus(documentId: string): Promise<EmbeddingStatusResponse> {
+  return apiFetch<EmbeddingStatusResponse>(`/api/v1/documents/${documentId}/embedding-status`);
+}
+
+export async function indexDocument(documentId: string): Promise<IndexDocumentResponse> {
+  return apiFetch<IndexDocumentResponse>(`/api/v1/documents/${documentId}/index`, { method: "POST" });
 }

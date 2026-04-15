@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback } from "react";
 import {
   FileText, Upload, Loader2, Image, Plus, X,
-  AlertCircle, CheckCircle, RefreshCw, Trash2,
+  AlertCircle, CheckCircle, RefreshCw, Trash2, Database,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -140,13 +140,37 @@ export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
         <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-[0.08em]">
           Documents
         </span>
-        <button
-          onClick={() => inputRef.current?.click()}
-          className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-indigo-400 bg-indigo-500/[0.08] hover:bg-indigo-500/[0.12] rounded transition-colors"
-        >
-          <Plus className="w-3 h-3" />
-          Upload
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={async () => {
+              if (!window.confirm("Index all documents with current embedding model?")) return;
+              const token = useAuthStore.getState().accessToken;
+              const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8009";
+              try {
+                const resp = await fetch(`${BASE_URL}/api/v1/projects/${projectId}/index-all`, {
+                  method: "POST",
+                  headers: token ? { Authorization: `Bearer ${token}` } : {},
+                });
+                if (resp.ok) {
+                  const result = await resp.json();
+                  queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+                  window.alert(`Indexed ${result.documents_indexed ?? 0} documents`);
+                }
+              } catch { /* ignore */ }
+            }}
+            className="p-1 text-gray-600 hover:text-indigo-400 rounded transition-colors"
+            title="Index all documents"
+          >
+            <Database className="w-3.5 h-3.5" />
+          </button>
+          <button
+            onClick={() => inputRef.current?.click()}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold text-indigo-400 bg-indigo-500/[0.08] hover:bg-indigo-500/[0.12] rounded transition-colors"
+          >
+            <Plus className="w-3 h-3" />
+            Upload
+          </button>
+        </div>
         <input
           ref={inputRef} type="file" accept={ACCEPTED} multiple
           onChange={(e) => { if (e.target.files) handleFiles(e.target.files); e.target.value = ""; }}
@@ -270,7 +294,6 @@ function CompactDocRow({
   onRemove: () => void;
 }) {
   const isImage = ["png", "jpg", "jpeg", "webp", "tiff"].includes(doc.file_type);
-  const [showActions, setShowActions] = useState(false);
 
   const statusDot = (() => {
     switch (doc.status) {
@@ -286,8 +309,6 @@ function CompactDocRow({
       className="group flex items-center gap-2.5 px-2.5 py-2 rounded-lg hover:bg-white/[0.03] transition-colors cursor-pointer relative"
       style={{ animationDelay: `${index * 30}ms` }}
       onClick={onClick}
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* File icon */}
       <div className={`w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 ${
@@ -308,27 +329,29 @@ function CompactDocRow({
         </p>
       </div>
 
-      {/* Status dot or action buttons */}
-      {showActions ? (
-        <div className="flex items-center gap-0.5 flex-shrink-0">
-          <button
-            onClick={(e) => { e.stopPropagation(); onReindex(); }}
-            className="p-1 text-gray-600 hover:text-indigo-400 rounded transition-colors"
-            title="Re-index"
-          >
-            <RefreshCw className="w-3 h-3" />
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onRemove(); }}
-            className="p-1 text-gray-600 hover:text-rose-400 rounded transition-colors"
-            title="Remove"
-          >
-            <Trash2 className="w-3 h-3" />
-          </button>
-        </div>
-      ) : (
-        <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${statusDot}`} title={doc.status} />
-      )}
+      {/* Status + actions */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        {/* Status dot — always visible */}
+        <div className={`w-1.5 h-1.5 rounded-full ${statusDot}`} title={doc.status} />
+
+        {/* Index button — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onReindex(); }}
+          className="p-1 text-gray-600 hover:text-indigo-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Index with current embedding model"
+        >
+          <Database className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Remove — visible on hover */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="p-1 text-gray-600 hover:text-rose-400 rounded transition-colors opacity-0 group-hover:opacity-100"
+          title="Remove from project"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+        </button>
+      </div>
     </div>
   );
 }

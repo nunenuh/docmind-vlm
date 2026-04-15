@@ -3,7 +3,7 @@
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 
-from docmind.core.auth import get_current_user
+from docmind.core.scopes import require_scopes
 from docmind.core.logging import get_logger
 from docmind.modules.documents.dependencies import get_document_usecase
 from docmind.modules.documents.usecase import DocumentUseCase
@@ -25,7 +25,7 @@ router = APIRouter()
 async def send_message(
     document_id: str,
     body: ChatMessageRequest,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     doc_usecase: DocumentUseCase = Depends(get_document_usecase),
     chat_usecase: ChatUseCase = Depends(get_chat_usecase),
 ):
@@ -54,7 +54,7 @@ async def get_chat_history(
     document_id: str,
     page: int = Query(default=1, ge=1),
     limit: int = Query(default=50, ge=1, le=100),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(require_scopes("documents:read")),
     chat_usecase: ChatUseCase = Depends(get_chat_usecase),
 ):
     try:

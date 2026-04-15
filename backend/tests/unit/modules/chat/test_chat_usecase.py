@@ -87,7 +87,8 @@ class TestChatUseCaseGetHistory:
 class TestChatUseCaseSendMessage:
 
     @pytest.mark.asyncio
-    async def test_yields_sse_events(self):
+    @patch("docmind.shared.provider_resolver.resolve_provider_override", new_callable=AsyncMock, return_value=None)
+    async def test_yields_sse_events(self, _mock_resolve):
         from docmind.modules.chat.usecase import ChatUseCase
 
         mock_service = MagicMock()
@@ -144,7 +145,8 @@ class TestChatUseCaseSendMessage:
         assert len(error_events) >= 1
 
     @pytest.mark.asyncio
-    async def test_persists_user_message(self):
+    @patch("docmind.shared.provider_resolver.resolve_provider_override", new_callable=AsyncMock, return_value=None)
+    async def test_persists_user_message(self, _mock_resolve):
         from docmind.modules.chat.usecase import ChatUseCase
 
         usecase = ChatUseCase()
