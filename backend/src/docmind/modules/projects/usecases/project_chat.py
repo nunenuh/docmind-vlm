@@ -3,9 +3,9 @@
 import json
 from collections.abc import AsyncGenerator
 
+from docmind.core.config import get_settings
 from docmind.core.logging import get_logger
 from docmind.modules.personas.protocols import PersonaRepositoryProtocol
-from docmind.shared.exceptions import NotFoundException
 
 from ..protocols import (
     ConversationRepositoryProtocol,
@@ -20,6 +20,7 @@ from ..services import (
     ProjectRAGService,
     ProjectVLMService,
 )
+from ..services.prompt import detect_language, grounded_refusal
 
 logger = get_logger(__name__)
 
@@ -131,20 +132,59 @@ class ProjectChatUseCase:
             logger.warning("Query rewrite failed: %s", e)
             yield _sse("status", {"message": "Searching documents..."})
 
-        # --- RAG Retrieval (via service) ---
+        # --- RAG Retrieval with stats (via service) ---
+        retrieval_stats: dict = {"max_similarity": 0.0, "per_document_counts": {}}
         try:
             query_embedding = await self.rag_service.embed_query(search_query)
-            chunks = await self.rag_service.retrieve_chunks(
+            retrieval_stats = await self.rag_service.retrieve_chunks_with_stats(
                 project_id=project_id,
                 query_embedding=query_embedding,
                 query_text=search_query,
             )
+            chunks = retrieval_stats["chunks"]
         except Exception as e:
             logger.error("RAG retrieval failed: %s", e)
             chunks = []
 
+        logger.info(
+            "rag_retrieval_diagnostics",
+            project_id=project_id,
+            query_chars=len(search_query),
+            chunk_count=len(chunks),
+            max_similarity=retrieval_stats.get("max_similarity", 0.0),
+            per_document_counts=retrieval_stats.get("per_document_counts", {}),
+        )
+
         # Build context from retrieved chunks (via service)
         context_text, citations = self.prompt_service.build_rag_context(chunks)
+
+        # --- Refusal guard (issue #105) ---
+        # If retrieval produced nothing or similarity is below the refusal
+        # threshold, return a deterministic grounded refusal in the user's
+        # language WITHOUT calling the VLM.
+        refusal_threshold = get_settings().RAG_REFUSAL_THRESHOLD
+        if (
+            not chunks
+            or retrieval_stats.get("max_similarity", 0.0) < refusal_threshold
+        ):
+            language = detect_language(message)
+            refusal_text = grounded_refusal(language)
+            yield _sse("token", {"content": refusal_text})
+            yield _sse(
+                "answer",
+                {
+                    "content": refusal_text,
+                    "citations": [],
+                    "conversation_id": conversation_id,
+                    "refusal": True,
+                    "max_similarity": retrieval_stats.get("max_similarity", 0.0),
+                },
+            )
+            await self.conv_repo.add_message(
+                conversation_id, "assistant", refusal_text, citations=None
+            )
+            yield _sse("done", {"conversation_id": conversation_id})
+            return
 
         # Load document metadata for the system prompt (via service)
         doc_list = await self.repo.list_documents(project_id, user_id)
