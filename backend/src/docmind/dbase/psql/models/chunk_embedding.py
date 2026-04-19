@@ -37,7 +37,10 @@ class ChunkEmbedding(Base):
         String(36), ForeignKey("page_chunks.id", ondelete="CASCADE"), nullable=False
     )
     document_id: Mapped[str] = mapped_column(
-        String(36), ForeignKey("documents.id"), nullable=False, index=True
+        String(36),
+        ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     provider_name: Mapped[str] = mapped_column(String(50), nullable=False)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)

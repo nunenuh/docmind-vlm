@@ -207,7 +207,10 @@ export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
                 index={i}
                 onClick={() => onDocumentClick?.(doc)}
                 onReindex={() => handleReindex(doc.id, doc.filename)}
-                onRemove={() => { if (window.confirm(`Remove "${doc.filename}"?`)) removeDoc.mutate(doc.id); }}
+                onRemove={() => {
+                  const msg = `Delete "${doc.filename}"?\n\nThis permanently removes the document, its extracted data, and all indexed chunks. This cannot be undone.`;
+                  if (window.confirm(msg)) removeDoc.mutate(doc.id);
+                }}
               />
             ))}
           </div>
@@ -343,11 +346,11 @@ function CompactDocRow({
           <Database className="w-3.5 h-3.5" />
         </button>
 
-        {/* Remove — visible on hover */}
+        {/* Delete — visible on hover */}
         <button
           onClick={(e) => { e.stopPropagation(); onRemove(); }}
           className="p-1 text-gray-600 hover:text-rose-400 rounded transition-colors opacity-0 group-hover:opacity-100"
-          title="Remove from project"
+          title="Delete document permanently"
         >
           <Trash2 className="w-3.5 h-3.5" />
         </button>

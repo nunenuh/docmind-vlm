@@ -21,7 +21,7 @@ from sqlalchemy import select
 
 from docmind.core.config import get_settings
 from docmind.dbase.psql.core.session import AsyncSessionLocal
-from docmind.dbase.psql.models import ChunkEmbedding, PageChunk
+from docmind.dbase.psql.models import ChunkEmbedding, Document, PageChunk
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +96,11 @@ async def _retrieve_vector_only(
         Sorted list of chunk dicts.
     """
     async with AsyncSessionLocal() as session:
+        # JOIN documents to exclude orphaned chunks from deleted docs (issue #104).
         stmt = (
             select(PageChunk, ChunkEmbedding.embedding)
             .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
+            .join(Document, Document.id == PageChunk.document_id)
             .where(
                 PageChunk.project_id == project_id,
                 ChunkEmbedding.model_name == model_name,
@@ -164,11 +166,13 @@ async def _retrieve_hybrid(
     bm25_weight = settings.RAG_BM25_WEIGHT
     retrieval_k = settings.RAG_RETRIEVAL_K
 
-    # 1. Get all chunks for this project with embeddings for the model
+    # 1. Get all chunks for this project with embeddings for the model.
+    # JOIN documents to exclude orphaned chunks from deleted docs (issue #104).
     async with AsyncSessionLocal() as session:
         stmt = (
             select(PageChunk, ChunkEmbedding.embedding)
             .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
+            .join(Document, Document.id == PageChunk.document_id)
             .where(
                 PageChunk.project_id == project_id,
                 ChunkEmbedding.model_name == model_name,

@@ -103,12 +103,15 @@ export function useRemoveProjectDocument(projectId: string) {
   return useMutation({
     mutationFn: (docId: string) => removeProjectDocument(projectId, docId),
     onSuccess: () => {
-      toast.success("Document removed from project");
+      toast.success("Document deleted");
       qc.invalidateQueries({ queryKey: ["project-documents", projectId] });
+      qc.invalidateQueries({ queryKey: ["project-chunks", projectId] });
       qc.invalidateQueries({ queryKey: ["projects"] });
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      qc.invalidateQueries({ queryKey: ["analytics"] });
     },
     onError: (error: Error) => {
-      toast.error(`Remove failed: ${error.message}`);
+      toast.error(`Delete failed: ${error.message}`);
     },
   });
 }
