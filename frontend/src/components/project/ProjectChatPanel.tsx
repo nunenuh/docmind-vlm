@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback, useMemo } from "react";
-import { Send, Loader2, User, Bot, FileText, Brain, ChevronDown, ChevronUp, X } from "lucide-react";
+import { Send, Loader2, User, Bot, FileText, Brain, ChevronDown, ChevronUp, X, Info } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { sendProjectChat } from "@/lib/api";
@@ -9,6 +9,7 @@ import type { MessageResponse, ProjectDocumentResponse } from "@/types/api";
 
 interface Citation {
   source_index: number;
+  chunk_id?: string;
   document_id: string;
   page_number: number;
   content_preview: string;
@@ -106,6 +107,7 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
     let answer = "";
     let thinking = "";
     let citations: Citation[] = [];
+    let isRefusal = false;
 
     sendProjectChat(
       projectId,
@@ -155,6 +157,9 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               answer = (event.content as string) ?? "";
               setStreamingContent(answer);
             }
+            if (event.refusal === true) {
+              isRefusal = true;
+            }
             break;
 
           case "citations":
@@ -203,7 +208,8 @@ export function ProjectChatPanel({ projectId, activeConversationId, onConversati
               citations: citations.length > 0 ? JSON.stringify(citations) : null,
               created_at: new Date().toISOString(),
               _thinking: thinking || undefined,
-            } as MessageResponse & { _thinking?: string },
+              _refusal: isRefusal || undefined,
+            } as MessageResponse & { _thinking?: string; _refusal?: boolean },
           ]);
         }
         setStreamingContent("");
@@ -465,6 +471,12 @@ function CitationTag({ citation, docMap }: { citation: Citation; docMap: DocMap 
 
 function MessageBubble({ message, thinking, docMap }: { message: MessageResponse; thinking?: string; docMap: DocMap }) {
   const isUser = message.role === "user";
+  const isRefusal =
+    !isUser &&
+    ((message as unknown as { _refusal?: boolean })._refusal === true ||
+      /^(I cannot find that information|Saya tidak menemukan informasi tersebut)/i.test(
+        message.content,
+      ));
 
   const parsedCitations: Citation[] = (() => {
     if (!message.citations) return [];
@@ -480,22 +492,34 @@ function MessageBubble({ message, thinking, docMap }: { message: MessageResponse
   return (
     <div className={`flex gap-3 ${isUser ? "flex-row-reverse" : ""}`}>
       <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${
-        isUser ? "bg-gray-700" : "bg-indigo-500/20"
+        isUser ? "bg-gray-700" : isRefusal ? "bg-amber-500/15" : "bg-indigo-500/20"
       }`}>
-        {isUser ? <User className="w-4 h-4 text-gray-300" /> : <Bot className="w-4 h-4 text-indigo-400" />}
+        {isUser
+          ? <User className="w-4 h-4 text-gray-300" />
+          : isRefusal
+            ? <Info className="w-4 h-4 text-amber-400" />
+            : <Bot className="w-4 h-4 text-indigo-400" />}
       </div>
       <div className={`max-w-[80%] space-y-2 ${isUser ? "text-right" : ""}`}>
         {/* Thinking (collapsed by default for saved messages) */}
-        {thinking && !isUser && (
+        {thinking && !isUser && !isRefusal && (
           <ThinkingSection content={thinking} isActive={false} />
         )}
 
         {/* Message content */}
-        <div className={`rounded-xl px-4 py-3 ${isUser ? "bg-indigo-600/20 border border-indigo-500/20" : "bg-[#12121a] border border-[#1e1e2e]"}`}>
+        <div
+          className={`rounded-xl px-4 py-3 ${
+            isUser
+              ? "bg-indigo-600/20 border border-indigo-500/20"
+              : isRefusal
+                ? "bg-amber-500/[0.06] border border-amber-500/20"
+                : "bg-[#12121a] border border-[#1e1e2e]"
+          }`}
+        >
           {isUser ? (
             <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">{message.content}</p>
           ) : (
-            <div className="text-sm text-gray-200 leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-white prose-code:text-indigo-300 prose-code:bg-[#1a1a2a] prose-code:px-1 prose-code:rounded">
+            <div className={`text-sm leading-relaxed prose prose-invert prose-sm max-w-none prose-p:my-1 prose-headings:my-2 prose-ul:my-1 prose-li:my-0.5 prose-strong:text-white prose-code:text-indigo-300 prose-code:bg-[#1a1a2a] prose-code:px-1 prose-code:rounded ${isRefusal ? "text-amber-100" : "text-gray-200"}`}>
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
             </div>
           )}

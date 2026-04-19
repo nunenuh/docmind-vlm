@@ -74,6 +74,55 @@ async def retrieve_similar_chunks(
     )
 
 
+async def retrieve_similar_chunks_with_stats(
+    query_embedding: list[float],
+    project_id: str,
+    model_name: str,
+    top_k: int | None = None,
+    threshold: float | None = None,
+    query_text: str = "",
+) -> dict:
+    """Retrieve chunks plus diagnostic stats (issue #105).
+
+    Same retrieval as `retrieve_similar_chunks` but also returns aggregate
+    statistics that callers (e.g. project chat) use to decide whether to
+    refuse before calling the VLM.
+
+    Returns:
+        dict with keys:
+            chunks: list[dict] — retrieved chunks (already diversified + capped).
+            max_similarity: float — highest similarity across retrieved chunks (0.0 if empty).
+            per_document_counts: dict[str, int] — chunks per document_id.
+    """
+    chunks = await retrieve_similar_chunks(
+        query_embedding=query_embedding,
+        project_id=project_id,
+        model_name=model_name,
+        top_k=top_k,
+        threshold=threshold,
+        query_text=query_text,
+    )
+
+    if not chunks:
+        return {
+            "chunks": [],
+            "max_similarity": 0.0,
+            "per_document_counts": {},
+        }
+
+    max_sim = max(c.get("similarity", 0.0) for c in chunks)
+    counts: dict[str, int] = {}
+    for c in chunks:
+        doc_id = c.get("document_id", "")
+        counts[doc_id] = counts.get(doc_id, 0) + 1
+
+    return {
+        "chunks": chunks,
+        "max_similarity": max_sim,
+        "per_document_counts": counts,
+    }
+
+
 async def _retrieve_vector_only(
     query_embedding: list[float],
     project_id: str,
@@ -131,7 +180,9 @@ async def _retrieve_vector_only(
             })
 
     scored.sort(key=lambda x: x["similarity"], reverse=True)
-    return scored[:top_k]
+    # Apply per-document diversity so a single document cannot monopolise
+    # the top-K (issue #105).
+    return _diversify_results(scored, top_k)
 
 
 async def _retrieve_hybrid(
@@ -263,34 +314,38 @@ async def _retrieve_hybrid(
 def _diversify_results(results: list[dict], top_k: int) -> list[dict]:
     """Diversify results to include chunks from different documents.
 
-    Uses a round-robin strategy: pick the best chunk from each document
-    first, then fill remaining slots with next-best chunks.
+    Round-robin strategy: pick the best chunk from each document, then the
+    second best, etc. GUARANTEES at least one chunk per document as long as
+    that document contributed any chunk (issue #105). Preserves relative
+    ordering within each document's chunks.
+
+    If there are fewer results than top_k, still round-robins so that the
+    order promotes diversity rather than concentration.
 
     Args:
-        results: Sorted list of chunk dicts (best first).
+        results: Sorted list of chunk dicts (best first) with a
+            ``document_id`` key on each chunk.
         top_k: Maximum results to return.
 
     Returns:
-        Diversified list of chunk dicts, up to top_k.
+        Diversified list of chunk dicts, up to top_k, preserving the
+        relative order within each document.
     """
-    if len(results) <= top_k:
-        return results
+    if not results:
+        return []
 
-    # Group by document
+    # Preserve document insertion order (= global similarity order) so
+    # the strongest document wins the first round-robin slot.
     doc_buckets: dict[str, list[dict]] = {}
     for r in results:
-        doc_id = r["document_id"]
-        if doc_id not in doc_buckets:
-            doc_buckets[doc_id] = []
-        doc_buckets[doc_id].append(r)
+        doc_buckets.setdefault(r["document_id"], []).append(r)
 
-    # Round-robin: pick best from each doc, then second-best, etc.
     diversified: list[dict] = []
     seen_ids: set[str] = set()
-    max_rounds = top_k
+    max_rounds = max(len(bucket) for bucket in doc_buckets.values())
 
     for _round in range(max_rounds):
-        for doc_id, chunks in doc_buckets.items():
+        for chunks in doc_buckets.values():
             if _round < len(chunks):
                 chunk = chunks[_round]
                 cid = chunk["chunk_id"]

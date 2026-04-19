@@ -1,5 +1,45 @@
 """Project prompt service — builds prompts and formats context for RAG chat."""
 
+# Stopword-light language heuristic — we only need to pick Indonesian vs English
+# for refusal text. Covers common connectors / question words.
+_INDONESIAN_MARKERS = frozenset(
+    {
+        "yang", "dan", "ini", "itu", "dari", "untuk", "dengan", "adalah",
+        "ada", "apa", "di", "ke", "kamu", "saya", "kita", "kami", "kenapa",
+        "mengapa", "siapa", "kapan", "dimana", "berapa", "bagaimana", "tidak",
+        "tolong", "mohon", "jelaskan", "bagaimanakah", "berasal", "produk",
+        "mana", "dokumen",
+    }
+)
+
+REFUSAL_EN = (
+    "I cannot find that information in the uploaded documents. "
+    "Please rephrase your question or upload additional sources."
+)
+REFUSAL_ID = (
+    "Saya tidak menemukan informasi tersebut dalam dokumen yang diunggah. "
+    "Silakan coba ubah pertanyaan atau unggah dokumen tambahan."
+)
+
+
+def detect_language(text: str) -> str:
+    """Return 'id' if the message is likely Indonesian, else 'en'.
+
+    Deliberately simple — a stopword overlap beats nothing when the LLM would
+    otherwise spend tokens guessing.
+    """
+    if not text:
+        return "en"
+    tokens = {t for t in text.lower().split() if t.isalpha()}
+    if tokens & _INDONESIAN_MARKERS:
+        return "id"
+    return "en"
+
+
+def grounded_refusal(language: str) -> str:
+    """Return a refusal message in the requested language."""
+    return REFUSAL_ID if language == "id" else REFUSAL_EN
+
 
 class ProjectPromptService:
     """Builds prompts and formats context for project RAG chat."""
@@ -38,24 +78,41 @@ class ProjectPromptService:
 
         base += (
             f"\n\nPROJECT DOCUMENTS ({doc_count} files):\n{doc_metadata}"
-            "\n\nIMPORTANT: Base your answers ONLY on the provided context. "
-            "Cite sources using [Source N] notation. "
-            "If the context doesn't contain relevant information, say so clearly. "
-            "When asked about files or documents, refer to the PROJECT DOCUMENTS list above."
-            "\n\nLANGUAGE: Always respond in the same language the user writes in. "
-            "If the user writes in Indonesian, respond in Indonesian. "
-            "If in English, respond in English. Match the user's language exactly."
+            "\n\nIMPORTANT — STRICT GROUNDING:"
+            "\n- Base your answers ONLY on the provided context below."
+            "\n- Cite every factual claim using [Source N] notation matching the"
+            " context indices."
+            "\n- If the context does not contain the answer, explicitly say you"
+            " do not have that information in the uploaded documents — do NOT"
+            " guess or rely on prior knowledge."
+            "\n- When asked about files or documents, refer to the PROJECT"
+            " DOCUMENTS list above."
+            "\n\nMULTI-SOURCE SYNTHESIS:"
+            "\n- When the question spans multiple documents or asks about an"
+            " aggregate (e.g. 'where does this come from?', 'list all…', "
+            "'compare…'), ENUMERATE the answer across ALL relevant sources."
+            "\n- Do not stop at the first matching source — inspect every"
+            " [Source N] block and report findings from each document that"
+            " applies."
+            "\n\nLANGUAGE: Always respond in the same language the user writes in."
+            " If the user writes in Indonesian, respond in Indonesian."
+            " If in English, respond in English. Match the user's language exactly."
         )
         return base
 
     def build_rag_context(self, chunks: list[dict]) -> tuple[str, list[dict]]:
-        """Build context text and citations from retrieved chunks."""
+        """Build context text and citations from retrieved chunks.
+
+        Citations include ``chunk_id`` so the frontend can link directly to
+        the exact retrieved chunk (issue #105).
+        """
         context_parts: list[str] = []
         citations: list[dict] = []
         for i, chunk in enumerate(chunks, 1):
             context_parts.append(f"[Source {i}]: {chunk.get('content', '')}")
             citations.append({
                 "source_index": i,
+                "chunk_id": chunk.get("chunk_id", ""),
                 "document_id": chunk.get("document_id", ""),
                 "page_number": chunk.get("page_number", 0),
                 "content_preview": chunk.get("content", "")[:100],

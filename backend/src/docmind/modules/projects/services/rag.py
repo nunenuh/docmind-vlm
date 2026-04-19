@@ -4,7 +4,10 @@ from docmind.core.config import get_settings
 from docmind.library.providers.factory import UserProviderOverride
 from docmind.library.rag.embedder import embed_texts
 from docmind.library.rag.query_rewriter import rewrite_query_with_context
-from docmind.library.rag.retriever import retrieve_similar_chunks
+from docmind.library.rag.retriever import (
+    retrieve_similar_chunks,
+    retrieve_similar_chunks_with_stats,
+)
 
 
 class ProjectRAGService:
@@ -26,6 +29,25 @@ class ProjectRAGService:
     ) -> list[dict]:
         """Retrieve relevant chunks using hybrid search."""
         return await retrieve_similar_chunks(
+            query_embedding=query_embedding,
+            project_id=project_id,
+            model_name=self._settings.EMBEDDING_MODEL,
+            top_k=self._settings.RAG_TOP_K,
+            threshold=self._settings.RAG_SIMILARITY_THRESHOLD,
+            query_text=query_text,
+        )
+
+    async def retrieve_chunks_with_stats(
+        self,
+        project_id: str,
+        query_embedding: list[float],
+        query_text: str,
+    ) -> dict:
+        """Retrieve chunks plus stats for grounding/refusal decisions.
+
+        Returns dict with ``chunks``, ``max_similarity``, ``per_document_counts``.
+        """
+        return await retrieve_similar_chunks_with_stats(
             query_embedding=query_embedding,
             project_id=project_id,
             model_name=self._settings.EMBEDDING_MODEL,

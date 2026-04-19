@@ -100,19 +100,25 @@ class ConversationRepositoryProtocol(Protocol):
 
 
 class PromptServiceProtocol(Protocol):
-    """Contract for prompt building."""
+    """Contract for project prompt building.
+
+    Signatures match ``ProjectPromptService`` in services/prompt.py.
+    """
 
     def build_system_prompt(
         self,
-        persona_name: str,
-        persona_prompt: str,
-        context: str,
-        citations: list,
+        persona: dict | None,
+        doc_metadata: str,
+        doc_count: int,
     ) -> str: ...
 
-    def format_context(
-        self, chunks: list[dict], citations: list
-    ) -> str: ...
+    def build_rag_context(
+        self, chunks: list[dict]
+    ) -> tuple[str, list[dict]]: ...
+
+    def format_document_metadata(self, docs: list) -> str: ...
+
+    def validate_project_name(self, name: str) -> str: ...
 
     def validate_persona_assignment(
         self, persona_id: str | None
@@ -130,6 +136,13 @@ class RAGServiceProtocol(Protocol):
         query_embedding: list[float],
         query_text: str,
     ) -> list[dict]: ...
+
+    def retrieve_chunks_with_stats(
+        self,
+        project_id: str,
+        query_embedding: list[float],
+        query_text: str,
+    ) -> dict: ...
 
     def rewrite_query(
         self, message: str, history: list[dict]

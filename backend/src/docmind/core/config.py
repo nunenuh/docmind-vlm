@@ -111,9 +111,13 @@ class Settings(BaseSettings):
     EMBEDDING_DIMENSIONS: int = Field(default=1024)
     RAG_CHUNK_SIZE: int = Field(default=1200)
     RAG_CHUNK_OVERLAP: int = Field(default=200)
-    RAG_TOP_K: int = Field(default=5)
-    RAG_RETRIEVAL_K: int = Field(default=20)
+    RAG_TOP_K: int = Field(default=10)
+    RAG_RETRIEVAL_K: int = Field(default=30)
     RAG_SIMILARITY_THRESHOLD: float = Field(default=0.1)
+    # Issue #105: if max similarity across retrieved chunks falls below this,
+    # the chat pipeline refuses with a grounded "I don't know" instead of
+    # calling the VLM with weak context.
+    RAG_REFUSAL_THRESHOLD: float = Field(default=0.25)
     RAG_BM25_WEIGHT: float = Field(default=0.4)
     RAG_VECTOR_WEIGHT: float = Field(default=0.6)
     RAG_BM25_LANGUAGE: str = Field(default="simple")
