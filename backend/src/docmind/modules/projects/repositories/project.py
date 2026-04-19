@@ -8,7 +8,12 @@ from sqlalchemy import func, select, update
 from docmind.core.logging import get_logger
 from docmind.dbase.psql.core.session import AsyncSessionLocal
 from docmind.dbase.psql.models import (
+    AuditEntry,
+    ChatMessage,
+    Citation,
     Document,
+    ExtractedField,
+    Extraction,
     PageChunk,
     Project,
     ProjectConversation,
@@ -148,6 +153,15 @@ class ProjectRepository:
                     )
                 )
 
+                # Delete all RAG chunks for this project (issue #104).
+                # ChunkEmbedding cascades via PageChunk.id FK.
+                # Documents themselves remain, becoming standalone.
+                await session.execute(
+                    sa_delete(PageChunk).where(
+                        PageChunk.project_id == project_id
+                    )
+                )
+
                 await session.execute(
                     update(Document)
                     .where(Document.project_id == project_id)
@@ -158,7 +172,7 @@ class ProjectRepository:
                 await session.commit()
                 return True
             except Exception as e:
-                logger.error("project_delete_failed: %s", e)
+                logger.error("project_delete_failed", project_id=project_id, error=str(e), exc_info=True)
                 await session.rollback()
                 raise
 
@@ -198,23 +212,101 @@ class ProjectRepository:
             result = await session.execute(stmt)
             return list(result.scalars().all())
 
-    async def remove_document(self, project_id: str, document_id: str) -> bool:
-        """Unlink a document from a project. Returns True if updated."""
+    async def remove_document(
+        self, project_id: str, document_id: str
+    ) -> str | None:
+        """Fully delete a document attached to a project (issue #104).
+
+        Removes the Document and all dependent rows (PageChunks,
+        ChunkEmbeddings via CASCADE, Extractions + children, ChatMessages +
+        Citations). Caller is responsible for removing the storage file using
+        the returned storage_path.
+
+        Args:
+            project_id: Project the document must be linked to.
+            document_id: Document to delete.
+
+        Returns:
+            The document's storage_path if deleted; None if the document is
+            not found or not linked to the given project.
+        """
         async with AsyncSessionLocal() as session:
-            stmt = (
-                update(Document)
-                .where(
+            try:
+                doc_stmt = select(Document).where(
                     Document.id == document_id,
                     Document.project_id == project_id,
                 )
-                .values(
-                    project_id=None,
-                    updated_at=datetime.now(timezone.utc),
+                doc_result = await session.execute(doc_stmt)
+                doc = doc_result.scalar_one_or_none()
+                if doc is None:
+                    return None
+
+                storage_path = doc.storage_path
+
+                ext_stmt = select(Extraction.id).where(
+                    Extraction.document_id == document_id
                 )
-            )
-            result = await session.execute(stmt)
-            await session.commit()
-            return result.rowcount > 0  # type: ignore[union-attr]
+                ext_result = await session.execute(ext_stmt)
+                ext_ids = [row[0] for row in ext_result.all()]
+
+                msg_stmt = select(ChatMessage.id).where(
+                    ChatMessage.document_id == document_id
+                )
+                msg_result = await session.execute(msg_stmt)
+                msg_ids = [row[0] for row in msg_result.all()]
+
+                if ext_ids:
+                    await session.execute(
+                        sa_delete(AuditEntry).where(
+                            AuditEntry.extraction_id.in_(ext_ids)
+                        )
+                    )
+                    await session.execute(
+                        sa_delete(ExtractedField).where(
+                            ExtractedField.extraction_id.in_(ext_ids)
+                        )
+                    )
+                    await session.execute(
+                        sa_delete(Extraction).where(
+                            Extraction.document_id == document_id
+                        )
+                    )
+
+                if msg_ids:
+                    await session.execute(
+                        sa_delete(Citation).where(
+                            Citation.message_id.in_(msg_ids)
+                        )
+                    )
+                    await session.execute(
+                        sa_delete(ChatMessage).where(
+                            ChatMessage.document_id == document_id
+                        )
+                    )
+
+                # PageChunks cascade to ChunkEmbedding via ON DELETE CASCADE
+                # (see chunk_embedding.chunk_id FK). ChunkEmbedding.document_id
+                # FK also cascades after the CASCADE migration.
+                await session.execute(
+                    sa_delete(PageChunk).where(
+                        PageChunk.document_id == document_id
+                    )
+                )
+
+                await session.delete(doc)
+                await session.commit()
+
+                return storage_path
+            except Exception as e:
+                logger.error(
+                    "project_remove_document_failed",
+                    project_id=project_id,
+                    document_id=document_id,
+                    error=str(e),
+                    exc_info=True,
+                )
+                await session.rollback()
+                raise
 
     async def get_document_count(self, project_id: str) -> int:
         """Count documents linked to a project."""
@@ -230,17 +322,27 @@ class ProjectRepository:
     async def list_chunks(
         self, project_id: str, document_id: str | None = None, limit: int = 100
     ) -> tuple[list, int]:
-        """List RAG chunks for a project, optionally filtered by document."""
+        """List RAG chunks for a project, optionally filtered by document.
+
+        JOINs Document to exclude orphaned chunks whose document was deleted
+        (defense-in-depth for issue #104).
+        """
         async with AsyncSessionLocal() as session:
             filters = [PageChunk.project_id == project_id]
             if document_id:
                 filters.append(PageChunk.document_id == document_id)
 
-            count_stmt = select(func.count()).select_from(PageChunk).where(*filters)
+            count_stmt = (
+                select(func.count())
+                .select_from(PageChunk)
+                .join(Document, Document.id == PageChunk.document_id)
+                .where(*filters)
+            )
             total = (await session.execute(count_stmt)).scalar() or 0
 
             stmt = (
                 select(PageChunk)
+                .join(Document, Document.id == PageChunk.document_id)
                 .where(*filters)
                 .order_by(PageChunk.page_number, PageChunk.chunk_index)
                 .limit(limit)

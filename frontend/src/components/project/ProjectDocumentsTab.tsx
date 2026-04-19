@@ -201,7 +201,10 @@ export function ProjectDocumentsTab({ projectId }: Props) {
                   doc={doc}
                   index={i}
                   onReindex={() => handleReindex(doc.id, doc.filename)}
-                  onRemove={() => { if (window.confirm(`Remove "${doc.filename}"?`)) removeDoc.mutate(doc.id); }}
+                  onRemove={() => {
+                    const msg = `Delete "${doc.filename}"?\n\nThis permanently removes the document, its extracted data, and all indexed chunks. This cannot be undone.`;
+                    if (window.confirm(msg)) removeDoc.mutate(doc.id);
+                  }}
                 />
               ))}
 
@@ -392,7 +395,7 @@ function DocumentRow({
                 className="w-full flex items-center gap-2 px-3 py-2 text-[12px] text-rose-400 hover:bg-rose-500/[0.06] transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Remove
+                Delete
               </button>
             </div>
           </>

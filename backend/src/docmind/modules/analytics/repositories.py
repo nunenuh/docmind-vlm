@@ -64,9 +64,17 @@ class AnalyticsRepository:
             return result.scalar() or 0
 
     async def count_chunks(self, user_id: str) -> int:
+        """Count RAG chunks for a user's projects.
+
+        JOINs Document so orphaned chunks from deleted documents are not
+        counted (defense-in-depth for issue #104).
+        """
         async with AsyncSessionLocal() as session:
             result = await session.execute(
-                select(func.count()).select_from(PageChunk).where(
+                select(func.count())
+                .select_from(PageChunk)
+                .join(Document, Document.id == PageChunk.document_id)
+                .where(
                     PageChunk.project_id.in_(
                         select(Project.id).where(Project.user_id == user_id)
                     )

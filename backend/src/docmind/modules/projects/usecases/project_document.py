@@ -117,13 +117,33 @@ class ProjectDocumentUseCase:
     async def remove_document(
         self, user_id: str, project_id: str, document_id: str
     ) -> bool:
-        """Unlink a document from a project."""
+        """Fully delete a document from a project (issue #104).
+
+        Deletes DB rows (Document, PageChunks, ChunkEmbeddings, Extractions,
+        ChatMessages, Citations) in a single transaction, then removes the
+        storage file. Storage errors are logged but do not fail the operation —
+        the DB is the source of truth.
+        """
         project = await self.repo.get_by_id(project_id, user_id)
         if project is None:
             raise NotFoundException("Project not found")
-        removed = await self.repo.remove_document(project_id, document_id)
-        if not removed:
+        storage_path = await self.repo.remove_document(project_id, document_id)
+        if storage_path is None:
             raise NotFoundException("Document not found in project")
+
+        try:
+            await asyncio.to_thread(
+                self.storage_service.delete_storage_file, storage_path
+            )
+        except Exception as e:
+            logger.warning(
+                "storage_file_delete_failed",
+                storage_path=storage_path,
+                document_id=document_id,
+                error=str(e),
+                exc_info=True,
+            )
+
         return True
 
     async def reindex_document(

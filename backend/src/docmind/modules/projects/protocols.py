@@ -50,7 +50,7 @@ class ProjectRepositoryProtocol(Protocol):
 
     async def remove_document(
         self, project_id: str, document_id: str
-    ) -> bool: ...
+    ) -> str | None: ...
 
     async def get_document_count(
         self, project_id: str

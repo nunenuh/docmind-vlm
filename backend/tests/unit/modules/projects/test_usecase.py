@@ -298,6 +298,59 @@ class TestAddDocument:
 
 
 # ---------------------------------------------------------------------------
+# Tests: remove_document (TRUE DELETE per issue #104)
+# ---------------------------------------------------------------------------
+
+
+class TestRemoveDocument:
+    """remove_document now performs full deletion: DB rows + storage file."""
+
+    @pytest.mark.asyncio
+    async def test_deletes_document_and_storage(self, doc_usecase, mock_repo):
+        mock_repo.get_by_id.return_value = _make_project()
+        mock_repo.remove_document.return_value = "documents/user/doc/file.pdf"
+
+        result = await doc_usecase.remove_document(USER_ID, PROJECT_ID, DOC_ID)
+
+        assert result is True
+        mock_repo.remove_document.assert_awaited_once_with(PROJECT_ID, DOC_ID)
+        doc_usecase.storage_service.delete_storage_file.assert_called_once_with(
+            "documents/user/doc/file.pdf"
+        )
+
+    @pytest.mark.asyncio
+    async def test_raises_when_project_not_found(self, doc_usecase, mock_repo):
+        mock_repo.get_by_id.return_value = None
+
+        with pytest.raises(NotFoundException):
+            await doc_usecase.remove_document(USER_ID, "nonexistent", DOC_ID)
+
+    @pytest.mark.asyncio
+    async def test_raises_when_doc_not_in_project(self, doc_usecase, mock_repo):
+        mock_repo.get_by_id.return_value = _make_project()
+        mock_repo.remove_document.return_value = None
+
+        with pytest.raises(NotFoundException):
+            await doc_usecase.remove_document(USER_ID, PROJECT_ID, "nonexistent")
+        doc_usecase.storage_service.delete_storage_file.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_storage_delete_failure_does_not_raise(
+        self, doc_usecase, mock_repo
+    ):
+        """Storage failures are logged but do not fail the operation — DB is source of truth."""
+        mock_repo.get_by_id.return_value = _make_project()
+        mock_repo.remove_document.return_value = "documents/user/doc/file.pdf"
+        doc_usecase.storage_service.delete_storage_file.side_effect = RuntimeError(
+            "Storage offline"
+        )
+
+        result = await doc_usecase.remove_document(USER_ID, PROJECT_ID, DOC_ID)
+
+        assert result is True
+
+
+# ---------------------------------------------------------------------------
 # Tests: list_documents
 # ---------------------------------------------------------------------------
 

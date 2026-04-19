@@ -330,12 +330,12 @@ class TestProjectDelete:
         select_result = MagicMock()
         select_result.scalar_one_or_none.return_value = project
 
-        # SELECT project, SELECT conv_ids (empty), DELETE convs, UPDATE docs unlink, DELETE project
+        # SELECT project, SELECT conv_ids (empty), DELETE convs, DELETE page_chunks, UPDATE docs unlink
         conv_result = MagicMock()
         conv_result.all.return_value = []
 
         session.execute = AsyncMock(
-            side_effect=[select_result, conv_result, MagicMock(), MagicMock()]
+            side_effect=[select_result, conv_result, MagicMock(), MagicMock(), MagicMock()]
         )
         session.delete = AsyncMock()
         session.commit = AsyncMock()
@@ -433,35 +433,176 @@ class TestProjectAddDocument:
 
 
 class TestProjectRemoveDocument:
-    """Tests for ProjectRepository.remove_document()."""
+    """Tests for ProjectRepository.remove_document() — now performs TRUE DELETE.
+
+    As of issue #104, removing a document from a project fully deletes it:
+    - PageChunk + ChunkEmbedding rows
+    - Document row and cascaded extraction/chat data
+    - Caller handles storage file deletion separately
+    """
 
     @pytest.mark.asyncio
     @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
-    async def test_returns_true_when_unlinked(self, mock_factory, repo):
+    async def test_returns_storage_path_when_deleted(self, mock_factory, repo):
+        """remove_document returns the storage_path on successful deletion."""
+        doc = _make_document(doc_id=DOC_ID, project_id=PROJECT_ID)
         session = AsyncMock()
-        update_result = MagicMock()
-        update_result.rowcount = 1
-        session.execute = AsyncMock(return_value=update_result)
+
+        doc_result = MagicMock()
+        doc_result.scalar_one_or_none.return_value = doc
+
+        # Extraction/message id queries return empty
+        empty_result = MagicMock()
+        empty_result.all.return_value = []
+
+        # delete() for children
+        delete_result = MagicMock()
+
+        session.execute = AsyncMock(
+            side_effect=[doc_result, empty_result, empty_result, delete_result, delete_result]
+        )
+        session.delete = AsyncMock()
         session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.remove_document(PROJECT_ID, DOC_ID)
 
-        assert result is True
+        assert result == doc.storage_path
+        session.delete.assert_awaited_once_with(doc)
+        session.commit.assert_awaited_once()
 
     @pytest.mark.asyncio
     @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
-    async def test_returns_false_when_not_linked(self, mock_factory, repo):
+    async def test_returns_none_when_doc_not_in_project(self, mock_factory, repo):
+        """remove_document returns None if document is not linked to this project."""
         session = AsyncMock()
-        update_result = MagicMock()
-        update_result.rowcount = 0
-        session.execute = AsyncMock(return_value=update_result)
+        doc_result = MagicMock()
+        doc_result.scalar_one_or_none.return_value = None
+        session.execute = AsyncMock(return_value=doc_result)
         session.commit = AsyncMock()
         mock_factory.return_value = _mock_session_ctx(session)
 
         result = await repo.remove_document(PROJECT_ID, "nonexistent")
 
-        assert result is False
+        assert result is None
+        session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
+    async def test_deletes_page_chunks_for_document(self, mock_factory, repo):
+        """Chunks for the document must be deleted as part of remove_document."""
+        from sqlalchemy.sql import Delete
+
+        doc = _make_document(doc_id=DOC_ID, project_id=PROJECT_ID)
+        session = AsyncMock()
+
+        doc_result = MagicMock()
+        doc_result.scalar_one_or_none.return_value = doc
+        empty_result = MagicMock()
+        empty_result.all.return_value = []
+        delete_result = MagicMock()
+
+        executed_stmts: list[object] = []
+
+        async def capture_execute(stmt):
+            executed_stmts.append(stmt)
+            if len(executed_stmts) == 1:
+                return doc_result
+            if len(executed_stmts) in (2, 3):
+                return empty_result
+            return delete_result
+
+        session.execute = AsyncMock(side_effect=capture_execute)
+        session.delete = AsyncMock()
+        session.commit = AsyncMock()
+        mock_factory.return_value = _mock_session_ctx(session)
+
+        await repo.remove_document(PROJECT_ID, DOC_ID)
+
+        delete_stmts = [s for s in executed_stmts if isinstance(s, Delete)]
+        chunk_deletes = [
+            s for s in delete_stmts if "page_chunks" in str(s.compile())
+        ]
+        assert len(chunk_deletes) >= 1, (
+            f"Expected delete from page_chunks; executed: {[str(s.compile()) for s in delete_stmts]}"
+        )
+
+    @pytest.mark.asyncio
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
+    async def test_rolls_back_on_failure(self, mock_factory, repo):
+        """If any delete fails, the transaction rolls back."""
+        doc = _make_document(doc_id=DOC_ID, project_id=PROJECT_ID)
+        session = AsyncMock()
+
+        doc_result = MagicMock()
+        doc_result.scalar_one_or_none.return_value = doc
+
+        session.execute = AsyncMock(side_effect=[doc_result, RuntimeError("DB error")])
+        session.rollback = AsyncMock()
+        session.commit = AsyncMock()
+        mock_factory.return_value = _mock_session_ctx(session)
+
+        with pytest.raises(RuntimeError, match="DB error"):
+            await repo.remove_document(PROJECT_ID, DOC_ID)
+
+        session.rollback.assert_awaited_once()
+        session.commit.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("docmind.modules.projects.repositories.project.AsyncSessionLocal")
+    async def test_deletes_extraction_and_chat_children(self, mock_factory, repo):
+        """With existing extractions and chat messages, all child rows are deleted."""
+        from sqlalchemy.sql import Delete
+
+        doc = _make_document(doc_id=DOC_ID, project_id=PROJECT_ID)
+        session = AsyncMock()
+
+        doc_result = MagicMock()
+        doc_result.scalar_one_or_none.return_value = doc
+
+        ext_result = MagicMock()
+        ext_result.all.return_value = [("ext-1",), ("ext-2",)]
+
+        msg_result = MagicMock()
+        msg_result.all.return_value = [("msg-1",), ("msg-2",)]
+
+        delete_result = MagicMock()
+        executed: list[object] = []
+
+        async def capture(stmt):
+            executed.append(stmt)
+            if len(executed) == 1:
+                return doc_result
+            if len(executed) == 2:
+                return ext_result
+            if len(executed) == 3:
+                return msg_result
+            return delete_result
+
+        session.execute = AsyncMock(side_effect=capture)
+        session.delete = AsyncMock()
+        session.commit = AsyncMock()
+        mock_factory.return_value = _mock_session_ctx(session)
+
+        await repo.remove_document(PROJECT_ID, DOC_ID)
+
+        delete_stmts = [s for s in executed if isinstance(s, Delete)]
+        tables = [s.table.name for s in delete_stmts]
+
+        # All child tables must be covered.
+        for expected in (
+            "audit_entries",
+            "extracted_fields",
+            "extractions",
+            "citations",
+            "chat_messages",
+            "page_chunks",
+        ):
+            assert expected in tables, (
+                f"Expected delete from {expected}; got {tables}"
+            )
+        session.delete.assert_awaited_once_with(doc)
+        session.commit.assert_awaited_once()
 
 
 class TestProjectListDocuments:

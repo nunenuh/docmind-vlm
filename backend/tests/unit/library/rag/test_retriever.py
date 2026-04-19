@@ -143,3 +143,80 @@ class TestRetrieveSimilarChunks:
         )
 
         assert results == []
+
+
+class TestRetrieveJoinsDocument:
+    """Verify retriever JOINs Document table so orphaned chunks are excluded.
+
+    Issue #104: Deleted documents can leave orphaned PageChunk rows. Retrieval
+    MUST JOIN Document to filter them out as defense-in-depth.
+    """
+
+    @pytest.mark.asyncio
+    @patch("docmind.library.rag.retriever.AsyncSessionLocal")
+    async def test_vector_retrieval_joins_documents(self, mock_session_cls):
+        """Vector-only retrieval must include Document in its JOIN chain."""
+        from docmind.library.rag.retriever import _retrieve_vector_only
+
+        executed_stmts: list[object] = []
+
+        async def capture_execute(stmt):
+            executed_stmts.append(stmt)
+            result = MagicMock()
+            result.all.return_value = []
+            return result
+
+        mock_session = AsyncMock()
+        mock_session.execute = capture_execute
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_cls.return_value = mock_session
+
+        await _retrieve_vector_only(
+            query_embedding=[1.0, 0.0],
+            project_id="proj-x",
+            model_name="test-model",
+            top_k=5,
+            threshold=0.7,
+        )
+
+        assert executed_stmts, "No SQL statement was executed"
+        compiled = str(executed_stmts[0].compile())
+        assert "documents" in compiled.lower(), (
+            f"Expected JOIN with documents table. Got:\n{compiled}"
+        )
+
+    @pytest.mark.asyncio
+    @patch("docmind.library.rag.retriever.AsyncSessionLocal")
+    async def test_hybrid_retrieval_joins_documents(self, mock_session_cls):
+        """Hybrid retrieval must also include Document in its JOIN chain."""
+        from docmind.library.rag.retriever import _retrieve_hybrid
+
+        executed_stmts: list[object] = []
+
+        async def capture_execute(stmt):
+            executed_stmts.append(stmt)
+            result = MagicMock()
+            result.all.return_value = []
+            return result
+
+        mock_session = AsyncMock()
+        mock_session.execute = capture_execute
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_cls.return_value = mock_session
+
+        await _retrieve_hybrid(
+            query_embedding=[1.0, 0.0],
+            project_id="proj-x",
+            model_name="test-model",
+            query_text="some query",
+            top_k=5,
+            threshold=0.7,
+        )
+
+        assert executed_stmts, "No SQL statement was executed"
+        compiled = str(executed_stmts[0].compile())
+        assert "documents" in compiled.lower(), (
+            f"Expected JOIN with documents table. Got:\n{compiled}"
+        )

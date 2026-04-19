@@ -142,7 +142,8 @@ export function ProjectSidebar({ projectId, activeConvId, onSelectConversation, 
   );
 
   const handleRemoveDoc = (docId: string, filename: string) => {
-    if (window.confirm(`Remove "${filename}" from this project?`)) {
+    const msg = `Delete "${filename}"?\n\nThis permanently removes the document, its extracted data, and all indexed chunks. This cannot be undone.`;
+    if (window.confirm(msg)) {
       removeDoc.mutate(docId);
     }
   };
