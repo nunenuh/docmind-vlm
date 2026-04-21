@@ -88,6 +88,7 @@ export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
 
         updateTask(taskId, { step: "done", stepLabel: "Done", progress: 100 });
         queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+        queryClient.invalidateQueries({ queryKey: ["project-chunks", projectId] });
         queryClient.invalidateQueries({ queryKey: ["projects"] });
         setTimeout(() => removeTask(taskId), 2500);
       } catch (e) {
@@ -124,6 +125,7 @@ export function ProjectDocumentsPanel({ projectId, onDocumentClick }: Props) {
       const result = await resp.json();
       updateTask(taskId, { step: "done", stepLabel: `${result.chunks_created} chunks`, progress: 100 });
       queryClient.invalidateQueries({ queryKey: ["project-documents", projectId] });
+      queryClient.invalidateQueries({ queryKey: ["project-chunks", projectId] });
       setTimeout(() => removeTask(taskId), 2500);
     } catch {
       updateTask(taskId, { step: "error", stepLabel: "Re-index failed", progress: 0 });
