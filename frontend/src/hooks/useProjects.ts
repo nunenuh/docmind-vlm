@@ -1,4 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect } from "react";
 import { toast } from "sonner";
 import {
   fetchProjects,
@@ -73,11 +74,36 @@ export function useDeleteProject() {
 }
 
 export function useProjectDocuments(projectId: string) {
-  return useQuery({
+  const qc = useQueryClient();
+  const query = useQuery({
     queryKey: ["project-documents", projectId],
     queryFn: () => fetchProjectDocuments(projectId),
     enabled: !!projectId,
+    // Indexing runs as a background task on the server and there is no push
+    // channel yet. While any document is still processing/uploaded we poll
+    // so the status dot (and the chunks panel below) reflect reality.
+    refetchInterval: (q) => {
+      const data = q.state.data as { status?: string }[] | undefined;
+      if (!data) return false;
+      const hasProcessing = data.some(
+        (d) => d.status === "processing" || d.status === "uploaded",
+      );
+      return hasProcessing ? 3000 : false;
+    },
   });
+
+  // When any document transitions from processing/uploaded to ready, the
+  // chunks list on the Chunks tab needs to refetch to pick up the new rows.
+  const data = query.data;
+  useEffect(() => {
+    if (!data) return;
+    const anyReady = data.some((d) => d.status === "ready");
+    if (anyReady) {
+      qc.invalidateQueries({ queryKey: ["project-chunks", projectId] });
+    }
+  }, [data, projectId, qc]);
+
+  return query;
 }
 
 export function useAddProjectDocument(projectId: string) {
