@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Database, FileText, ChevronDown, ChevronUp, Hash, Loader2 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchProjectChunks } from "@/lib/api";
+import { fetchProjectChunks, fetchProjectDocuments } from "@/lib/api";
 
 interface Chunk {
   id: string;
@@ -24,10 +24,33 @@ export function ChunkBrowser({ projectId, documentId }: ChunkBrowserProps) {
   const params = new URLSearchParams();
   if (documentId) params.set("document_id", documentId);
 
+  // Poll docs to know when indexing transitions to ready; while any doc is
+  // still processing we refetch chunks so the tab reflects completion
+  // without the user having to switch tabs or reload.
+  const { data: docs } = useQuery({
+    queryKey: ["project-documents", projectId],
+    queryFn: () => fetchProjectDocuments(projectId),
+    enabled: !!projectId,
+    refetchInterval: (q) => {
+      const data = q.state.data as { status?: string }[] | undefined;
+      if (!data) return false;
+      const hasProcessing = data.some(
+        (d) => d.status === "processing" || d.status === "uploaded",
+      );
+      return hasProcessing ? 3000 : false;
+    },
+  });
+  const anyProcessing = (docs ?? []).some(
+    (d) => d.status === "processing" || d.status === "uploaded",
+  );
+
   const { data, isLoading } = useQuery({
     queryKey: ["project-chunks", projectId, documentId],
     queryFn: () => fetchProjectChunks(projectId, documentId ?? undefined),
     enabled: !!projectId,
+    staleTime: 0,
+    refetchInterval: anyProcessing ? 3000 : false,
+    refetchOnMount: "always",
   });
 
   const chunks = (data?.items ?? []) as unknown as Chunk[];
