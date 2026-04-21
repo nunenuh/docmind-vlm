@@ -149,7 +149,11 @@ async def _retrieve_vector_only(
         stmt = (
             select(PageChunk, ChunkEmbedding.embedding)
             .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
-            .join(Document, Document.id == PageChunk.document_id)
+            .join(
+                Document,
+                (Document.id == PageChunk.document_id)
+                & (Document.project_id == PageChunk.project_id),
+            )
             .where(
                 PageChunk.project_id == project_id,
                 ChunkEmbedding.model_name == model_name,
@@ -223,7 +227,11 @@ async def _retrieve_hybrid(
         stmt = (
             select(PageChunk, ChunkEmbedding.embedding)
             .join(ChunkEmbedding, ChunkEmbedding.chunk_id == PageChunk.id)
-            .join(Document, Document.id == PageChunk.document_id)
+            .join(
+                Document,
+                (Document.id == PageChunk.document_id)
+                & (Document.project_id == PageChunk.project_id),
+            )
             .where(
                 PageChunk.project_id == project_id,
                 ChunkEmbedding.model_name == model_name,

@@ -152,6 +152,88 @@ class TestVectorOnlyDiversifies:
         )
 
 
+class TestRetrieverFiltersOrphanChunks:
+    """Retrieval must verify the chunk's document is STILL attached to the
+    project being queried. Older chunks from unlinked documents must not
+    leak even if their PageChunk.project_id still points to the project.
+    """
+
+    @pytest.mark.asyncio
+    @patch("docmind.library.rag.retriever.AsyncSessionLocal")
+    async def test_vector_only_query_filters_by_document_project_match(
+        self, mock_session_cls,
+    ):
+        """Retriever must add a WHERE/ON clause binding Document.project_id
+        to PageChunk.project_id so unlinked documents are excluded."""
+        from docmind.library.rag.retriever import _retrieve_vector_only
+
+        captured: list[object] = []
+
+        async def capture_execute(stmt):
+            captured.append(stmt)
+            result = MagicMock()
+            result.all.return_value = []
+            return result
+
+        mock_session = AsyncMock()
+        mock_session.execute = capture_execute
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_cls.return_value = mock_session
+
+        await _retrieve_vector_only(
+            query_embedding=[1.0, 0.0],
+            project_id="proj-x",
+            model_name="m",
+            top_k=5,
+            threshold=0.0,
+        )
+
+        assert captured, "No SQL statement executed"
+        compiled = str(captured[0].compile()).lower()
+        assert "documents.project_id" in compiled, (
+            "Retriever must constrain documents.project_id; compiled SQL:\n"
+            f"{compiled}"
+        )
+
+    @pytest.mark.asyncio
+    @patch("docmind.library.rag.retriever.AsyncSessionLocal")
+    async def test_hybrid_query_filters_by_document_project_match(
+        self, mock_session_cls,
+    ):
+        from docmind.library.rag.retriever import _retrieve_hybrid
+
+        captured: list[object] = []
+
+        async def capture_execute(stmt):
+            captured.append(stmt)
+            result = MagicMock()
+            result.all.return_value = []
+            return result
+
+        mock_session = AsyncMock()
+        mock_session.execute = capture_execute
+        mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+        mock_session.__aexit__ = AsyncMock(return_value=None)
+        mock_session_cls.return_value = mock_session
+
+        await _retrieve_hybrid(
+            query_embedding=[1.0, 0.0],
+            project_id="proj-x",
+            model_name="m",
+            query_text="where from",
+            top_k=5,
+            threshold=0.0,
+        )
+
+        assert captured, "No SQL statement executed"
+        compiled = str(captured[0].compile()).lower()
+        assert "documents.project_id" in compiled, (
+            "Hybrid retriever must constrain documents.project_id; compiled SQL:\n"
+            f"{compiled}"
+        )
+
+
 class TestRetrieveSimilarChunksReturnsDiagnostics:
     """Top-level API should expose max_similarity so refusal logic can act on it."""
 
