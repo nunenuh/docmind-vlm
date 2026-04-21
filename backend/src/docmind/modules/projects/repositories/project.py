@@ -332,17 +332,25 @@ class ProjectRepository:
             if document_id:
                 filters.append(PageChunk.document_id == document_id)
 
+            # JOIN Document and require it is still attached to the same
+            # project, so orphan chunks from unlinked docs (issue #104
+            # leftover) cannot leak into the list.
+            join_on = (
+                (Document.id == PageChunk.document_id)
+                & (Document.project_id == PageChunk.project_id)
+            )
+
             count_stmt = (
                 select(func.count())
                 .select_from(PageChunk)
-                .join(Document, Document.id == PageChunk.document_id)
+                .join(Document, join_on)
                 .where(*filters)
             )
             total = (await session.execute(count_stmt)).scalar() or 0
 
             stmt = (
                 select(PageChunk)
-                .join(Document, Document.id == PageChunk.document_id)
+                .join(Document, join_on)
                 .where(*filters)
                 .order_by(PageChunk.page_number, PageChunk.chunk_index)
                 .limit(limit)

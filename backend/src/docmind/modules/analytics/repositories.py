@@ -70,10 +70,17 @@ class AnalyticsRepository:
         counted (defense-in-depth for issue #104).
         """
         async with AsyncSessionLocal() as session:
+            # JOIN Document and require it is still attached to the same
+            # project so orphan chunks from unlinked documents are excluded
+            # (issue #104 leftover).
             result = await session.execute(
                 select(func.count())
                 .select_from(PageChunk)
-                .join(Document, Document.id == PageChunk.document_id)
+                .join(
+                    Document,
+                    (Document.id == PageChunk.document_id)
+                    & (Document.project_id == PageChunk.project_id),
+                )
                 .where(
                     PageChunk.project_id.in_(
                         select(Project.id).where(Project.user_id == user_id)
